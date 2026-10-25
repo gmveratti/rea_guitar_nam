@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "cab-first",
+      "kind": "cabinet",
+      "enabled": true,
+      "parameters": {
+        "mix": 100
+      },
+      "resource": {
+        "path": "/replace/with/mono-cabinet.wav"
+      }
+    },
+    {
+      "id": "amp-main",
+      "kind": "amp",
+      "enabled": true,
+      "parameters": {
+        "input": 0,
+        "output": -3
+      },
+      "resource": {
+        "path": "/replace/with/amp.nam"
+      }
+    },
+    {
+      "id": "drive-bypassed",
+      "kind": "drive",
+      "enabled": false,
+      "parameters": {
+        "input": 0,
+        "output": 0
+      },
+      "resource": {
+        "path": "/replace/with/drive.nam"
+      }
+    }
+  ]
+}
