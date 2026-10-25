@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e futura engine nativa de áudio com suporte ao Neural Amp Modeler A2 (Lite/Full). **Sem Wine e sem yabridge.**
 
-> **Status: protótipo visual (v0.1).** O aplicativo já apresenta interface e controles interativos, mas **NÃO processa áudio**, **NÃO carrega redes NAM/IR** e **NÃO controla ganho real**. LEDs, knobs e seleção de .nam são demonstrações da UI.
+> **Status: UI v0.1 + experimento de motor NAM JACK separado.** A interface Tauri **ainda não processa áudio**, não carrega redes NAM/IR e não controla ganho real; seus LEDs/knobs são visuais. Um executável C++ independente, em `engine/`, agora tem implementação experimental de carregamento .nam e processamento mono via JACK/PipeWire, pendente de validação de build e teste com hardware.
 
 ## O que funciona nesta primeira etapa
 
@@ -49,7 +49,7 @@ npm run test:e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | 0.1 | Tauri + React, skins, pedais VTTRIG, presets, LEDs e animações | Em validação |
-| 0.2 | Engine nativa de áudio, PipeWire/JACK, I/O, bypass DSP real | Pendente |
+| 0.2 | Engine nativa de áudio, PipeWire/JACK, I/O, bypass DSP real | Em desenvolvimento: executável mono NAM JACK isolado |
 | 0.3 | NAM A2 Lite/Full, loader, calibração e testes de modelos | Pendente |
 | 0.4 | Cabinet IR .wav / convolução e compensação de latência | Pendente |
 | 0.5 | DSP de chorus, delay, reverb, compressor e sustain | Pendente |
@@ -93,3 +93,10 @@ Referências prioritárias (candidatos, ainda não integrados):
 - **NAM A2**: NeuralAmpModelerCore (MIT) com suporte A2 introduzido na série v0.5.x; testar A2-Lite/Full em runtime.
 
 Não confundir interface de demonstração com processamento sonoro real. A escolha final dos algoritmos requer análise de licença, testes de áudio e profiling no Fedora.
+
+
+## Experimento de áudio Gateway/NAM A2 (novo)
+
+Consulte [engine/README.md](engine/README.md) para compilar o executável `vttrig-nam-jack` no Fedora. Ele usa o NeuralAmpModelerCore MIT que sustenta o Gateway, com origem fixada em um commit verificado da série v0.6.0 e CMake separado. A implementação é mono, exige 48 kHz, carrega uma captura `.nam` e apresenta portas JACK **sem conexão automática**. Não é o aplicativo Tauri, não aceita IR e ainda não contém os nossos pedais. O processamento real e a latência só serão considerados validados depois da CI e do teste de interface de áudio física.
+
+Referências de implementação adicional: [Gateway / NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) e [TONE3000 Plugin (MIT)](https://github.com/tone-3000/tone3000-plugin). O plugin TONE3000 inclui código aberto para organizar modelos, IR e cadeias, mas integra JUCE e outras dependências que precisam de análise de licença antes de reaproveitamento. O formato NAM A2 e o core são abertos; acesso aos serviços da API TONE3000 continua condicionado aos termos próprios.
