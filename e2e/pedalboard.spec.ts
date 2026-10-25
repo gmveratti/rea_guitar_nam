@@ -25,6 +25,7 @@ test("presets preserve the chain and LED bypass state across reload", async ({ p
   await page.goto("/");
   const delay = page.getByRole("group", { name: /VTTDELAY/ });
   await delay.getByRole("button", { name: "Desligar VTTDELAY" }).click();
+  await page.locator("#amp-example").selectOption("Vox_AC30_TopBoost.nam");
   await page.locator("#preset-name").fill("Studio Demo");
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect(page.getByRole("status")).toContainText("salvo localmente");
@@ -33,4 +34,5 @@ test("presets preserve the chain and LED bypass state across reload", async ({ p
   await expect(saved.locator("option")).toContainText(["Selecionar preset salvo", "Studio Demo"]);
   await saved.selectOption({ label: "Studio Demo" });
   await expect(page.getByRole("group", { name: /VTTDELAY/ }).getByRole("img", { name: "LED desligado" })).toBeVisible();
+  await expect(page.locator(".amp-art")).toHaveClass(/amp-chime/);
 });
