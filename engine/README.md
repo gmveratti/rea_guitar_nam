@@ -1,50 +1,85 @@
-# VTTRIG NAM JACK experimental engine
+# VTTRIG native NAM / IR JACK engine
 
-This is the **first working-target Linux sound engine**, standalone from Tauri.
-It is based on the same MIT NAM core used by Gateway. It is **not Gateway itself**.
-The GUI at the repository root remains a visual prototype and is not yet wired to this process.
+**Experimental standalone CLI for Fedora/PipeWire-JACK.** This is not the Tauri UI.
+The engine is based on the MIT-licensed NeuralAmpModelerCore used by Gateway,
+pinned at commit `0b3d3c97b0859a3a8c92a8628c4dd89a25eb5842` (v0.6.0).
 
-## Features and limits
+## Principle: signal order always belongs to the user
 
-- Loads one **mono NAM `.nam`**, optionally followed by a **mono cabinet `.wav` IR**, and processes live JACK audio with the official NeuralAmpModelerCore.
-- Uses a pinned NAM Core **v0.6.0** source commit `0b3d3c97b0859a3a8c92a8628c4dd89a25eb5842`.
-- Linux/PipeWire-JACK, 48 kHz required. Prepares and prewarms the DSP before the JACK realtime callback.
-- Single in/out, **optional mono WAV cabinet IR** (NAM Core Linear DSP), no reverb, chorus, compressor, model switching or UI synchronization yet.
-- Stops with a meaningful error on unsupported input and fails closed rather than attempting unsafe resampling.
-- JACK ports are deliberately **not autoconnected**. Make the physical capture/playback connections in qpwgraph or your routing app.
-- Assumes NAM core `process` is safe for the audio callback after `Reset` / prewarm. Validate through RT instrumentation before live use.
-- Output is clipped to ±1.0 to prevent dangerously large values; start with interface/monitor gain low.
-- No external software licenses have been changed. Core remains MIT; retain third-party licenses.
+**Never force NAM → cabinet → effects.** Audio is processed from first to last
+node in the exact order the user chooses. NAM captures and IRs can appear in
+any position, be repeated, and be bypassed separately. The preset's default
+order is only an example; it is not an engine rule.
 
-## Fedora dependencies
-
-Install Fedora packages that provide `cmake`, `ninja`, `pkgconf-pkg-config`,
-`gcc-c++`, `git`, and JACK headers (`pipewire-jack-audio-connection-kit-devel`
-or the appropriate `jack-audio-connection-kit-devel` provider depending on Fedora).
-The PipeWire-JACK runtime must be active; Fedora can route it through PipeWire.
+Current executable accepts the ordered list at startup:
 
 ```bash
-cmake -S engine -B engine/build -GNinja -DCMAKE_BUILD_TYPE=Release
+# Conventional (one possible choice):
+./engine/build/vttrig-nam-jack --nam amp.nam --ir cab.wav
+
+# Equally valid: cabinet before amp and repeated NAM models:
+./engine/build/vttrig-nam-jack --ir cab.wav --nam amp.nam --nam drive.nam
+
+# Disable the immediately preceding block:
+./engine/build/vttrig-nam-jack --nam drive.nam --bypass --nam amp.nam
+```
+
+The independent C++ `MonoChain` in `src/effect_chain.hpp` supports ordered
+nodes with a unique ID, duplicate kinds, bypass, move-by-ID and preallocated
+scratch buffers. Native CTest includes deliberately **noncommutative**
+transforms to prove reordering changes the actual processed signal.
+The TypeScript contract `src/lib/signalChain.ts` preserves the matching
+visual order and identities for future IPC.
+
+**Current limitation:** although the UI already allows live drag/drop and
+preset saving, **it is NOT connected to the running engine**. The CLI order
+is fixed for that process lifetime. Real-time user changes must build a new
+prepared immutable graph outside the callback and swap at a safe audio-block
+boundary; never mutate a live processor vector from a UI thread.
+
+## Build on Fedora
+
+Install Fedora versions of `cmake`, `ninja`, `pkgconf-pkg-config`,
+`gcc-c++`, `git`, and JACK development headers
+(`pipewire-jack-audio-connection-kit-devel` or appropriate JACK equivalent).
+PipeWire's JACK compatibility server should be running at **48 kHz**.
+
+```bash
+cmake -S engine -B engine/build -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 cmake --build engine/build -j2
 ctest --test-dir engine/build --output-on-failure
 ./engine/build/vttrig-nam-jack --help
-./engine/build/vttrig-nam-jack /path/to/A2-capture.nam
-# Optional cabinet after amp:
-./engine/build/vttrig-nam-jack /path/to/A2-amp.nam /path/to/mono-cabinet.wav
+./engine/build/vttrig-nam-jack --nam /path/to/A2-model.nam
 ```
 
-Use `qpwgraph` (or qjackctl) to patch your interface's input into
-`VTTRIG_NAM:input` and `VTTRIG_NAM:output` to your interface output.
-**Start with your hardware monitor volume low to avoid feedback or hearing damage.**
+Connect your interface's hardware capture to `VTTRIG_NAM:input` and
+`VTTRIG_NAM:output` to playback using `qpwgraph` (no autoconnect).
+Begin with monitor volume low to avoid feedback or high gain.
 
-## Validation checklist
+## Scope and protection
 
-1. CI builds on Ubuntu Linux and runs CLI help without an audio device.
-2. Manually load known A2 Lite and Full NAM captures, with and without mono .wav cabinet IR, and verify no crash.
-3. Record the loopback signal and compare against official Gateway/TONE3000 for a matching capture and gain.
-4. Instrument xruns and latency under 64/128/256 buffers; monitor CPU and memory.
-5. Move to a separate state-swap control worker to support model changes and the visual Tauri UI.
-6. Implement native IR, pedal DSP, stereo and CLAP/VST3 host targets after callback correctness.
+- Currently supports mono-input/mono-output `.nam` or mono `.wav` IR
+  nodes, max 24 blocks, 48 kHz JACK, prewarmed DSP outside realtime.
+- Stereo IR, arbitrary sample rates for NAM, MIDI, amp-skin DSP mapping,
+  chorus, delay, reverb, compressor, sustain and Tauri control are **pending**.
+- Each node has its own bypass/identity. Model loads, sample-rate conversions
+  of IRs and other expensive operations must occur off the audio callback.
+- Output is safety-clamped to [-1, 1]. No claims about final timbre,
+  latency or glitch-free realtime performance before measured hardware tests.
+- CMake/CTest smoke only checks compile/CLI and graph math. It does **not**
+  test real A2 models or a physical sound interface.
 
-This proof-of-concept does **not** guarantee artifact or plugin compatibility and has
-not been tested on an actual Fedora interface until confirmed manually.
+## Regression policy
+
+Inherited from the TaxUtil quality discipline. Before changing a behavior,
+add a test that reproduces the fault, prove it fails on the former
+implementation, then make the smallest fix and run all affected suites.
+
+Required graph regressions: first and last positions, repeated module type,
+any permutation of effect kinds, bypass preservation, order after preset load,
+invalid graph entries, empty/all-bypassed passthrough, and no mutation on the
+realtime thread. Read [../docs/TESTING.md](../docs/TESTING.md).
+
+Future A/B validation: Gateway/TONE3000 with the same capture and
+level-matched dry input; CPU/xruns/roundtrip latency at buffers 64/128/256
+on Fedora. Keep third-party NAM/Core licenses and attribution.
