@@ -6,10 +6,10 @@ The GUI at the repository root remains a visual prototype and is not yet wired t
 
 ## Features and limits
 
-- Loads one **mono NAM `.nam`** and processes live JACK audio with the official NeuralAmpModelerCore.
+- Loads one **mono NAM `.nam`**, optionally followed by a **mono cabinet `.wav` IR**, and processes live JACK audio with the official NeuralAmpModelerCore.
 - Uses a pinned NAM Core **v0.6.0** source commit `0b3d3c97b0859a3a8c92a8628c4dd89a25eb5842`.
 - Linux/PipeWire-JACK, 48 kHz required. Prepares and prewarms the DSP before the JACK realtime callback.
-- Single in/out, no IR, no reverb, no chorus, no compressor, no model switching or UI synchronization yet.
+- Single in/out, **optional mono WAV cabinet IR** (NAM Core Linear DSP), no reverb, chorus, compressor, model switching or UI synchronization yet.
 - Stops with a meaningful error on unsupported input and fails closed rather than attempting unsafe resampling.
 - JACK ports are deliberately **not autoconnected**. Make the physical capture/playback connections in qpwgraph or your routing app.
 - Assumes NAM core `process` is safe for the audio callback after `Reset` / prewarm. Validate through RT instrumentation before live use.
@@ -29,6 +29,8 @@ cmake --build engine/build -j2
 ctest --test-dir engine/build --output-on-failure
 ./engine/build/vttrig-nam-jack --help
 ./engine/build/vttrig-nam-jack /path/to/A2-capture.nam
+# Optional cabinet after amp:
+./engine/build/vttrig-nam-jack /path/to/A2-amp.nam /path/to/mono-cabinet.wav
 ```
 
 Use `qpwgraph` (or qjackctl) to patch your interface's input into
@@ -38,7 +40,7 @@ Use `qpwgraph` (or qjackctl) to patch your interface's input into
 ## Validation checklist
 
 1. CI builds on Ubuntu Linux and runs CLI help without an audio device.
-2. Manually load known A2 Lite and Full NAM captures and verify no crash.
+2. Manually load known A2 Lite and Full NAM captures, with and without mono .wav cabinet IR, and verify no crash.
 3. Record the loopback signal and compare against official Gateway/TONE3000 for a matching capture and gain.
 4. Instrument xruns and latency under 64/128/256 buffers; monitor CPU and memory.
 5. Move to a separate state-swap control worker to support model changes and the visual Tauri UI.
