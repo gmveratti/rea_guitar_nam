@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Rea Guitar NAM",
+  "productName": "VTTRIG",
   "version": "0.1.0",
   "identifier": "dev.gmveratti.rea-guitar-nam",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Rea Guitar NAM",
+        "title": "VTTRIG | Neural Guitar Studio",
         "width": 1460,
         "height": 920,
         "minWidth": 1000,
