@@ -240,3 +240,159 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
  .amp-choices {gap:8px;}
  .skin-origin {margin-left:0;}
 }
+
+
+/* VTTRIG Focus UI v0.2: the existing VTTRIG stompbox artwork remains intact. */
+.clean-ui { background:radial-gradient(ellipse at 55% 18%,#1c1b1a,#0d0e10 68%);min-height:100vh; }
+.clean-topbar { grid-template-columns:minmax(170px,1fr) minmax(380px,1.4fr) minmax(220px,1fr);height:76px;padding:0 clamp(14px,2.4vw,42px);border-bottom:1px solid #252526;background:#101113ed; }
+.clean-topbar .brand-mark {width:32px;height:32px;border:1px solid #514c43;color:#d8c8b3;background:#202021;box-shadow:none;}
+.clean-topbar .brand strong {font-size:23px;letter-spacing:.14em;}
+.clean-topbar .brand strong em {color:#efc594;}
+.preset-compact,.model-compact {display:flex;align-items:center;gap:10px;min-width:0;}
+.preset-compact {justify-content:center;}
+.model-compact {justify-content:flex-end;}
+.preset-compact label,.model-compact label {font-size:9px;letter-spacing:.14em;color:#9c9da0;font-weight:900;white-space:nowrap;}
+.preset-compact select,.model-compact select,.preset-compact input {color:#dedee1;border:1px solid #3c3c40;border-radius:8px;background:#151618;min-width:0;padding:10px 12px;font-size:12px;}
+.preset-compact select {max-width:220px;width:32%;flex:1;}
+.preset-compact input {max-width:230px;flex:1;}
+.model-compact select {max-width:230px;width:100%;}
+.compact-icon-button {width:36px;height:36px;display:grid;place-items:center;border:1px solid #434245;background:#1d1e20;border-radius:9px;color:#d8c5aa;}
+.compact-icon-button:hover {background:#312a23;border-color:#c99b69;}
+.preview-dot {display:inline-block;width:8px;height:8px;border-radius:50%;background:#d09f68;box-shadow:0 0 11px #b77f3d60;flex:none;}
+.clean-workspace {display:grid;grid-template-columns:124px minmax(0,1fr);min-height:calc(100vh - 76px);width:100%;}
+.view-rail {display:flex;flex-direction:column;gap:11px;align-items:stretch;background:linear-gradient(90deg,#111215,#18191b);border-right:1px solid #303033;padding:23px 11px;position:sticky;top:76px;height:calc(100vh - 76px);}
+.rail-tab {border:1px solid transparent;border-radius:14px;background:none;color:#929397;display:grid;place-items:center;align-content:center;gap:9px;min-height:124px;padding:15px 5px;font-weight:750;font-size:11px;transition:background .18s,border-color .18s,color .18s,transform .18s;}
+.rail-tab .rail-icon {width:43px;height:43px;display:grid;place-items:center;}
+.rail-tab small {font-size:8px;letter-spacing:.01em;font-weight:500;white-space:nowrap;}
+.rail-tab:hover {background:#26272a;color:#efefef;}
+.rail-tab.active {background:linear-gradient(145deg,#383838,#272728);color:#f0efed;border-color:#5c5c5d;box-shadow:inset 0 1px 3px #ffffff26,0 10px 22px #0006;}
+.rail-tab.active .rail-icon {color:#eac49a;}
+.clean-stage {padding:clamp(20px,2.1vw,35px) clamp(26px,3.1vw,60px) 34px;min-width:0;overflow:hidden;}
+.board-view {max-width:1480px;margin:0 auto;}
+/* Amplifier: bigger studio head, bronze faceplate and deep black tolex. */
+.board-view .hero-zone {margin:9px 0 10px;}
+.board-view .amp-art {min-height:385px;padding:19px 0 27px;filter:drop-shadow(0 38px 20px #0008);background:radial-gradient(ellipse at center,#4b3b2820,transparent 73%);}
+.board-view .amp-case {width:min(100%,1120px);padding:21px 23px 23px;border-radius:31px 31px 25px 25px;border:3px solid #3c3631;box-shadow:0 30px 35px #000c,0 10px 5px #000,inset 0 3px 2px #ac9a7e55,inset 0 -9px 12px #050505;
+ background:repeating-linear-gradient(105deg,#fff1 0 1px,transparent 1px 4px),linear-gradient(172deg,#35312e,#111112 16%,#131313 76%,#050505);}
+.board-view .amp-handle {top:-13px;left:40%;width:20%;height:16px;border:3px solid #4a4138;border-radius:11px 11px 3px 3px;background:linear-gradient(#201f20,#060607);}
+.board-view .amp-grille {height:210px;border:7px ridge #978d7f;border-radius:9px 9px 2px 2px;background:
+ repeating-linear-gradient(30deg,#ffffff08 0 1px,#0000 1px 3px),
+ repeating-linear-gradient(-30deg,#d2c8bc0a 0 1px,#0000 1px 3px),
+ radial-gradient(ellipse at 50% 16%,#353438,transparent 75%),var(--grille);box-shadow:inset 0 0 50px #000d,0 0 0 2px #181719;}
+.board-view .amp-wordmark {font-size:clamp(48px,6.4vw,90px);letter-spacing:.09em;color:#dfd2b8;text-shadow:0 5px 4px #000c,1px 1px #faf3e8aa,-2px -2px 1px #242221;}
+.board-view .amp-edition {letter-spacing:.5em;color:#b7aa95;font-size:10px;}
+.board-view .amp-panel {height:122px;gap:18px;padding:10px 20px;background:linear-gradient(0deg,#0003,transparent 14% 70%,#fff4),repeating-linear-gradient(90deg,transparent 0 2px,#fff1 2px 3px),var(--panel);border-left:6px ridge #756452;border-right:6px ridge #756452;border-bottom:5px solid #171414;}
+.board-view .amp-channel {min-width:130px;max-width:158px;}
+.board-view .amp-channel strong {font-size:clamp(11px,1.15vw,15px);}
+.board-view .amp-channel span {font-size:9px;}
+.board-view .amp-power {gap:9px;}
+.board-view .power-indicator {width:33px;height:45px;box-shadow:inset 0 2px 10px #f33,0 0 11px #ea252535;}
+.board-view .amp-controls {gap:9px;}
+.board-view .face-control {gap:7px;}
+.board-view .face-control-label {font-size:clamp(7px,.68vw,10px);letter-spacing:.05em;}
+.board-view .face-knob-shell {width:46px;height:46px;}
+.board-view .face-knob {width:42px;height:42px;border:3px solid #221c19;box-shadow:0 4px 8px #0009,inset 0 0 3px #fff8;background:conic-gradient(from 20deg,#50483e,#d5bd9c 17%,#686055 45%,#e0ceb0 67%,#41392f 84%,#7c6d59);}
+.board-view .face-knob-mark {height:13px;width:3px;top:4px;background:#1d1815;}
+.board-view .face-control input {inset:-2px;width:50px;height:50px;}
+.board-view .face-control-value {font-size:10px;}
+.board-view .amp-jack {gap:8px;}
+.board-view .jack-hole {width:23px;height:23px;}
+/* The hero remains the visual centerpiece; controls move to context views. */
+.clean-route {margin-top:28px;}
+.clean-route .route-label {margin:0 0 10px;font-size:10px;gap:14px;}
+.clean-route .route-label.last {margin-top:15px;}
+.clean-route .effects-grid {min-height:327px;gap:16px;padding:28px 10px 23px;align-items:flex-start;scroll-padding:12px;overflow-y:visible;}
+.clean-route .pedal-shell {position:relative;z-index:1;}
+.clean-route .pedal-shell:hover {transform:translateY(-8px);}
+.clean-route .pedal-shell.is-selected {z-index:5;transform:translateY(-18px) scale(1.08);}
+.clean-route .pedal-shell.is-selected .stomp-chassis {outline:2px solid #ecc69d;outline-offset:5px;box-shadow:0 28px 30px #000e,0 0 33px #cf9b6b44;}
+.clean-route .stomp-chassis {cursor:pointer;}
+.clean-route .stomp-footswitch,.clean-route .stomp-knob input {cursor:pointer;}
+.clean-route .chain-count {font-size:9px;color:#7b7d84;font-weight:600;letter-spacing:.07em;}
+.clean-add-slot {margin:27px 0 0;flex-basis:118px;height:253px;border-color:#3c3e40;border-radius:11px;}
+.clean-add-slot span {font-size:10px;}
+.empty-add {min-height:259px;min-width:min(100%,430px);width:430px;border:1px dashed #68635b;border-radius:15px;background:radial-gradient(ellipse at center,#26221c,#121315 75%);color:#e2c7a5;display:grid;place-content:center;justify-items:center;gap:16px;margin:5px auto 20px;}
+.empty-add strong {font-size:15px;color:#e7dfd7;font-weight:750;}
+.empty-add span {font-size:11px;color:#999694;}
+.empty-add:hover {background:#211c17;border-color:#c5a47a;}
+.board-footer {display:flex;justify-content:space-between;align-items:center;margin:25px 2px 0;font-size:10px;color:#77777c;letter-spacing:.05em;}
+.board-footer>span {display:flex;align-items:center;gap:9px;}
+.board-footer button {background:none;border:none;color:#b8b8ba;font-size:11px;}
+.board-footer button:hover {color:#efc594;}
+/* Editor is in-context above the chain, with the existing pedal gently raised. */
+.pedal-focus {margin:15px auto 21px;max-width:1000px;position:relative;overflow:hidden;border:1px solid #4f4941;border-radius:15px;padding:20px 26px;background:linear-gradient(120deg,#252321,#17181a 60%);box-shadow:0 14px 38px #0007;animation:focus-rise .22s ease-out;}
+.pedal-focus::before {content:"";position:absolute;top:0;left:0;bottom:0;width:4px;background:var(--focus-accent);}
+@keyframes focus-rise {from{opacity:.4;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.pedal-focus-head {display:flex;justify-content:space-between;gap:24px;align-items:start;}
+.pedal-focus-head h2 {margin:7px 0 4px;font:800 clamp(19px,2vw,26px) "Outfit",sans-serif;}
+.pedal-focus-head p {margin:3px 0 16px;color:#94959b;font-size:11px;line-height:1.5;}
+.pedal-focus-live {font:800 9px "DM Sans",sans-serif;margin-left:10px;color:var(--focus-accent);letter-spacing:.13em;}
+.focus-close {flex:none;background:#2a2b2d;border:1px solid #3d3e40;color:#e4e4e4;width:35px;height:35px;display:grid;place-items:center;border-radius:8px;}
+.focus-close:hover {border-color:#dfb184;}
+.focus-parameters {display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:17px;margin:12px 0 19px;}
+.focus-parameter {display:grid;gap:12px;min-width:0;}
+.focus-parameter-heading {display:flex;justify-content:space-between;align-items:center;gap:5px;}
+.focus-parameter-heading strong {font-size:11px;color:#d8d8da;}
+.focus-parameter-heading span {font:800 12px "Outfit",sans-serif;color:var(--focus-accent);}
+.focus-parameter input {accent-color:var(--focus-accent);width:100%;height:6px;cursor:ew-resize;}
+.pedal-focus-actions {display:flex;justify-content:space-between;align-items:center;gap:15px;border-top:1px solid #3c3b3a;padding-top:17px;}
+.focus-order,.focus-buttons {display:flex;gap:8px;align-items:center;}
+.focus-order button {width:32px;height:32px;border-radius:7px;background:#252628;border:1px solid #3d3e40;color:#f0f0f0;display:grid;place-items:center;}
+.focus-order span {color:#8e9095;font-size:10px;margin-left:5px;}
+.focus-buttons .secondary-button {font-size:10px;}
+.focus-buttons .primary-button {font-size:10px;}
+.focus-disclaimer {display:block;font-size:9px;color:#7e7f85;margin-top:16px;}
+/* Library + settings occupy the main studio canvas, never permanent side panels. */
+.library-view,.settings-view {max-width:1060px;margin:38px auto;padding-bottom:60px;}
+.library-heading h1 {font:800 clamp(31px,4vw,52px)/1.1 "Outfit",sans-serif;letter-spacing:-.06em;margin:11px 0;}
+.library-heading h1 span,.library-heading h2 span {color:#daa978;}
+.library-heading h2 {font:800 27px "Outfit",sans-serif;letter-spacing:-.035em;}
+.library-heading p {color:#92939b;font-size:13px;}
+.library-categories {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:40px;}
+.collection-card {min-height:240px;border-radius:15px;border:1px solid #3a3a3f;background:linear-gradient(130deg,#232426,#161719);padding:23px;display:flex;flex-direction:column;align-items:flex-start;gap:11px;}
+.collection-icon {color:#dfb687;border-radius:11px;border:1px solid #4a4035;background:#2b251e;padding:11px;}
+.collection-card h2 {font:800 23px "Outfit",sans-serif;margin:0;}
+.collection-card p {font-size:12px;line-height:1.6;color:#aaa9af;margin:0 0 auto;}
+.collection-card button {padding:10px 13px;font-size:11px;}
+.collection-upload {border-radius:7px;border:1px solid #775f43;padding:10px 13px;font-size:11px;font-weight:700;cursor:pointer;color:#edc398;position:relative;}
+.collection-upload input {position:absolute;inset:0;opacity:0;width:100%;cursor:pointer;}
+.library-pedals-heading {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;margin-top:42px;}
+.library-pedals-heading h2 {margin:0;}
+.library-pedals-heading .library-search {width:min(100%,300px);}
+.clean-library-list {display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:11px;margin-top:15px;}
+.clean-library-list .library-item {padding:16px;}
+.library-back {margin-top:24px;}
+.settings-stack {display:grid;gap:13px;margin-top:37px;}
+.settings-card {display:flex;align-items:start;gap:19px;padding:23px;border:1px solid #3b3c41;border-radius:14px;background:#1a1b1e;}
+.settings-card>svg {color:#e4b67e;flex:none;}
+.settings-card>div {flex:1;min-width:0;}
+.settings-card h2 {font:800 18px "Outfit",sans-serif;margin:0 0 6px;}
+.settings-card p {color:#a0a1a8;font-size:12px;line-height:1.5;}
+.settings-card label {font-size:10px;color:#b9b7b6;}
+.settings-card select {display:block;margin:10px 0;background:#232529;color:#e3e3e5;border:1px solid #4a4b4e;border-radius:8px;padding:10px;width:min(100%,310px);}
+.settings-card .offline-pill {margin:auto 0;}
+.settings-actions {display:flex;gap:9px;justify-content:flex-end;}
+@media (max-width:1300px) {
+  .clean-topbar {grid-template-columns:150px minmax(320px,1fr) 220px;gap:12px;}
+  .clean-stage {padding:24px 22px 35px;}
+  .board-view .amp-panel {gap:9px;padding:9px 11px;}
+  .board-view .amp-channel {min-width:95px;}
+  .board-view .face-knob-shell {width:37px;height:37px;}
+  .board-view .face-knob {width:33px;height:33px;}
+}
+@media (max-width:1060px) {
+  .clean-workspace {grid-template-columns:93px minmax(0,1fr);}
+  .view-rail {padding:12px 5px;}
+  .rail-tab {font-size:9px;min-height:106px;}
+  .rail-tab small {font-size:7px;white-space:normal;}
+  .clean-topbar {grid-template-columns:130px minmax(280px,1fr) minmax(155px,200px);}
+  .preset-compact label,.model-compact label {display:none;}
+  .preset-compact input {max-width:145px;}
+  .board-view .amp-art {min-height:310px;}
+  .board-view .amp-grille {height:175px;}
+  .board-view .amp-panel {height:105px;}
+  .board-view .amp-channel {min-width:70px;}
+  .board-view .face-control-label {font-size:7px;}
+  .face-control-value {display:none;}
+  .pedal-focus-actions {flex-wrap:wrap;}
+}
