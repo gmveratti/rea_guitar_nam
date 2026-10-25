@@ -69,6 +69,8 @@ export default function PedalFace({
         tabIndex={0}
         role="button"
         aria-label={"Selecionar controles de " + label}
+        aria-expanded={selected}
+        title="Clique no corpo para editar. Use o footswitch para ligar ou desligar."
         onClick={onSelect}
         onKeyDown={selectOnKeyboard}
       >
