@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 
 test("reordering pedals changes the chain order and survives saving a preset", async ({ page }) => {
   await page.goto("/");
+  // The new default is a clean, empty chain. Explicitly load the legacy
+  // demonstration chain when testing its modules and old preset workflows.
+  await page.getByRole("button", { name: "Configurações" }).click();
+  await page.getByRole("button", { name: "Carregar rig exemplo" }).click();
 
   const pedals = page.locator(".effects-grid .pedal-shell");
   await expect(pedals.first()).toHaveAttribute("aria-label", /VTTGATE/);
