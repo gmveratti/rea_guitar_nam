@@ -144,6 +144,7 @@ export default function App() {
   function clearChain() {
     setChain([]);
     setSelectedId(null);
+    setView("board");
     setActivePresetId("");
     setPresetName("Novo rig");
     setNotice("Pedalboard vazio. Adicione efeitos pela Biblioteca.");
