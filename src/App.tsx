@@ -69,7 +69,7 @@ export default function App() {
       next.splice(Math.min(atIndex, next.length), 0, pedal);
       return next;
     });
-    setSelectedId(pedal.id);
+    setSelectedId(null);
     setView("board");
     setNotice(`${PEDALS[kind].title} adicionado ao rig.`);
   }
