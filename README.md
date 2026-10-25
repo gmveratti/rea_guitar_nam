@@ -104,10 +104,19 @@ Referências de implementação adicional: [Gateway / NeuralAmpModelerPlugin](ht
 
 ## Diretrizes obrigatórias de código e testes de regressão
 
-As regras foram adaptadas do método do **TaxUtil** para o VTTRIG.
-São requisitos do projeto, não recomendações opcionais. Leia
-[AGENTS.md](AGENTS.md) para as regras permanentes de desenvolvimento
-e [docs/TESTING.md](docs/TESTING.md) para a matriz de regressão.
+O **VTTRIG adota as 40 diretrizes de desenvolvimento do TaxUtil**, conforme
+[AGENTS.md](AGENTS.md), com exemplos adaptados a Tauri, TypeScript, Rust,
+C++, processamento de áudio e cadeia de efeitos em ordem livre. O documento
+abrange princípios de código limpo, Package by Feature, modularidade, SOLID
+sem overengineering, nomenclatura, tipagem, erros, dependências, Git/Issues,
+revisão independente, segurança, performance, documentação, desenvolvimento
+assistido por IA e **testes de regressão obrigatórios para bugs**.
+
+As seções originalmente voltadas a Python, valores monetários e bancos de
+dados permanecem como regras **condicionais**: não introduzem bibliotecas ou
+funcionalidades fora do escopo do VTTRIG. A política de testes está em
+[docs/TESTING.md](docs/TESTING.md), e a pesquisa de DSP/licenças em
+[docs/DSP_RESEARCH_AND_ARCHITECTURE.md](docs/DSP_RESEARCH_AND_ARCHITECTURE.md).
 
 - **Simplicidade, escopo e modularidade:** preferir a menor alteração correta,
   *Package by Feature*, tipagem forte, nomes claros, contratos explícitos,
