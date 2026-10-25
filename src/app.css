@@ -396,3 +396,192 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   .face-control-value {display:none;}
   .pedal-focus-actions {flex-wrap:wrap;}
 }
+
+
+/* PR #6: native WebKitGTK form contrast, physical amp polish and focused pedal stage. */
+:root { color-scheme: dark; }
+.clean-topbar select,
+.clean-topbar input,
+.settings-view select,
+.library-search {
+  box-sizing: border-box;
+  color-scheme: dark;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #191a1d !important;
+  color: #f0e9df !important;
+  -webkit-text-fill-color: #f0e9df;
+  border: 1px solid #515052 !important;
+  border-radius: 9px;
+  box-shadow: inset 0 1px 3px #0008;
+}
+.clean-topbar select, .settings-view select {
+  padding-right: 30px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #d4b38f 50%),
+    linear-gradient(135deg, #d4b38f 50%, transparent 50%);
+  background-position: calc(100% - 19px) 48%, calc(100% - 14px) 48%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+.clean-topbar option,
+.settings-view option {
+  background: #212226 !important;
+  color: #f0e9df !important;
+  -webkit-text-fill-color: #f0e9df;
+}
+.clean-topbar input::placeholder { color: #b9b4ae; opacity: 1; }
+.clean-topbar select:focus,
+.clean-topbar input:focus { border-color: #d3a675 !important; background-color: #262526 !important; }
+.clean-topbar select option:checked { background: #65513d !important; color: #fff !important; }
+/* Raised tactile amplifier inspired by the approved black-head/gold-control aesthetic. */
+.board-view .amp-art { min-height: 406px; padding: 29px 0 35px; }
+.board-view .amp-case {
+  width: min(100%, 1150px);
+  padding: 23px 24px 25px;
+  border: 3px solid #2a2826;
+  border-radius: 34px 34px 24px 24px;
+  background:
+    repeating-linear-gradient(107deg,#ffffff07 0 1px,#0000000a 1px 4px,#ffffff03 4px 6px),
+    linear-gradient(170deg,#292625 0%,#121211 15%,#09090a 79%,#242220 100%);
+  box-shadow:
+    inset 0 4px 2px #8980733a, inset 0 -7px 11px #000,
+    0 6px 0 #050505, 0 26px 27px #000d,0 44px 35px #0007;
+}
+.board-view .amp-case::before,
+.board-view .amp-case::after {
+  content:""; position:absolute; top:13px; width:25px; height:25px; z-index:2;
+  border-radius:10px 0 10px 0;
+  background:linear-gradient(140deg,#8f8780,#403d3a 45%,#c1ad96 75%,#32302d);
+  border:1px solid #211e1c; box-shadow: 0 3px 4px #0008;
+  pointer-events:none;
+}
+.board-view .amp-case::before { left:13px; }
+.board-view .amp-case::after { right:13px; transform:scaleX(-1); }
+.board-view .amp-grille {
+  height: 218px;
+  border: 6px ridge #a9a49a;
+  border-radius: 11px 11px 2px 2px;
+  overflow:hidden;
+  background:
+    repeating-linear-gradient(37deg,#c2b6aa13 0 1px,#0000 1px 3px),
+    repeating-linear-gradient(-37deg,#a1968a12 0 1px,#0000 1px 4px),
+    radial-gradient(ellipse at 48% 6%,#343337 0%,#151519 45%,#070709 90%);
+  box-shadow:0 0 0 3px #191818, inset 0 0 54px #000c;
+}
+.amp-grille-rim { position:absolute;inset:5px;border:1px solid #ffffff12;border-radius:7px;pointer-events:none; }
+.board-view .amp-branding { gap: 7px; }
+.board-view .amp-wordmark {
+  font: italic 900 clamp(45px,5vw,67px)/1 Georgia, "Times New Roman", serif;
+  letter-spacing:-.048em; text-transform:none;
+  color:#eee0c7;
+  text-shadow:0 2px 2px #000,2px 4px 2px #020202,0 -1px 1px #fff6;
+  filter: drop-shadow(0 5px 2px #0008);
+}
+.board-view .amp-edition { font-size:8px;letter-spacing:.26em;color:#ae9d84; }
+.board-view .amp-panel {
+  height:113px;
+  padding:12px 18px;
+  gap:14px;
+  background:
+    repeating-linear-gradient(92deg,#fff2 0 1px,transparent 1px 4px),
+    linear-gradient(0deg,#0004 0%,transparent 24%,#fdf1d126 80%,#fff5 100%),
+    var(--panel);
+  box-shadow:inset 0 3px 4px #32231257,inset 0 -3px 4px #0007;
+  border-left:6px ridge #6b5947;border-right:6px ridge #6b5947;
+}
+.board-view .amp-channel { min-width:130px; }
+.board-view .amp-controls { gap:clamp(7px,1.5vw,17px); }
+.board-view .face-knob-shell { width:43px;height:43px; }
+.board-view .face-knob { width:39px;height:39px; }
+.board-view .face-control-label { font-size:9px;letter-spacing:.05em; }
+.amp-power-switch {
+  display:grid; place-items:center; cursor:pointer;
+  padding:4px; background:#272523;border:2px solid #72665c;border-radius:5px;
+  box-shadow:inset 0 3px 4px #000c,0 2px 2px #fdf1c322;
+}
+.amp-power-switch:focus-visible { outline:3px solid #fff2d0;outline-offset:4px; }
+.amp-power-switch .power-indicator {
+  display:block; width:29px;height:39px;
+  background:linear-gradient(90deg,#ff643b 0%,#e52623 18%,#de171a 65%,#7b1919);
+  border:2px solid #4d1819;box-shadow:inset 0 -2px 4px #310805,0 0 13px #df24248f;
+}
+.amp-power-switch:not(.powered) .power-indicator {
+  background:linear-gradient(90deg,#4c2020,#321515 40%,#1b0b0e);
+  box-shadow:inset 0 3px 8px #000b; border-color:#191515;
+}
+.board-view .amp-is-off .amp-grille,
+.board-view .amp-is-off .amp-controls,
+.board-view .amp-is-off .amp-channel { filter:brightness(.48) saturate(.48);transition:filter .2s; }
+.board-view .amp-is-on .amp-grille,
+.board-view .amp-is-on .amp-controls,
+.board-view .amp-is-on .amp-channel { filter:brightness(1);transition:filter .2s; }
+.amp-jack { position:relative; isolation:isolate; z-index:5; }
+.amp-jack .jack-hole { width:25px;height:25px;box-shadow:inset 0 1px 3px #000c,0 0 0 1px #2b2b2b; }
+.amp-cable-plug {
+  position:absolute; width:33px;height:15px;top:29px;left:18px;z-index:3;
+  border:1px solid #4b4b4d;border-radius:4px;
+  background:linear-gradient(0deg,#191a1c,#bbb6ad 28%,#47494b 59%,#161616);
+  transform:rotate(22deg);box-shadow:1px 4px 5px #0008;pointer-events:none;
+}
+.amp-cable {position:absolute;top:30px;left:42px;width:160px;height:112px;z-index:2;overflow:visible;pointer-events:none;filter:drop-shadow(2px 4px 2px #0009); }
+.amp-cable path {stroke:#0a090a;stroke-width:15;stroke-linecap:round;}
+.amp-cable path {paint-order:stroke;}
+/* Unlike a disconnected inspector section, the physical pedal itself rises into
+   a single connected edit stage. Its original shell/knobs/footswitch are reused. */
+.pedal-focus-overlay {position:fixed;inset:76px 0 0;z-index:75;display:grid;place-items:center;padding:24px;isolation:isolate;}
+.pedal-focus-backdrop {position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;background:#060708c9;backdrop-filter:blur(7px);cursor:default;}
+.pedal-focus-stage {
+  position:relative;z-index:1;width:min(880px,calc(100vw - 42px));max-height:calc(100vh - 110px);
+  overflow:auto;
+  padding:28px 30px;display:grid;grid-template-columns:245px minmax(0,1fr);gap:18px;align-items:center;
+  border-radius:22px;border:1px solid #4d453a;
+  background:radial-gradient(ellipse at 20% 35%,#302920,#171819 68%,#141516);
+  box-shadow:0 34px 120px #000e,0 0 0 1px #bb98632d,inset 0 1px 1px #ffffff26;
+  animation:focus-stage-appear .23s ease-out;
+}
+.pedal-focus-stage::before {content:"";position:absolute;inset:11px;border:1px solid #ffffff0b;border-radius:17px;pointer-events:none;}
+.pedal-focus-mount {height:365px;display:grid;place-items:start center;padding-top:20px;min-width:0;}
+.pedal-focus-mount .pedal-shell {
+  transform:translateY(-18px) scale(1.36);transform-origin:top center;
+  animation:pedal-physical-rise .3s cubic-bezier(.2,.85,.25,1) both;
+}
+.pedal-focus-mount .pedal-shell:hover {transform:translateY(-18px) scale(1.36);}
+.pedal-focus-mount .stomp-chassis {box-shadow:0 25px 29px #000c,0 0 20px #e0ab5830;outline:2px solid #e5bb81;outline-offset:4px;}
+.pedal-focus-mount .pedal-shell.is-selected {transform:translateY(-18px) scale(1.36);}
+.pedal-focus-stage .pedal-focus {width:100%;margin:0;padding:18px 20px;box-shadow:none;border:1px solid #524a42;background:linear-gradient(135deg,#2b2927,#191a1c);}
+.pedal-focus-stage .focus-parameters {grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;}
+.pedal-focus-stage .pedal-focus-head h2 {font-size:22px;}
+.pedal-focus-stage .pedal-focus-actions {flex-wrap:wrap;}
+.pedal-focus-stage .focus-buttons {flex-wrap:wrap;}
+.pedal-focus-stage .focus-buttons button {font-size:10px;}
+.pedal-focus-placeholder {position:relative;flex:0 0 163px;width:163px;height:280px;border-radius:12px;border:1px dashed #6e5c49;background:linear-gradient(#1f1c18,#131313);margin-top:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#eac497;font-size:11px;font-weight:800;}
+.pedal-focus-placeholder small {color:#9f917f;font-size:9px;letter-spacing:.16em;}
+@keyframes pedal-physical-rise {
+  from {opacity:.6;transform:translateY(48px) scale(.87);}
+  to {opacity:1;transform:translateY(-18px) scale(1.36);}
+}
+@keyframes focus-stage-appear {
+  from {opacity:0;transform:translateY(24px) scale(.97);}
+  to {opacity:1;transform:translateY(0) scale(1);}
+}
+@media(max-width:1100px) {
+  .board-view .amp-panel {gap:7px;padding:9px 10px;}
+  .board-view .amp-channel {min-width:98px;}
+  .board-view .face-knob-shell {width:37px;height:37px;}
+  .board-view .face-knob {width:33px;height:33px;}
+}
+@media(max-width:760px) {
+  .pedal-focus-stage {grid-template-columns:1fr;justify-items:center;padding:20px;}
+  .pedal-focus-mount {height:335px;width:100%;}
+  .pedal-focus-stage .pedal-focus {max-width:440px;}
+}
+@media(max-height:690px) {
+  .pedal-focus-mount {height:295px;}
+  .pedal-focus-mount .pedal-shell {animation:none;transform:translateY(0) scale(1.05);}
+  .pedal-focus-stage {align-items:start;padding:14px 20px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .pedal-focus-stage,.pedal-focus-mount .pedal-shell {animation:none;}
+  .stomp-led.lit {animation:none;}
+}
