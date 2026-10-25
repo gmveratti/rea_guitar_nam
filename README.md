@@ -4,6 +4,26 @@
 
 > **Status: UI v0.1 + experimento de motor NAM JACK separado.** A interface Tauri **ainda não processa áudio**, não carrega redes NAM/IR e não controla ganho real; seus LEDs/knobs são visuais. Um executável C++ independente em `engine/` carrega blocos mono NAM `.nam` e IR `.wav` em ordem arbitrária via JACK/PipeWire. A versão CLI já teve build e smoke tests aprovados na CI; testes com modelos reais, equipamento e latência permanecem pendentes.
 
+## Interface clean e editor de pedais (PR #4)
+
+A navegação agora usa três seções na lateral: **Pedalboard**, **Biblioteca** (NAMs / IRs / pedais)
+e **Configurações**. O amplificador VTTRIG é o destaque central, com gabinete preto
+texturizado, grade ampla e painel dourado com controles visuais, inspirado no
+mockup aprovado, sem incorporar assets de outros produtos.
+
+Uma instalação sem draft existente abre com a **cadeia vazia** e um botão para
+adicionar o primeiro efeito. Quem já tem draft/presets locais mantém seus dados.
+Em Configurações há a ação **Carregar rig exemplo** para testes.
+
+Os pedais mantêm os chassis e cores atuais:
+- Clique no **corpo**: ele sobe/amplia e abre editor para ajustar parâmetros.
+- Clique no **footswitch**: alterna o LED/bypass visual sem abrir o editor.
+- Fechar pelo **X**, tecla **Escape** ou clicando no mesmo pedal.
+- O usuário define a ordem dos módulos, com drag-and-drop ou setas no editor;
+  instâncias repetidas e seus controles continuam independentes.
+- **Salvar preset** mantém a cadeia e seus valores, mas ainda **não processa áudio**
+  no Tauri. Nenhuma alteração nesta interface significa integração DSP finalizada.
+
 ## O que funciona nesta primeira etapa
 
 - **Amp Focus:** amplificador estilizado por CSS. Classificação heurística por nome de .nam em famílias *British, American, Stadium, Chime, Modern, Boutique*. Seletor manual corrige falsos positivos.
@@ -20,7 +40,7 @@ Pré-requisitos: Node.js 22+, npm.
 ```bash
 git clone https://github.com/gmveratti/rea_guitar_nam.git
 cd rea_guitar_nam
-git switch feat/tauri-pedalboard-foundation
+git switch main
 npm install
 npm run dev
 ```
