@@ -1,0 +1,16 @@
+[package]
+name = "rea-guitar-nam"
+version = "0.1.0"
+edition = "2021"
+description = "Rea Guitar NAM desktop pedalboard"
+license = "MIT"
+
+[lib]
+name = "rea_guitar_nam"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
