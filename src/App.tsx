@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from "react";
 import {
-  AudioLines, BookOpen, CirclePower, Guitar, LibraryBig, Plus, RotateCcw,
+  AudioLines, BookOpen, Guitar, LibraryBig, Plus, RotateCcw,
   Save, Settings2, SlidersHorizontal, Trash2, Waves, Zap,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -43,8 +43,8 @@ export default function App() {
   const [view, setView] = useState<View>("board");
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
-  const [modelName, setModelName] = useState("Marshall_JCM800_2203_A2.nam");
-  const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">("auto");
+  const [modelName, setModelName] = useState("");
+  const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">("british");
 
   useEffect(() => { saveDraft(chain); }, [chain]);
   useEffect(() => {
