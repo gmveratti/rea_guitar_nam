@@ -37,6 +37,62 @@ is fixed for that process lifetime. Real-time user changes must build a new
 prepared immutable graph outside the callback and swap at a safe audio-block
 boundary; never mutate a live processor vector from a UI thread.
 
+## PR #2: versioned offline chain manifest (without Fedora hardware)
+
+A first bridge for the future Tauri → DSP control path is now available:
+`src/lib/signalChain.ts` serializes **schemaVersion 1**; the standalone
+JACK binary loads a matching JSON file with `--chain-json`. This is
+a **startup-time snapshot**, not real-time Tauri integration.
+
+Example: [tests/fixtures/ordered-chain.json](tests/fixtures/ordered-chain.json).
+Use *real local* paths to a mono `.nam` or `.wav` for each instance:
+
+```json
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "cab-1",
+      "kind": "cabinet",
+      "enabled": true,
+      "parameters": {"mix": 100},
+      "resource": {"path": "/home/user/IRs/cab.wav"}
+    },
+    {
+      "id": "amp-1",
+      "kind": "amp",
+      "enabled": true,
+      "parameters": {"input": 0, "output": -3},
+      "resource": {"path": "/home/user/NAMs/amp.nam"}
+    }
+  ]
+}
+```
+
+```bash
+# Validates schema, IDs, type, source paths' extensions, and parameters.
+# Does not read the model contents, open JACK or process audio.
+./engine/build/vttrig-nam-jack --validate-chain-json my-chain.json
+
+# Loads the specified NAM/IR files and begins JACK processing, in JSON order.
+./engine/build/vttrig-nam-jack --chain-json my-chain.json
+```
+
+**Rules and present limits:** array order is the exact DSP sequence;
+IDs must be unique; up to 24 stages; repeat `amp`, `drive` or `cabinet`
+freely, each with independent bypass. Unknown/unsupported effects
+(`chorus`, `delay`, `reverb`, `compressor`, `sustain`, `gate`) are
+**rejected explicitly** even if disabled; the engine does not silently
+pretend to apply them. Version and malformed parameters are rejected.
+Parameters are currently **validated only, not applied** to NAM/IR audio:
+gain, mix and control automation will be implemented separately.
+
+The React pedalboard can already create ordered snapshots, and an optional
+per-instance resource map can be supplied to `createSignalChainSnapshot()`.
+It **does not yet manage file paths or send the snapshots to the audio
+process**. Tauri UI and the JACK engine are still independent. Existing
+legacy `--nam ... --ir ... --bypass` CLI remains supported.
+
 ## Build on Fedora
 
 Install Fedora versions of `cmake`, `ninja`, `pkgconf-pkg-config`,
