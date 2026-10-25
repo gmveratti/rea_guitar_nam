@@ -8,6 +8,18 @@ test("amplifier power is a working visual switch and the cable stays connected",
   await expect(amp.locator(".amp-art")).toHaveClass(/amp-is-on/);
   await expect(amp.locator(".amp-cable")).toBeVisible();
   await expect(amp.locator(".amp-cable-plug")).toBeVisible();
+  // The complete amp must stay within the studio canvas on laptop windows.
+  // Previously it could overflow left underneath the navigation rail.
+  const bounds = await Promise.all([
+    page.locator(".board-view").boundingBox(),
+    amp.locator(".amp-case").boundingBox(),
+  ]);
+  expect(bounds[0]).not.toBeNull();
+  expect(bounds[1]).not.toBeNull();
+  const [canvas, head] = bounds as [NonNullable<typeof bounds[0]>, NonNullable<typeof bounds[1]>];
+  expect(head.x).toBeGreaterThanOrEqual(canvas.x - 2);
+  expect(head.x + head.width).toBeLessThanOrEqual(canvas.x + canvas.width + 2);
+
   await page.screenshot({ path: "test-results/vttrig-amp-polish.png", fullPage: true });
 
   await powerOff.click();
