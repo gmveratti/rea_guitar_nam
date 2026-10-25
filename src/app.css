@@ -585,3 +585,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   .pedal-focus-stage,.pedal-focus-mount .pedal-shell {animation:none;}
   .stomp-led.lit {animation:none;}
 }
+
+
+/* Keep the whole amplifier inside the studio canvas at 1000-1440px windows. */
+.board-view .amp-art {
+  display:block;
+  width:100%;
+  min-width:0;
+}
+.board-view .amp-case {
+  width:100%;
+  max-width:1150px;
+  min-width:0;
+  margin-left:auto;
+  margin-right:auto;
+}
+.board-view .amp-panel {min-width:0;}
+.board-view .amp-channel {flex:0 1 130px;min-width:76px;}
+.board-view .amp-controls {flex:1 1 auto;min-width:0;}
+.board-view .amp-jack {flex:0 0 32px;}
+@media (max-width:1100px) {
+  .board-view .amp-channel {flex-basis:92px;min-width:75px;}
+  .board-view .face-control-label {font-size:7px;}
+  .board-view .amp-panel {gap:6px;padding:8px;}
+}
