@@ -1,0 +1,28 @@
+name: VTTRIG NAM JACK smoke
+
+on:
+  push:
+    branches: ["feat/tauri-pedalboard-foundation"]
+    paths:
+      - "engine/**"
+      - ".github/workflows/nam-engine.yml"
+  pull_request:
+    paths:
+      - "engine/**"
+      - ".github/workflows/nam-engine.yml"
+  workflow_dispatch:
+
+jobs:
+  build-nam-jack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux JACK and build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build pkg-config libjack-jackd2-dev git
+      - name: Configure (downloads pinned upstream NAM core with submodules)
+        run: cmake -S engine -B engine/build -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build engine/build --parallel 2
+      - name: Smoke test (no audio device required)
+        run: ctest --test-dir engine/build --output-on-failure
