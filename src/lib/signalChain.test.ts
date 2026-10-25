@@ -44,4 +44,35 @@ describe("canonical ordered signal-chain contract", () => {
     expect(graph.nodes[0].parameters.mix).not.toBe(88);
     expect(() => createSignalChainSnapshot([a, a])).toThrow("Invalid pedal chain");
   });
+
+  it("includes native model/IR resources per instance without rearranging modules", () => {
+    const cabinet = createPedal("cabinet");
+    const firstAmp = createPedal("amp");
+    const secondAmp = createPedal("amp");
+    secondAmp.enabled = false;
+    const snapshot = createSignalChainSnapshot(
+      [cabinet, firstAmp, secondAmp],
+      {
+        [cabinet.id]: "/models/front.wav",
+        [firstAmp.id]: "/models/crunch.nam",
+        [secondAmp.id]: "/models/clean.nam",
+      },
+    );
+    expect(snapshot.nodes.map((node) => node.kind)).toEqual(["cabinet", "amp", "amp"]);
+    expect(snapshot.nodes.map((node) => node.resource?.path))
+      .toEqual(["/models/front.wav", "/models/crunch.nam", "/models/clean.nam"]);
+    expect(snapshot.nodes[2].enabled).toBe(false);
+  });
+
+  it("does not require resources for visual-only preview chains", () => {
+    const snapshot = createSignalChainSnapshot([createPedal("chorus")]);
+    expect(snapshot.nodes[0].resource).toBeUndefined();
+  });
+
+  it("rejects invalid explicit resource paths instead of silently dropping them", () => {
+    const amp = createPedal("amp");
+    expect(() => createSignalChainSnapshot([amp], { [amp.id]: "  " }))
+      .toThrow("Invalid resource path");
+  });
+
 });
