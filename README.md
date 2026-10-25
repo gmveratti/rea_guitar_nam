@@ -1,53 +1,82 @@
-# Rea Guitar NAM
+# VTTRIG 🎸
 
-A native, open-source guitar-effects rack built with **Tauri 2**, designed first for Fedora/Linux and later for Windows/macOS.
+**Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e futura engine nativa de áudio com suporte ao Neural Amp Modeler A2 (Lite/Full). **Sem Wine e sem yabridge.**
 
-## Vision
+> **Status: protótipo visual (v0.1).** O aplicativo já apresenta interface e controles interativos, mas **NÃO processa áudio**, **NÃO carrega redes NAM/IR** e **NÃO controla ganho real**. LEDs, knobs e seleção de .nam são demonstrações da UI.
 
-A responsive pedalboard with drag-and-drop signal chains, interactive controls, editable presets, and a low-latency audio engine. Amp and overdrive tones come from **Neural Amp Modeler** captures; chorus, delay, and reverb use properly licensed open-source DSP.
+## O que funciona nesta primeira etapa
 
-## Implementation status
+- **Amp Focus:** amplificador estilizado por CSS. Classificação heurística por nome de .nam em famílias *British, American, Stadium, Chime, Modern, Boutique*. Seletor manual corrige falsos positivos.
+- **Pedais VTTRIG:** chassis padrão inspirado em stompboxes físicos, design próprio e cores por efeito: VTTCHORUS, VTTDELAY, VTTREVERB, VTTCOMP, VTTSUSTAIN, VTTGATE, VTTDRIVE, VTTAMP e VTTCAB.
+- LED animado refletindo o estado do bypass **visual**; footswitch com animação de pressionar; knobs ajustáveis, destaque do pedal selecionado; reorganização por drag-and-drop e adição/remoção.
+- Presets locais com validação do grafo de efeitos, persistência entre recargas e parâmetros independentes por instância.
+- Interface desktop com suporte a redução de animações pelo sistema.
+- Testes unitários e testes de interação Playwright (CI).
 
-**Research and project initialization.** This repository does **not yet process live audio**. The planned first development branch introduces a UI prototype and a Tauri shell. The real-time DSP and device I/O are separate follow-up milestones. UI meters are not to be presented as live audio until connected to a verified engine.
+## Rodar no Fedora (interface web para desenvolvimento)
 
-## DSP candidates (licenses must be preserved)
+Pré-requisitos: Node.js 22+, npm.
 
-- [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) — MIT, amp/pedal captures.
-- [CloudSeedCore](https://github.com/GhostNoteAudio/CloudSeedCore) — MIT, lush modulated reverb.
-- [Airwindows](https://github.com/airwindows/airwindows) — MIT, TapeDelay2/StereoChorus and other effects.
-- [Dragonfly Reverb](https://github.com/michaelwillis/dragonfly-reverb) — GPL-3.0; sound reference or separately distributed compatible derivative, **not** copied into MIT-only source.
-- [LSP Plugins](https://github.com/lsp-plugins/lsp-plugins) — LGPL-3.0; optional reference and potential external plugin host, under its own conditions.
-
-No third-party DSP is vendored yet. Each upstream has its own copyright and licensing obligations.
-
-## Planned architecture
-
-```text
-Tauri 2 + React + TypeScript
-  └─ visual pedalboard, presets, library and non-realtime controls
-Rust controller (Tauri commands)
-  ├─ persistence / preset management
-  ├─ command queue to audio engine
-  └─ telemetry snapshots to UI
-Native real-time DSP engine (separate library/process boundary)
-  ├─ PipeWire/JACK backend (Linux)
-  ├─ reorderable audio chain, bypass and smooth parameters
-  ├─ C++ NAM core through explicit C ABI
-  ├─ convolution cabinet IR + native DSP for effects
-  └─ RT-safe processing (no allocation/locks/logging in audio callback)
+```bash
+git clone https://github.com/gmveratti/rea_guitar_nam.git
+cd rea_guitar_nam
+git switch feat/tauri-pedalboard-foundation
+npm install
+npm run dev
 ```
 
-**REAPER integration:** the first version is a standalone application routable with PipeWire/JACK. A native CLAP/VST3 plugin is a later target and requires a separate plugin host entry point; Tauri itself is not a VST.
+Abra http://127.0.0.1:5173.
+
+## Rodar desktop com Tauri
+
+Instale Rust/Cargo e as dependências Linux para desenvolvimento Tauri 2, incluindo WebKitGTK 4.1, conforme o [guia oficial do Tauri](https://v2.tauri.app/start/prerequisites/#linux).
+
+```bash
+npm run tauri dev
+```
+
+Verificar frontend e testes:
+
+```bash
+npm run build
+npm test
+npx playwright install chromium
+npm run test:e2e
+```
 
 ## Roadmap
 
-1. UI and UX prototype: reorder, add/remove and bypass pedals; adjust settings, save/load presets.
-2. Testable audio-core contracts: processing graph and effect metadata.
-3. Native JACK/PipeWire low-latency capture/playback and hardware monitoring.
-4. NAM model loading, sample-rate handling, cabinet IR and input/headroom controls.
-5. Integrate MIT-licensed chorus, delay and reverb code with attribution and DSP testing.
-6. Cross-platform release packaging and REAPER-plugin workstream.
+| Fase | Entrega | Estado |
+|---|---|---|
+| 0.1 | Tauri + React, skins, pedais VTTRIG, presets, LEDs e animações | Em validação |
+| 0.2 | Engine nativa de áudio, PipeWire/JACK, I/O, bypass DSP real | Pendente |
+| 0.3 | NAM A2 Lite/Full, loader, calibração e testes de modelos | Pendente |
+| 0.4 | Cabinet IR .wav / convolução e compensação de latência | Pendente |
+| 0.5 | DSP de chorus, delay, reverb, compressor e sustain | Pendente |
+| 0.6 | Integração oficial TONE3000 OAuth, biblioteca e cache local | Pendente |
+| 0.7 | Plugin CLAP/VST3 nativo para REAPER | Pendente |
 
-## Attribution
+## Organização
 
-Project code remains independently authored unless specifically credited. Keep all copyright notices from imported source code and do not imply association with NAM, Airwindows, or Ghost Note Audio.
+```text
+src/                          # UI React + TypeScript
+  components/AmpHero.tsx      # Amp adaptativo por família
+  components/PedalFace.tsx    # Pedais VTT padronizados
+  lib/ampSkins.ts             # Classificação por nome
+  lib/pedals.ts               # Metadados, limites, ordem, validação
+  lib/presets.ts              # Presets locais
+src-tauri/                    # Casca desktop e futuro host Rust
+e2e/                          # Testes Playwright
+```
+
+**Futuro motor DSP:** biblioteca nativa separada da WebView, sem locks/alocação/log síncrono no callback de áudio. Primeiro alvo: Fedora + PipeWire/JACK + REAPER. Um plugin CLAP/VST3 requer entry point próprio; Tauri não é um VST.
+
+## Fontes abertas e licenças
+
+- [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore): motor NAM. Verificar compatibilidade A2 específica antes da integração.
+- [NAM A2 / TONE3000](https://www.tone3000.com/blog/introducing-neural-amp-modeler-nam-architecture-2-a2): A2 Lite/Full, aberto.
+- [CloudSeedCore](https://github.com/GhostNoteAudio/CloudSeedCore): candidato MIT para reverb.
+- [Airwindows](https://github.com/airwindows/airwindows): candidato MIT para chorus e delay.
+- [TONE3000 API](https://www.tone3000.com/api): futura integração oficial OAuth conforme [termos da plataforma](https://www.tone3000.com/api/terms).
+
+Nenhum DSP de terceiros está incorporado nesta etapa. Ao integrar, preservar todos os avisos de copyright e as licenças aplicáveis. Os chassis e nomes VTTRIG são identidades originais inspiradas na categoria de pedais físicos, sem reproduzir marcas/logotipos de fabricantes.
