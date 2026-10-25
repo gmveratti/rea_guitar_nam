@@ -16,6 +16,8 @@ export interface SignalChainNode {
   kind: PedalKind;
   enabled: boolean;
   parameters: Record<string, number>;
+  /** Local .nam or .wav file for this specific effect instance. */
+  resource?: { path: string };
 }
 
 export interface SignalChainSnapshot {
@@ -23,17 +25,27 @@ export interface SignalChainSnapshot {
   nodes: SignalChainNode[];
 }
 
-export function createSignalChainSnapshot(chain: readonly PedalInstance[]): SignalChainSnapshot {
+export function createSignalChainSnapshot(
+  chain: readonly PedalInstance[],
+  resourcePathsById: Readonly<Record<string, string>> = {},
+): SignalChainSnapshot {
   const valid = validateChain([...chain]);
   if (!valid) throw new Error("Invalid pedal chain: duplicate id, unknown effect or malformed controls");
 
   return {
     schemaVersion: 1,
-    nodes: valid.map(({ id, kind, enabled, values }) => ({
-      id,
-      kind,
-      enabled,
-      parameters: { ...values },
-    })),
+    nodes: valid.map(({ id, kind, enabled, values }) => {
+      const path = resourcePathsById[id];
+      if (path !== undefined && (typeof path !== "string" || path.trim() === "")) {
+        throw new Error(`Invalid resource path for pedal ${id}`);
+      }
+      return {
+        id,
+        kind,
+        enabled,
+        parameters: { ...values },
+        ...(path !== undefined ? { resource: { path } } : {}),
+      };
+    }),
   };
 }
