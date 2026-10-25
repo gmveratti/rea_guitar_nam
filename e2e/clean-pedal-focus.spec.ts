@@ -31,6 +31,12 @@ test("body click raises pedal and opens editor; footswitch remains independent",
   await body.click({ position: { x: 20, y: 135 } });
   await expect(body).toHaveAttribute("aria-expanded", "true");
   await expect(chorus).toHaveClass(/is-selected/);
+  const focusedStage = page.getByRole("dialog", { name: "Editar VTTCHORUS" });
+  await expect(focusedStage).toBeVisible();
+  await expect(focusedStage.locator(".pedal-focus-mount .stomp-chassis")).toBeVisible();
+  await expect(page.locator(".effects-grid .pedal-focus-placeholder")).toContainText("VTTCHORUS");
+  // The selected physical stompbox is raised, not a disconnected panel below the amp.
+  await expect(page.locator(".board-view > .pedal-focus")).toHaveCount(0);
   const editor = page.getByRole("region", { name: "Configurar VTTCHORUS" });
   await expect(editor).toBeVisible();
   await expect(editor.getByRole("heading", { name: /VTTCHORUS/ })).toBeVisible();
@@ -48,7 +54,7 @@ test("body click raises pedal and opens editor; footswitch remains independent",
 
   await body.click({ position: { x: 20, y: 135 } });
   await expect(editor).toBeVisible();
-  await page.locator(".amp-grille").click({ position: { x: 20, y: 20 } });
+  await page.getByRole("button", { name: "Fechar edição do pedal" }).click({ position: { x: 20, y: 20 } });
   await expect(editor).toHaveCount(0);
 });
 
