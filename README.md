@@ -27,6 +27,40 @@ npm run dev
 
 Abra http://127.0.0.1:5173.
 
+## Baixar aplicativo Linux pelo GitHub Actions
+
+O workflow [VTTRIG Tauri Linux](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-linux.yml) cria o pacote portátil **AppImage x86_64** e o binário de preview `vttrig`.
+Ele é publicado como artefato **VTTRIG-Linux-x86_64** na aba **Summary → Artifacts** de cada execução bem-sucedida (retenção: 14 dias).
+
+1. Entre na [execução do PR de empacotamento](https://github.com/gmveratti/rea_guitar_nam/pull/3/checks) e abra o job **VTTRIG Tauri Linux**.
+2. Na página da execução, baixe **VTTRIG-Linux-x86_64** em **Artifacts** e extraia o ZIP.
+3. No Fedora, na pasta extraída:
+
+```bash
+chmod +x *.AppImage
+./VTTRIG*.AppImage
+```
+
+Se houver problema com FUSE no host, experimente executar o AppImage com `APPIMAGE_EXTRACT_AND_RUN=1`:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./VTTRIG*.AppImage
+```
+
+Este build **só executa a interface visual**. A captura NAM A2, áudio JACK,
+IR e controles dos pedais ainda não estão conectados ao aplicativo Tauri.
+
+### Gerar binário local no Fedora (alternativa)
+
+Instale as [dependências Linux do Tauri 2](https://v2.tauri.app/start/prerequisites/#linux), Rust e Node.js, e execute:
+
+```bash
+npm install
+npx tauri build --bundles appimage
+```
+
+O AppImage resultante fica em `src-tauri/target/release/bundle/appimage/`.
+
 ## Rodar desktop com Tauri
 
 Instale Rust/Cargo e as dependências Linux para desenvolvimento Tauri 2, incluindo WebKitGTK 4.1, conforme o [guia oficial do Tauri](https://v2.tauri.app/start/prerequisites/#linux).
