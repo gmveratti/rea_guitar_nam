@@ -29,10 +29,12 @@ void on_signal(int) { stop_requested = 1; }
 
 struct Engine {
   std::unique_ptr<nam::DSP> model;
+  std::unique_ptr<nam::DSP> cabinet;
   jack_port_t* input = nullptr;
   jack_port_t* output = nullptr;
   std::array<NAM_SAMPLE, kMaxFrames> in_data{};
   std::array<NAM_SAMPLE, kMaxFrames> out_data{};
+  std::array<NAM_SAMPLE, kMaxFrames> cab_data{};
   std::atomic<bool> oversized_callback{false};
 
   static int callback(jack_nframes_t nframes, void* user_data) noexcept {
@@ -58,8 +60,17 @@ struct Engine {
     // The NAM model must be fully initialized before jack_activate().
     engine.model->process(ins, outs, static_cast<int>(nframes));
 
+    // Optional cabinet convolution uses the NAM Core Linear WAV DSP.
+    // All buffers and state were prepared before the callback starts.
+    const NAM_SAMPLE* final_audio = engine.out_data.data();
+    if (engine.cabinet) {
+      NAM_SAMPLE* cab_in[] = { engine.out_data.data() };
+      NAM_SAMPLE* cab_out[] = { engine.cab_data.data() };
+      engine.cabinet->process(cab_in, cab_out, static_cast<int>(nframes));
+      final_audio = engine.cab_data.data();
+    }
     for (jack_nframes_t i = 0; i < nframes; ++i) {
-      const double sample = static_cast<double>(engine.out_data[i]);
+      const double sample = static_cast<double>(final_audio[i]);
       // Avoid propagating NaNs/infinities or unsafe output levels.
       output[i] = std::isfinite(sample)
           ? static_cast<float>(std::clamp(sample, -1.0, 1.0))
@@ -74,10 +85,10 @@ void on_jack_shutdown(void*) { stop_requested = 1; }
 void usage() {
   std::cout
     << "VTTRIG NAM JACK engine (experimental)\n"
-    << "Usage: vttrig-nam-jack /path/to/model.nam\n"
+    << "Usage: vttrig-nam-jack /path/to/model.nam [/path/to/cabinet.wav]\n"
     << "Connect your guitar input and playback using qjackctl/qpwgraph.\n"
     << "Requires a JACK/PipeWire server running at 48000 Hz.\n"
-    << "MONO ONLY: no IR, chorus, delay, reverb or UI controls yet.\n";
+    << "MONO ONLY: optional cabinet IR, no chorus/delay/reverb/UI controls yet.\n";
 }
 
 class JackClient {
@@ -98,8 +109,10 @@ int main(int argc, char* argv[]) {
     usage();
     return 0;
   }
-  if (argc != 2 || !std::filesystem::is_regular_file(argv[1])
-      || std::filesystem::path(argv[1]).extension() != ".nam") {
+  if ((argc != 2 && argc != 3) || !std::filesystem::is_regular_file(argv[1])
+      || std::filesystem::path(argv[1]).extension() != ".nam"
+      || (argc == 3 && (!std::filesystem::is_regular_file(argv[2])
+                       || std::filesystem::path(argv[2]).extension() != ".wav"))) {
     usage();
     std::cerr << "Error: provide an existing .nam file.\n";
     return 2;
@@ -118,6 +131,14 @@ int main(int argc, char* argv[]) {
       throw std::runtime_error("Model sample rate is not 48000 Hz; resampling not yet implemented");
     }
 
+    if (argc == 3) {
+      engine.cabinet = nam::get_dsp(std::filesystem::path(argv[2]));
+      if (!engine.cabinet) throw std::runtime_error("NAM Core could not load cabinet IR");
+      if (engine.cabinet->NumInputChannels() != 1 || engine.cabinet->NumOutputChannels() != 1) {
+        throw std::runtime_error("Only mono cabinet IR files are currently supported");
+      }
+    }
+
     jack_status_t status{};
     JackClient client(jack_client_open("VTTRIG_NAM", JackNoStartServer, &status));
     if (!client.get()) throw std::runtime_error("Unable to connect to PipeWire/JACK");
@@ -130,6 +151,9 @@ int main(int argc, char* argv[]) {
 
     // Reset/prewarm may allocate: perform strictly before jack_activate().
     engine.model->Reset(kRequiredSampleRate, static_cast<int>(kMaxFrames));
+    if (engine.cabinet) {
+      engine.cabinet->Reset(kRequiredSampleRate, static_cast<int>(kMaxFrames));
+    }
 
     engine.input = jack_port_register(client.get(), "input",
       JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
@@ -148,7 +172,7 @@ int main(int argc, char* argv[]) {
     if (jack_activate(client.get()) != 0) {
       throw std::runtime_error("Unable to activate JACK audio");
     }
-    std::cout << "VTTRIG NAM running at 48000 Hz.\n"
+    std::cout << "VTTRIG NAM + optional cabinet IR running at 48000 Hz.\n"
               << "Connect system capture -> VTTRIG_NAM:input -> playback in qpwgraph.\n"
               << "Press Ctrl+C to exit.\n";
     while (!stop_requested) {
