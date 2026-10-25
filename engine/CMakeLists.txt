@@ -52,5 +52,8 @@ if(BUILD_TESTING)
   target_compile_options(vttrig-manifest-tests PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
   add_test(NAME ordered_manifest_validation COMMAND vttrig-manifest-tests)
   add_test(NAME effect_chain_reorder_and_bypass COMMAND vttrig-chain-tests)
+  add_test(NAME native_manifest_cli_validation
+    COMMAND vttrig-nam-jack --validate-chain-json
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ordered-chain.json")
   add_test(NAME nam_engine_help COMMAND vttrig-nam-jack --help)
 endif()
