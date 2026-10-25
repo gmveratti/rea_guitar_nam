@@ -1,9 +1,12 @@
 import { factoryChain, validateChain, type PedalInstance } from "./pedals";
+import type { AmpFamily } from "./ampSkins";
 
 export type Preset = {
   id: string;
   name: string;
   chain: PedalInstance[];
+  modelName?: string;
+  ampFamily?: AmpFamily | "auto";
 };
 
 const STORAGE_PREFIX = "rea-guitar-nam:v1:";
@@ -39,7 +42,12 @@ export function loadPresets(): Preset[] {
     const data = item as Partial<Preset>;
     if (typeof data.id !== "string" || typeof data.name !== "string" || data.name.length > 100) return [];
     const chain = validateChain(data.chain);
-    return chain ? [{ id: data.id, name: data.name, chain }] : [];
+    if (!chain) return [];
+    const modelName = typeof data.modelName === "string" ? data.modelName.slice(0, 200) : undefined;
+    const allowed = new Set(["auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic"]);
+    const ampFamily = typeof data.ampFamily === "string" && allowed.has(data.ampFamily)
+      ? data.ampFamily as AmpFamily | "auto" : undefined;
+    return [{ id: data.id, name: data.name, chain, modelName, ampFamily }];
   }).slice(0, 100);
 }
 
