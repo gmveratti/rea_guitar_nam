@@ -55,7 +55,7 @@ test("pedal settings and arbitrary order persist in saved rig presets", async ({
   await page.getByRole("button", { name: "Adicionar VTTCHORUS" }).click();
   const delay = page.getByRole("group", { name: /VTTDELAY/ });
   const chorus = page.getByRole("group", { name: /VTTCHORUS/ });
-  await chorus.locator(".stomp-drag").dragTo(delay);
+  await chorus.locator(".stomp-drag").dragTo(delay.locator(".stomp-topbar"));
   await expect(page.locator(".effects-grid .pedal-shell").first()).toHaveAttribute("aria-label", /VTTCHORUS/);
 
   await chorus.getByRole("button", { name: "Selecionar controles de VTTCHORUS" }).click({ position: { x: 20, y: 130 } });
