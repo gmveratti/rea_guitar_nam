@@ -120,7 +120,7 @@ export default function App() {
     const name = presetName.trim();
     if (!name) { setNotice("Dê um nome ao preset antes de salvar."); return; }
     const id = activePresetId || crypto.randomUUID();
-    const preset: Preset = { id, name, chain: structuredClone(chain) };
+    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily };
     const updated = [...presets.filter((item) => item.id !== id), preset];
     if (!savePresets(updated)) { setNotice("Falha ao gravar preset no armazenamento local."); return; }
     setPresets(updated);
@@ -132,6 +132,8 @@ export default function App() {
     const preset = presets.find((item) => item.id === id);
     if (!preset) return;
     setChain(structuredClone(preset.chain));
+    if (preset.modelName) setModelName(preset.modelName);
+    setAmpFamily(preset.ampFamily ?? "auto");
     setPresetName(preset.name);
     setActivePresetId(id);
     setSelectedId(null);
