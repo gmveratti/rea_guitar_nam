@@ -12,7 +12,7 @@ namespace {
 class AffineProcessor final : public vttrig::MonoProcessor {
 public:
   AffineProcessor(double scale, double offset) : scale_(scale), offset_(offset) {}
-  void process(const vttrig::Sample* in, vttrig::Sample* out, int count) noexcept override {
+  void process(vttrig::Sample* in, vttrig::Sample* out, int count) noexcept override {
     for (int i = 0; i < count; ++i) out[i] = in[i] * scale_ + offset_;
   }
 private:
