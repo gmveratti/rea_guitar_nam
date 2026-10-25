@@ -14,7 +14,7 @@ test("VTTRIG shows branded pedals, pedal LED and a family-specific amplifier", a
 
   await page.locator("#amp-example").selectOption("Fender_Twin_Reverb_A2.nam");
   await expect(page.locator(".amp-art")).toHaveClass(/amp-american/);
-  await expect(page.getByText("AMERICAN DELUXE")).toBeVisible();
+  await expect(page.locator(".amp-channel strong").getByText("AMERICAN DELUXE")).toBeVisible();
   await page.locator("#amp-example").selectOption("Hiwatt_DR103_Classic.nam");
   await expect(page.locator(".amp-art")).toHaveClass(/amp-stadium/);
 
