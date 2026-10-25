@@ -50,8 +50,8 @@ npm run test:e2e
 |---|---|---|
 | 0.1 | Tauri + React, skins, pedais VTTRIG, presets, LEDs e animações | Em validação |
 | 0.2 | Engine nativa de áudio, PipeWire/JACK, I/O, bypass DSP real | Experimental: CLI NAM + IR mono em ordem livre; falta ligação Tauri → DSP |
-| 0.3 | NAM A2 Lite/Full, loader, calibração e testes de modelos | Pendente |
-| 0.4 | Cabinet IR .wav / convolução e compensação de latência | Pendente |
+| 0.3 | NAM A2 Lite/Full, loader, calibração e testes de modelos | CLI experimental de leitura; validação A2 e integração UI pendentes |
+| 0.4 | Cabinet IR .wav / convolução e compensação de latência | IR mono via CLI experimental; estéreo, compensação e UI pendentes |
 | 0.5 | DSP de chorus, delay, reverb, compressor e sustain | Pendente |
 | 0.6 | Integração oficial TONE3000 OAuth, biblioteca e cache local | Pendente |
 | 0.7 | Plugin CLAP/VST3 nativo para REAPER | Pendente |
@@ -70,7 +70,7 @@ src-tauri/                    # Casca desktop e futuro host Rust
 e2e/                          # Testes Playwright
 ```
 
-**Futuro motor DSP:** biblioteca nativa separada da WebView, sem locks/alocação/log síncrono no callback de áudio. Primeiro alvo: Fedora + PipeWire/JACK + REAPER. Um plugin CLAP/VST3 requer entry point próprio; Tauri não é um VST.
+**Motor DSP:** executável experimental separado da WebView já implementado para NAM/IR mono, com projeto de biblioteca compartilhável no roadmap, sem locks/alocação/log síncrono no callback de áudio. Primeiro alvo: Fedora + PipeWire/JACK + REAPER. Um plugin CLAP/VST3 requer entry point próprio; Tauri não é um VST.
 
 ## Fontes abertas e licenças
 
@@ -80,7 +80,7 @@ e2e/                          # Testes Playwright
 - [Airwindows](https://github.com/airwindows/airwindows): candidato MIT para chorus e delay.
 - [TONE3000 API](https://www.tone3000.com/api): futura integração oficial OAuth conforme [termos da plataforma](https://www.tone3000.com/api/terms).
 
-Nenhum DSP de terceiros está incorporado nesta etapa. Ao integrar, preservar todos os avisos de copyright e as licenças aplicáveis. Os chassis e nomes VTTRIG são identidades originais inspiradas na categoria de pedais físicos, sem reproduzir marcas/logotipos de fabricantes.
+O motor de áudio experimental já compila o **NeuralAmpModelerCore MIT como dependência externa fixada**. Os DSPs de chorus, delay, reverb, compressor e sustain ainda não foram integrados. Ao integrar, preservar todos os avisos de copyright e as licenças aplicáveis. Os chassis e nomes VTTRIG são identidades originais inspiradas na categoria de pedais físicos, sem reproduzir marcas/logotipos de fabricantes.
 
 ## Decisões técnicas de áudio e fontes open source
 
