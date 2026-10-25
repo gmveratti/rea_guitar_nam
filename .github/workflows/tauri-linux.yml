@@ -34,3 +34,9 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+      - name: Run Clippy (deny warnings)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: Run Rust regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
