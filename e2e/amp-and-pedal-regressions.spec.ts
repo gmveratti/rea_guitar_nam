@@ -8,6 +8,7 @@ test("amplifier power is a working visual switch and the cable stays connected",
   await expect(amp.locator(".amp-art")).toHaveClass(/amp-is-on/);
   await expect(amp.locator(".amp-cable")).toBeVisible();
   await expect(amp.locator(".amp-cable-plug")).toBeVisible();
+  await page.screenshot({ path: "test-results/vttrig-amp-polish.png", fullPage: true });
 
   await powerOff.click();
   await expect(amp.locator(".amp-art")).toHaveClass(/amp-is-off/);
@@ -47,6 +48,7 @@ test("focused physical pedal keeps working knobs, independent switch, and preset
   const stage = page.getByRole("dialog", { name: "Editar VTTDELAY" });
   await expect(stage).toBeVisible();
   await expect(stage.locator(".pedal-focus-mount .stomp-chassis")).toBeVisible();
+  await page.screenshot({ path: "test-results/vttrig-focused-pedal.png", fullPage: true });
   await stage.getByRole("slider", { name: "VTTDELAY: Time" }).fill("680");
 
   const selected = stage.getByRole("group", { name: /VTTDELAY/ });
