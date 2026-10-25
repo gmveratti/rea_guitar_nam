@@ -14,7 +14,7 @@ test("reordering pedals changes the chain order and survives saving a preset", a
   // Real UI drag handle, not a direct state mutation.
   const gate = page.getByRole("group", { name: /VTTGATE/ });
   const compressor = page.getByRole("group", { name: /VTTCOMP/ });
-  await gate.locator(".stomp-drag").dragTo(compressor);
+  await gate.locator(".stomp-drag").dragTo(compressor.locator(".stomp-topbar"));
 
   // The old fixed signal order would fail here.
   await expect(pedals.first()).toHaveAttribute("aria-label", /VTTCOMP/);
