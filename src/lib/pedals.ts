@@ -1,5 +1,7 @@
 export type PedalKind =
   | "gate"
+  | "compressor"
+  | "sustain"
   | "drive"
   | "amp"
   | "cabinet"
@@ -40,11 +42,38 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "Noise Gate",
     caption: "SILENCE",
     category: "UTILITÁRIO",
-    accent: "#99b2b3",
+    accent: "#b2bcc6",
     description: "Portão de ruído para controlar hiss e silêncio entre notas.",
     parameters: [
       { key: "threshold", label: "Threshold", min: -80, max: 0, step: 1, unit: "dB", defaultValue: -48 },
       { key: "release", label: "Release", min: 10, max: 500, step: 5, unit: "ms", defaultValue: 120 },
+    ],
+  },
+  compressor: {
+    kind: "compressor",
+    title: "VTT Compressor",
+    caption: "DYNAMICS / CP-01",
+    category: "DINÂMICA",
+    accent: "#3db5df",
+    description: "Compressão consistente com controle de threshold, ratio e attack. DSP ainda pendente.",
+    parameters: [
+      { key: "threshold", label: "Threshold", min: -50, max: 0, step: 1, unit: "dB", defaultValue: -18 },
+      { key: "ratio", label: "Ratio", min: 1, max: 12, step: 0.5, unit: ":1", defaultValue: 4 },
+      { key: "attack", label: "Attack", min: 1, max: 100, step: 1, unit: "ms", defaultValue: 15 },
+      { key: "release", label: "Release", min: 20, max: 500, step: 5, unit: "ms", defaultValue: 120 },
+    ],
+  },
+  sustain: {
+    kind: "sustain",
+    title: "VTT Sustain",
+    caption: "DYNAMICS / SU-01",
+    category: "DINÂMICA",
+    accent: "#57aaee",
+    description: "Controle musical de sustain com compressão longa e compensação de nível. DSP ainda pendente.",
+    parameters: [
+      { key: "sustain", label: "Sustain", min: 0, max: 100, step: 1, unit: "%", defaultValue: 65 },
+      { key: "attack", label: "Attack", min: 1, max: 100, step: 1, unit: "ms", defaultValue: 12 },
+      { key: "level", label: "Level", min: -18, max: 18, step: 0.5, unit: "dB", defaultValue: 0 },
     ],
   },
   drive: {
@@ -52,7 +81,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "NAM Drive",
     caption: "CAPTURE / PRE",
     category: "NEURAL",
-    accent: "#efb86f",
+    accent: "#f3c64f",
     description: "Posição reservada para capturas .nam de overdrives e distorções, antes do amplificador.",
     parameters: [
       { key: "input", label: "Input", min: -24, max: 24, step: 0.5, unit: "dB", defaultValue: 0 },
@@ -64,7 +93,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "NAM Amplifier",
     caption: "NEURAL / AMP",
     category: "NEURAL",
-    accent: "#f47f74",
+    accent: "#c05b4e",
     description: "Amplificador alimentado por um modelo Neural Amp Modeler (.nam).",
     parameters: [
       { key: "input", label: "Input", min: -24, max: 24, step: 0.5, unit: "dB", defaultValue: 0 },
@@ -76,7 +105,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "Cabinet IR",
     caption: "CONVOLUTION",
     category: "RESPOSTA IMPULSO",
-    accent: "#b5a5ef",
+    accent: "#47484d",
     description: "Cabinet baseado em impulse response (.wav), a ser conectado ao convolutor nativo.",
     parameters: [
       { key: "mix", label: "Mix", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
@@ -88,7 +117,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "Stereo Chorus",
     caption: "MODULATION",
     category: "MODULAÇÃO",
-    accent: "#8da8ff",
+    accent: "#ee9e37",
     description: "Chorus inspirado nos algoritmos abertos do Airwindows StereoChorus.",
     parameters: [
       { key: "rate", label: "Rate", min: 0.1, max: 8, step: 0.1, unit: "Hz", defaultValue: 1.2 },
@@ -101,7 +130,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "Tape Delay",
     caption: "ECHO / TAPE",
     category: "AMBIÊNCIA",
-    accent: "#86dfb7",
+    accent: "#2fbbcc",
     description: "Delay estilo tape inspirado no Airwindows TapeDelay2.",
     parameters: [
       { key: "time", label: "Time", min: 40, max: 1200, step: 10, unit: "ms", defaultValue: 420 },
@@ -114,7 +143,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     title: "Cloud Reverb",
     caption: "SPACE / TAIL",
     category: "AMBIÊNCIA",
-    accent: "#d7a1ef",
+    accent: "#ba6ad3",
     description: "Reverb espacial inspirado no motor MIT do CloudSeedCore.",
     parameters: [
       { key: "size", label: "Size", min: 0, max: 100, step: 1, unit: "%", defaultValue: 67 },
@@ -125,7 +154,7 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
 };
 
 export const PEDAL_KINDS: PedalKind[] = [
-  "gate", "drive", "amp", "cabinet", "chorus", "delay", "reverb",
+  "gate", "compressor", "sustain", "drive", "amp", "cabinet", "chorus", "delay", "reverb",
 ];
 
 export function createPedal(kind: PedalKind): PedalInstance {
@@ -178,7 +207,7 @@ export function validateChain(value: unknown): PedalInstance[] | null {
 }
 
 export function factoryChain(): PedalInstance[] {
-  return ["gate", "drive", "amp", "cabinet", "chorus", "delay", "reverb"].map((kind) =>
+  return ["gate", "compressor", "drive", "amp", "cabinet", "chorus", "delay", "reverb"].map((kind) =>
     createPedal(kind as PedalKind)
   );
 }
