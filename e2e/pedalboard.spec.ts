@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 
 test("VTTRIG shows branded pedals, pedal LED and a family-specific amplifier", async ({ page }) => {
   await page.goto("/");
+  // The new default is a clean, empty chain. Explicitly load the legacy
+  // demonstration chain when testing its modules and old preset workflows.
+  await page.getByRole("button", { name: "Configurações" }).click();
+  await page.getByRole("button", { name: "Carregar rig exemplo" }).click();
   await expect(page.getByText("VTTRIG").first()).toBeVisible();
   const chorus = page.getByRole("group", { name: /VTTCHORUS/ });
   await expect(chorus).toBeVisible();
@@ -29,6 +33,10 @@ test("VTTRIG shows branded pedals, pedal LED and a family-specific amplifier", a
 
 test("presets preserve the chain and LED bypass state across reload", async ({ page }) => {
   await page.goto("/");
+  // The new default is a clean, empty chain. Explicitly load the legacy
+  // demonstration chain when testing its modules and old preset workflows.
+  await page.getByRole("button", { name: "Configurações" }).click();
+  await page.getByRole("button", { name: "Carregar rig exemplo" }).click();
   const delay = page.getByRole("group", { name: /VTTDELAY/ });
   await delay.getByRole("button", { name: "Desligar VTTDELAY" }).click();
   await page.locator("#amp-example").selectOption("Vox_AC30_TopBoost.nam");
@@ -37,7 +45,7 @@ test("presets preserve the chain and LED bypass state across reload", async ({ p
   await expect(page.getByRole("status")).toContainText("salvo localmente");
   await page.reload();
   const saved = page.locator("#preset-picker");
-  await expect(saved.locator("option")).toContainText(["Selecionar preset salvo", "Studio Demo"]);
+  await expect(saved.locator("option")).toContainText(["Personalizado", "Studio Demo"]);
   await saved.selectOption({ label: "Studio Demo" });
   await expect(page.getByRole("group", { name: /VTTDELAY/ }).getByRole("img", { name: "LED desligado" })).toBeVisible();
   await expect(page.locator(".amp-art")).toHaveClass(/amp-chime/);

@@ -1,4 +1,4 @@
-import { factoryChain, validateChain, type PedalInstance } from "./pedals";
+import { validateChain, type PedalInstance } from "./pedals";
 import type { AmpFamily } from "./ampSkins";
 
 export type Preset = {
@@ -23,7 +23,7 @@ function safeRead(key: string): unknown {
 }
 
 export function loadDraft(): PedalInstance[] {
-  return validateChain(safeRead(DRAFT_KEY)) ?? factoryChain();
+  return validateChain(safeRead(DRAFT_KEY)) ?? [];
 }
 
 export function saveDraft(chain: PedalInstance[]): void {

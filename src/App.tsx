@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from "react";
 import {
-  Activity, ArrowDown, ArrowUp, AudioLines, BookmarkPlus, CirclePower,
-  Guitar, Layers3, Plus, RotateCcw, Save, Settings2,
-  SlidersHorizontal, Trash2, Waves, Zap
+  AudioLines, BookOpen, Guitar, LibraryBig, Plus, RotateCcw,
+  Save, Settings2, SlidersHorizontal, Trash2, Waves, Zap,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
   PEDALS, PEDAL_KINDS, createPedal, factoryChain, movePedal,
-  type Parameter, type PedalInstance, type PedalKind
+  type PedalInstance, type PedalKind,
 } from "./lib/pedals";
 import { loadDraft, loadPresets, saveDraft, savePresets, type Preset } from "./lib/presets";
 import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
+import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
-import type { AmpFamily } from "./lib/ampSkins";
+import { AMP_FAMILIES, humanizeModelName, type AmpFamily } from "./lib/ampSkins";
+
+type View = "board" | "library" | "settings";
+const DEMO_MODELS = [
+  "Marshall_JCM800_2203_A2.nam", "Fender_Twin_Reverb_A2.nam",
+  "Hiwatt_DR103_Classic.nam", "Vox_AC30_TopBoost.nam",
+  "Mesa_Dual_Rectifier.nam",
+];
 
 type DragData = { source: "library"; kind: PedalKind } | { source: "chain"; id: string };
 
@@ -26,34 +33,6 @@ function readDrag(event: DragEvent<HTMLElement>): DragData | null {
   return null;
 }
 
-function Knob({ parameter, value, accent, onChange }: {
-  parameter: Parameter;
-  value: number;
-  accent: string;
-  onChange: (value: number) => void;
-}) {
-  const fraction = (value - parameter.min) / (parameter.max - parameter.min);
-  const style = { "--accent": accent, "--turn": `${fraction * 270 - 135}deg` } as CSSProperties;
-  return (
-    <label className="knob-control">
-      <span className="knob-label">{parameter.label}</span>
-      <span className="dial" style={style}>
-        <span className="dial-inner" />
-        <input
-          type="range"
-          min={parameter.min}
-          max={parameter.max}
-          step={parameter.step}
-          value={value}
-          aria-label={parameter.label}
-          onChange={(event) => onChange(Number(event.target.value))}
-        />
-      </span>
-      <span className="knob-value">{Number(value.toFixed(2))}<small>{parameter.unit}</small></span>
-    </label>
-  );
-}
-
 export default function App() {
   const [chain, setChain] = useState<PedalInstance[]>(loadDraft);
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
@@ -61,10 +40,11 @@ export default function App() {
   const [activePresetId, setActivePresetId] = useState("");
   const [presetName, setPresetName] = useState("Meu primeiro rig");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<View>("board");
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
-  const [modelName, setModelName] = useState("Marshall_JCM800_2203_A2.nam");
-  const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">("auto");
+  const [modelName, setModelName] = useState("");
+  const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">("british");
 
   useEffect(() => { saveDraft(chain); }, [chain]);
   useEffect(() => {
@@ -76,7 +56,7 @@ export default function App() {
   }, []);
 
   const selected = chain.find((effect) => effect.id === selectedId) ?? null;
-  const selectedDefinition = selected ? PEDALS[selected.kind] : null;
+  const selectedIndex = selected ? chain.findIndex((effect) => effect.id === selected.id) : -1;
   const searchedPedals = useMemo(() => PEDAL_KINDS.filter(
     (kind) => [PEDALS[kind].title, PEDALS[kind].category].join(" ").toLowerCase().includes(search.toLowerCase())
   ), [search]);
@@ -89,7 +69,8 @@ export default function App() {
       next.splice(Math.min(atIndex, next.length), 0, pedal);
       return next;
     });
-    setSelectedId(pedal.id);
+    setSelectedId(null);
+    setView("board");
     setNotice(`${PEDALS[kind].title} adicionado ao rig.`);
   }
 
@@ -152,156 +133,245 @@ export default function App() {
 
   function resetChain() {
     setChain(factoryChain());
+    setView("board");
     setSelectedId(null);
     setActivePresetId("");
     setPresetName("Novo preset");
     setNotice("Rig de demonstração restaurado.");
   }
 
+
+  function clearChain() {
+    setChain([]);
+    setSelectedId(null);
+    setView("board");
+    setActivePresetId("");
+    setPresetName("Novo rig");
+    setNotice("Pedalboard vazio. Adicione efeitos pela Biblioteca.");
+  }
+
+  function openView(next: View) {
+    setView(next);
+    if (next !== "board") setSelectedId(null);
+  }
+
+  useEffect(() => {
+    function escapeToClose(event: KeyboardEvent) {
+      if (event.key === "Escape") setSelectedId(null);
+    }
+    window.addEventListener("keydown", escapeToClose);
+    return () => window.removeEventListener("keydown", escapeToClose);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId || view !== "board") return;
+    function closeWhenClickingAway(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // Selecting another pedal is handled by its own button. Controls inside
+      // the editor/footswitch must never dismiss it accidentally.
+      if (!target.closest(".pedal-focus, .pedal-shell")) {
+        setSelectedId(null);
+      }
+    }
+    document.addEventListener("pointerdown", closeWhenClickingAway);
+    return () => document.removeEventListener("pointerdown", closeWhenClickingAway);
+  }, [selectedId, view]);
+
+  function chooseModel(filename: string) {
+    setModelName(filename);
+    setAmpFamily("auto");
+    setNotice("Modelo selecionado para a visualização. O NAM ainda não processa áudio no Tauri.");
+  }
+
+  function resetSelectedParameters() {
+    if (!selected) return;
+    const defaults = createPedal(selected.kind).values;
+    setChain((previous) => previous.map((effect) =>
+      effect.id === selected.id ? { ...effect, values: defaults } : effect
+    ));
+  }
   return (
-    <div className="app">
-      <header className="topbar">
+    <div className="app clean-ui">
+      <header className="topbar clean-topbar">
         <div className="brand">
-          <div className="brand-mark"><AudioLines size={22} strokeWidth={2.5} /></div>
-          <div><strong>VTT<em>RIG</em></strong><small>NEURAL GUITAR STUDIO</small></div>
+          <div className="brand-mark"><AudioLines size={21} strokeWidth={2.5} /></div>
+          <div><strong>VTT<em>RIG</em></strong></div>
         </div>
-        <div className="top-center"><span className="top-divider" /><Guitar size={17} /> <span>Pedalboard Studio</span><span className="top-divider" /><span className="version">v0.1 preview</span></div>
-        <div className="top-actions"><span className="offline-pill"><span className="offline-dot" /> MOTOR OFFLINE</span></div>
+        <div className="preset-compact" aria-label="Gerenciador de presets">
+          <label htmlFor="preset-picker">PRESET</label>
+          <select id="preset-picker" value={activePresetId} onChange={(event) => {
+            if (event.target.value) loadPreset(event.target.value);
+          }}>
+            <option value="">Personalizado</option>
+            {presets.map((preset) => <option value={preset.id} key={preset.id}>{preset.name}</option>)}
+          </select>
+          <input id="preset-name" aria-label="Nome do preset" maxLength={100} value={presetName} onChange={(event) => setPresetName(event.target.value)} />
+          <button type="button" className="compact-icon-button" onClick={saveCurrentPreset} title="Salvar preset" aria-label="Salvar preset"><Save size={18} /></button>
+        </div>
+        <div className="model-compact">
+          <label htmlFor="amp-example">MODELO</label>
+          <select id="amp-example" value={DEMO_MODELS.includes(modelName) ? modelName : ""} onChange={(event) => {
+            if (event.target.value) chooseModel(event.target.value);
+          }}>
+            <option value="">{humanizeModelName(modelName)}</option>
+            {DEMO_MODELS.map((name) => <option key={name} value={name}>{humanizeModelName(name)}</option>)}
+          </select>
+          <span className="preview-dot" title="Motor de áudio ainda não conectado" />
+        </div>
       </header>
 
-      <div className="workspace">
-        <aside className="library-panel">
-          <div className="panel-kicker"><Layers3 size={15} /> EFFECT LIBRARY</div>
-          <h2>Seus efeitos<span>.</span></h2>
-          <p className="panel-subtitle">Arraste para o palco ou clique no + para adicionar.</p>
-          <input className="library-search" type="search" value={search} placeholder="Buscar pedais..." onChange={(event) => setSearch(event.target.value)} aria-label="Buscar pedais" />
-          <div className="library-list">
-            {searchedPedals.map((kind) => {
-              const pedal = PEDALS[kind];
-              return (
-                <div
-                  key={kind}
-                  className="library-item"
-                  draggable
-                  onDragStart={(event) => event.dataTransfer.setData("text/plain", `library:${kind}`)}
-                  style={{ "--pedal-accent": pedal.accent } as CSSProperties}
-                >
-                  <span className="library-icon">{kind === "amp" || kind === "drive" ? <Zap size={19} /> : <Waves size={19} />}</span>
-                  <div className="library-item-text"><strong>{VTT_PEDAL_NAMES[kind]}</strong><small>{pedal.caption}</small></div>
-                  <button type="button" title={`Adicionar ${VTT_PEDAL_NAMES[kind]}`} aria-label={`Adicionar ${VTT_PEDAL_NAMES[kind]}`} onClick={() => add(kind)}><Plus size={17} /></button>
-                </div>
-              );
-            })}
-            {searchedPedals.length === 0 && <p className="quiet">Nenhum pedal encontrado.</p>}
-          </div>
-          <div className="library-note"><Activity size={17} /> <span>Pronto para receber o motor DSP nativo.<br /><strong>Sem Wine. Sem yabridge.</strong></span></div>
-        </aside>
+      <div className="workspace clean-workspace">
+        <nav className="view-rail" aria-label="Navegação principal">
+          <button type="button" className={`rail-tab ${view === "board" ? "active" : ""}`} aria-current={view === "board" ? "page" : undefined} onClick={() => openView("board")}>
+            <span className="rail-icon"><Plus size={27} /></span><span>Pedalboard</span>
+          </button>
+          <button type="button" className={`rail-tab ${view === "library" ? "active" : ""}`} aria-current={view === "library" ? "page" : undefined} onClick={() => openView("library")}>
+            <span className="rail-icon"><LibraryBig size={25} /></span><span>Biblioteca</span><small>NAMs / IRs / Pedais</small>
+          </button>
+          <button type="button" className={`rail-tab ${view === "settings" ? "active" : ""}`} aria-current={view === "settings" ? "page" : undefined} onClick={() => openView("settings")}>
+            <span className="rail-icon"><Settings2 size={26} /></span><span>Configurações</span>
+          </button>
+        </nav>
 
-        <main className="stage">
-          <div className="stage-header">
-            <div>
-              <div className="eyebrow">AMPLIFIERS / EFFECTS / PRESETS</div>
-              <h1>Seu som. <span>Seu rig.</span></h1>
-              <p>Seu pedalboard modular, com amplificadores visuais e uma cadeia de efeitos personalizável.</p>
-            </div>
-            <button className="secondary-button" type="button" onClick={resetChain}><RotateCcw size={15} /> Restaurar rig</button>
-          </div>
+        <main className="stage clean-stage">
+          {view === "board" && (
+            <div className="board-view">
+              <AmpHero
+                minimal
+                modelName={modelName}
+                overrideFamily={ampFamily}
+                onModelChosen={(file) => chooseModel(file.name)}
+                onOverrideChange={setAmpFamily}
+              />
 
-          <section className="preset-toolbar" aria-label="Gerenciador de presets">
-            <div className="preset-icon"><BookmarkPlus size={19} /></div>
-            <div className="preset-fields">
-              <label htmlFor="preset-name">PRESET ATUAL</label>
-              <input id="preset-name" type="text" maxLength={100} value={presetName} onChange={(event) => setPresetName(event.target.value)} />
-            </div>
-            <div className="preset-chooser">
-              <label htmlFor="preset-picker">MEUS PRESETS</label>
-              <select id="preset-picker" value={activePresetId} onChange={(event) => loadPreset(event.target.value)}>
-                <option value="">Selecionar preset salvo</option>
-                {presets.map((preset) => <option value={preset.id} key={preset.id}>{preset.name}</option>)}
-              </select>
-            </div>
-            <button className="primary-button" type="button" onClick={saveCurrentPreset}><Save size={17} /> Salvar</button>
-            <button className="icon-button" type="button" title="Excluir preset selecionado" aria-label="Excluir preset selecionado" disabled={!activePresetId} onClick={deletePreset}><Trash2 size={18} /></button>
-          </section>
-
-          <AmpHero
-            modelName={modelName}
-            overrideFamily={ampFamily}
-            onModelChosen={(file) => { setModelName(file.name); setNotice("Modelo selecionado apenas para visualização. DSP NAM ainda não ativo."); }}
-            onOverrideChange={setAmpFamily}
-          />
-
-          <section className="signal-route" aria-label="Cadeia de pedais">
-            <div className="route-section-title"><div><span className="hero-caption">02 / SIGNAL CHAIN</span><h2>Pedalboard <span>✦</span></h2></div><span className="route-demo-label">LED / CONTROLES VISUAIS</span></div>
-            <div className="route-label"><span className="in-out-marker" /> INPUT <span className="cable-line" /></div>
-            <div
-              className="effects-grid"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => dropAt(event, chain.length)}
-            >
-              {chain.length === 0 && <div className="empty-chain"><Plus size={30} /><strong>Seu palco está vazio</strong><span>Arraste pedais para cá e comece seu rig.</span></div>}
-              {chain.map((effect, index) => (
-                <PedalFace
-                  key={effect.id}
-                  index={index}
-                  pedal={effect}
-                  selected={selectedId === effect.id}
-                  onSelect={() => setSelectedId(effect.id)}
-                  onToggle={() => toggle(effect.id)}
-                  onRemove={() => remove(effect.id)}
-                  onParameter={(key, value) => setParameter(effect.id, key, value)}
-                  onMoveDragStart={(event) => event.dataTransfer.setData("text/plain", `chain:${effect.id}`)}
-                  onDrop={dropAt}
+              {selected && (
+                <PedalFocusPanel
+                  pedal={selected}
+                  position={selectedIndex}
+                  count={chain.length}
+                  onClose={() => setSelectedId(null)}
+                  onToggle={() => toggle(selected.id)}
+                  onParameter={(key, value) => setParameter(selected.id, key, value)}
+                  onMove={(position) => setChain((previous) => movePedal(previous, selected.id, position))}
+                  onReset={resetSelectedParameters}
+                  onSavePreset={saveCurrentPreset}
                 />
-              ))}
-              <button type="button" className="add-slot" title="Adicionar o próximo pedal" onClick={() => add("delay")}><Plus size={24} /><span>Adicionar pedal</span></button>
-            </div>
-            <div className="route-label last"><span className="cable-line" /> OUTPUT <span className="in-out-marker" /></div>
-          </section>
+              )}
 
-          <div className="stage-bottom">
-            <div className="info-block"><span className="info-led" /><strong>FLUXO VISUAL</strong> <span>{chain.length} módulos · {chain.filter((effect) => effect.enabled).length} ativos</span></div>
-            <div className="info-block"><SlidersHorizontal size={15} /><strong>ÁUDIO</strong> <span>{engine}</span></div>
-          </div>
+              <section className="signal-route clean-route" aria-label="Cadeia de pedais">
+                <div className="route-label">
+                  <span className="in-out-marker" /> INPUT
+                  <span className="cable-line" />
+                  <span className="chain-count">{chain.length} {chain.length === 1 ? "PEDAL" : "PEDAIS"}</span>
+                </div>
+                <div className="effects-grid"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => dropAt(event, chain.length)}
+                >
+                  {chain.length === 0 ? (
+                    <button type="button" className="empty-add" onClick={() => openView("library")} aria-label="Adicionar primeiro efeito">
+                      <Plus size={34} /><strong>Adicionar primeiro efeito</strong>
+                      <span>Escolha um NAM, IR ou pedal na Biblioteca</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button type="button" className="add-slot clean-add-slot" aria-label="Adicionar efeito" title="Adicionar efeito" onClick={() => openView("library")}>
+                        <Plus size={27} /><span>Adicionar</span>
+                      </button>
+                      {chain.map((effect, index) => (
+                        <PedalFace key={effect.id} index={index} pedal={effect}
+                          selected={selectedId === effect.id}
+                          onSelect={() => setSelectedId((current) => current === effect.id ? null : effect.id)}
+                          onToggle={() => toggle(effect.id)}
+                          onRemove={() => remove(effect.id)}
+                          onParameter={(key, value) => setParameter(effect.id, key, value)}
+                          onMoveDragStart={(event) => event.dataTransfer.setData("text/plain", `chain:${effect.id}`)}
+                          onDrop={dropAt}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+                <div className="route-label last"><span className="cable-line" /> OUTPUT <span className="in-out-marker" /></div>
+              </section>
+              <footer className="board-footer">
+                <span><span className="preview-dot" /> INTERFACE DE DEMONSTRAÇÃO · {engine}</span>
+                {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
+              </footer>
+            </div>
+          )}
+
+          {view === "library" && (
+            <section className="library-view" aria-label="Biblioteca de efeitos">
+              <div className="library-heading">
+                <span className="eyebrow">SEU UNIVERSO DE TIMBRES</span>
+                <h1>Biblioteca<span>.</span></h1>
+                <p>Escolha seus efeitos. A ordem dos pedais é sempre sua.</p>
+              </div>
+              <div className="library-categories">
+                <article className="collection-card">
+                  <div className="collection-icon"><Guitar size={23}/></div><h2>NAMs</h2>
+                  <p>Capturas de amplificadores e drives. Atualmente disponíveis para pré-visualização da skin.</p>
+                  <label className="collection-upload">Selecionar .nam
+                    <input type="file" accept=".nam" onChange={(event) => {
+                      const file = event.target.files?.[0]; if (file) chooseModel(file.name);
+                      event.target.value = "";
+                    }} />
+                  </label>
+                  <button type="button" className="secondary-button" onClick={() => add("amp")}> <Plus size={15}/> Adicionar VTTAMP</button>
+                  <button type="button" className="secondary-button" onClick={() => add("drive")}> <Plus size={15}/> Adicionar VTTDRIVE</button>
+                </article>
+                <article className="collection-card">
+                  <div className="collection-icon"><Waves size={23}/></div><h2>IRs</h2>
+                  <p>Respostas de impulso para gabinetes. O carregamento de áudio real será integrado depois.</p>
+                  <button type="button" className="secondary-button" onClick={() => add("cabinet")}><Plus size={15}/> Adicionar VTTCAB</button>
+                </article>
+              </div>
+
+              <div className="library-heading library-pedals-heading">
+                <span className="eyebrow">EFEITOS VTTRIG</span><h2>Pedais<span>.</span></h2>
+                <input className="library-search" type="search" value={search} placeholder="Buscar pedal..." onChange={(event) => setSearch(event.target.value)} aria-label="Buscar pedais" />
+              </div>
+              <div className="library-list clean-library-list">
+                {searchedPedals.map((kind) => (
+                  <div key={kind} className="library-item"
+                    draggable
+                    onDragStart={(event) => event.dataTransfer.setData("text/plain", `library:${kind}`)}
+                    style={{ "--pedal-accent": PEDALS[kind].accent } as CSSProperties}>
+                    <span className="library-icon">{kind === "amp" || kind === "drive" ? <Zap size={19} /> : <Waves size={19} />}</span>
+                    <div className="library-item-text"><strong>{VTT_PEDAL_NAMES[kind]}</strong><small>{PEDALS[kind].caption}</small></div>
+                    <button type="button" aria-label={`Adicionar ${VTT_PEDAL_NAMES[kind]}`} onClick={() => add(kind)}><Plus size={18}/></button>
+                  </div>
+                ))}
+                {searchedPedals.length === 0 && <p className="quiet">Nenhum efeito encontrado.</p>}
+              </div>
+              <button type="button" className="secondary-button library-back" onClick={() => openView("board")}>Voltar à pedaleira</button>
+            </section>
+          )}
+
+          {view === "settings" && (
+            <section className="settings-view" aria-label="Configurações VTTRIG">
+              <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
+              <div className="settings-stack">
+                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A interface Tauri ainda não envia parâmetros ao NAM/JACK.</p></div><span className="offline-pill">OFFLINE</span></div>
+                <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
+                  <label htmlFor="skin-family">Família visual</label>
+                  <select id="skin-family" value={ampFamily} onChange={(event) => setAmpFamily(event.target.value as AmpFamily | "auto")}>
+                    <option value="auto">Automático pelo nome</option>
+                    {AMP_FAMILIES.map((family) => <option value={family.id} key={family.id}>{family.title}</option>)}
+                  </select>
+                </div></div>
+                <div className="settings-card"><BookOpen size={23}/><div><h2>Seu rig</h2><p>Abra uma cadeia vazia ou carregue a pedaleira de demonstração.</p></div>
+                  <div className="settings-actions"><button type="button" className="secondary-button" onClick={clearChain}><Trash2 size={15}/> Limpar</button><button type="button" className="primary-button" onClick={resetChain}><RotateCcw size={15}/> Carregar rig exemplo</button></div>
+                </div>
+                {activePresetId && <button type="button" className="secondary-button" onClick={deletePreset}><Trash2 size={15}/> Excluir preset atual</button>}
+              </div>
+            </section>
+          )}
+
           {notice && <div className="notification" role="status">{notice}<button type="button" aria-label="Fechar mensagem" onClick={() => setNotice("")}>×</button></div>}
         </main>
-
-        <aside className="inspector-panel">
-          <div className="panel-kicker"><Settings2 size={15} /> PEDAL INSPECTOR</div>
-          {selected && selectedDefinition ? (
-            <div className="inspector-content">
-              <div className="inspector-glyph" style={{ "--pedal-accent": selectedDefinition.accent } as CSSProperties}><Waves size={34} /></div>
-              <div className="eyebrow">{selectedDefinition.category}</div>
-              <h2>{selectedDefinition.title}</h2>
-              <p>{selectedDefinition.description}</p>
-              <div className="inspector-divider" />
-              <div className="inspector-section-label">CONTROLES DO PEDAL</div>
-              <div className="knob-grid">
-                {selectedDefinition.parameters.map((parameter) => (
-                  <Knob
-                    key={parameter.key}
-                    parameter={parameter}
-                    value={selected.values[parameter.key]}
-                    accent={selectedDefinition.accent}
-                    onChange={(value) => setParameter(selected.id, parameter.key, value)}
-                  />
-                ))}
-              </div>
-              {(selected.kind === "amp" || selected.kind === "drive" || selected.kind === "cabinet") &&
-                <div className="inspector-hint">A importação de arquivos {selected.kind === "cabinet" ? ".wav (IR)" : ".nam"} será conectada na fase do motor de áudio.</div>}
-              <div className="inspector-divider" />
-              <div className="inspector-section-label">POSIÇÃO NA CADEIA</div>
-              <div className="move-group">
-                <button type="button" disabled={chain[0]?.id === selected.id} onClick={() => setChain((previous) => movePedal(previous, selected.id, previous.findIndex((p) => p.id === selected.id) - 1))}><ArrowUp size={17} /> Antes</button>
-                <button type="button" disabled={chain[chain.length - 1]?.id === selected.id} onClick={() => setChain((previous) => movePedal(previous, selected.id, previous.findIndex((p) => p.id === selected.id) + 1))}><ArrowDown size={17} /> Depois</button>
-              </div>
-              <button className="inspector-toggle" type="button" onClick={() => toggle(selected.id)}><CirclePower size={18} /> {selected.enabled ? "Desativar pedal" : "Ativar pedal"}</button>
-            </div>
-          ) : (
-            <div className="inspector-empty"><div className="inspector-empty-icon"><Guitar size={30} /></div><h2>Seu rig, suas regras.</h2><p>Selecione um pedal para ajustar seus controles na interface.</p><span>Os parâmetros ainda não processam áudio.</span></div>
-          )}
-          <div className="inspector-foot">VTTRIG <span>•</span> DESIGNED FOR LINUX</div>
-        </aside>
       </div>
     </div>
   );
