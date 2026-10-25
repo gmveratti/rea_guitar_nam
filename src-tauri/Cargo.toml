@@ -1,8 +1,8 @@
 [package]
-name = "rea-guitar-nam"
+name = "vttrig"
 version = "0.1.0"
 edition = "2021"
-description = "Rea Guitar NAM desktop pedalboard"
+description = "VTTRIG interactive guitar pedalboard"
 license = "MIT"
 
 [lib]
