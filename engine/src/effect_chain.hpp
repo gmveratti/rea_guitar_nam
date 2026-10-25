@@ -25,7 +25,7 @@ public:
   virtual ~MonoProcessor() = default;
   // Realtime processing contract: pre-initialized, no allocation, no I/O,
   // no locks, no exceptions inside process().
-  virtual void process(const Sample* input, Sample* output, int frames) noexcept = 0;
+  virtual void process(Sample* input, Sample* output, int frames) noexcept = 0;
 };
 
 struct Stage {
@@ -70,14 +70,14 @@ public:
 
   const std::vector<Stage>& stages() const { return stages_; }
 
-  void process(const Sample* input, Sample* output, int frames) noexcept {
+  void process(Sample* input, Sample* output, int frames) noexcept {
     // Host invokes with 0 <= frames <= kMaxFrames; reject out-of-contract buffers.
     if (!input || !output || frames <= 0) return;
     if (frames > static_cast<int>(kMaxFrames)) {
       std::fill_n(output, frames, 0.0);
       return;
     }
-    const Sample* current = input;
+    Sample* current = input;
     Sample* destination = scratch_a_.data();
     for (const auto& stage : stages_) {
       if (!stage.enabled) continue;
