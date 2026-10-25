@@ -15,9 +15,9 @@ concurrency:
 
 jobs:
   tauri-check:
-    name: Linux desktop compile check
+    name: Linux desktop and AppImage
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,3 +40,23 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Run Rust regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Build VTTRIG AppImage (x86_64)
+        run: npx tauri build --bundles appimage
+      - name: Validate Linux executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          test "${#images[@]}" -gt 0
+          test -f src-tauri/target/release/vttrig
+          ls -lh "${images[@]}" src-tauri/target/release/vttrig
+      - name: Publish downloadable Fedora/Linux test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: VTTRIG-Linux-x86_64
+          path: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/vttrig
+          if-no-files-found: error
+          retention-days: 14
