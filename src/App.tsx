@@ -163,6 +163,21 @@ export default function App() {
     return () => window.removeEventListener("keydown", escapeToClose);
   }, []);
 
+  useEffect(() => {
+    if (!selectedId || view !== "board") return;
+    function closeWhenClickingAway(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // Selecting another pedal is handled by its own button. Controls inside
+      // the editor/footswitch must never dismiss it accidentally.
+      if (!target.closest(".pedal-focus, .pedal-shell")) {
+        setSelectedId(null);
+      }
+    }
+    document.addEventListener("pointerdown", closeWhenClickingAway);
+    return () => document.removeEventListener("pointerdown", closeWhenClickingAway);
+  }, [selectedId, view]);
+
   function chooseModel(filename: string) {
     setModelName(filename);
     setAmpFamily("auto");
