@@ -45,7 +45,7 @@ test("presets preserve the chain and LED bypass state across reload", async ({ p
   await expect(page.getByRole("status")).toContainText("salvo localmente");
   await page.reload();
   const saved = page.locator("#preset-picker");
-  await expect(saved.locator("option")).toContainText(["Selecionar preset salvo", "Studio Demo"]);
+  await expect(saved.locator("option")).toContainText(["Personalizado", "Studio Demo"]);
   await saved.selectOption({ label: "Studio Demo" });
   await expect(page.getByRole("group", { name: /VTTDELAY/ }).getByRole("img", { name: "LED desligado" })).toBeVisible();
   await expect(page.locator(".amp-art")).toHaveClass(/amp-chime/);
