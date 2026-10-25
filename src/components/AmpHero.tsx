@@ -7,6 +7,7 @@ type Props = {
   overrideFamily: AmpFamily | "auto";
   onModelChosen: (file: File) => void;
   onOverrideChange: (family: AmpFamily | "auto") => void;
+  minimal?: boolean;
 };
 
 const DEMOS = [
@@ -37,7 +38,7 @@ function FaceKnob({ label, index }: { label: string; index: number }) {
   );
 }
 
-export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange }: Props) {
+export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange, minimal = false }: Props) {
   const skin = classifyNamFilename(modelName, overrideFamily);
   const [error, setError] = useState("");
   function importCandidate(file: File | undefined) {
@@ -59,10 +60,10 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
   }
   return (
     <section className="hero-zone" aria-label="Amplificador virtual VTTRIG">
-      <div className="hero-zone-head">
+      {!minimal && <div className="hero-zone-head">
         <div><span className="hero-caption">01 / AMPLIFIER VIEW</span><h2>Amp studio <span>✦</span></h2></div>
         <div className="hero-status"><span className="status-pulse" /> NAM A2 • VISUAL DEMO</div>
-      </div>
+      </div>}
 
       <div
         className={`amp-art amp-${skin.id}`}
@@ -87,7 +88,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
         </div>
       </div>
 
-      <div className="amp-model-bar">
+      {!minimal && <div className="amp-model-bar">
         <div className="amp-model-info">
           <span className="model-icon"><Cpu size={20} /></span>
           <div><small>MODELO SELECIONADO (VISUAL)</small><strong title={modelName}>{humanizeModelName(modelName)}</strong></div>
@@ -97,7 +98,9 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
         </label>
       </div>
 
-      <div className="amp-choices">
+      </div>}
+
+      {!minimal && <div className="amp-choices">
         <div className="amp-dropdown"><label htmlFor="amp-example">TESTAR SKINS</label><select id="amp-example" value="" onChange={(event) => {
           const value = event.target.value;
           if (value) onModelChosen(new File([], value));
@@ -105,8 +108,9 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
         <div className="amp-dropdown"><label htmlFor="skin-family">ESTILO DO AMPLIFICADOR</label><select id="skin-family" value={overrideFamily} onChange={(event) => onOverrideChange(event.target.value as AmpFamily | "auto")}><option value="auto">Automático pelo nome</option>{AMP_FAMILIES.filter((item) => item.id !== "generic").map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}<option value="generic">VTTRIG Standard</option></select></div>
         <div className="skin-origin"><RotateCw size={13} /> {skin.match === "manual" ? "Visual escolhido manualmente" : skin.match === "filename" ? "Estilo detectado por nome" : "Estilo VTTRIG padrão"}</div>
       </div>
+      </div>}
       {error ? <div className="model-warning"><Info size={15}/>{error}</div> : null}
-      <div className="demo-disclaimer"><FileAudio2 size={14}/><span>O arquivo selecionado altera apenas a aparência. A2-Lite/Full, processamento de áudio e leitura de metadados serão integrados ao motor nativo em uma próxima etapa.</span><FolderOpen size={14}/></div>
+      {!minimal && <div className="demo-disclaimer"><FileAudio2 size={14}/><span>O arquivo selecionado altera apenas a aparência. A2-Lite/Full, processamento de áudio e leitura de metadados serão integrados ao motor nativo em uma próxima etapa.</span><FolderOpen size={14}/></div>}
     </section>
   );
 }
