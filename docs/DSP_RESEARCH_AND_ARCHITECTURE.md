@@ -1,0 +1,107 @@
+# VTTRIG — decisão técnica de DSP e referências open source
+
+**Estado:** proposta de arquitetura e pesquisa, 25/10/2026. **Não é código integrado nem validação auditiva.**
+
+## 1. Contexto completo do produto
+
+VTTRIG é um estúdio de guitarra desktop **nativo no Fedora**, sem Wine/yabridge, com **Tauri 2 + React/TypeScript para a UI** e **motor de áudio independente de baixa latência** (Rust/C++). O uso inicial é como aplicativo standalone via PipeWire/JACK; uma futura versão de **plugin CLAP/VST3 para REAPER** deve compartilhar o mesmo motor DSP, mas não carregar a WebView/Tauri como plugin por acidente.
+
+A experiência desejada combina:
+- **Amp Focus:** head visual grande inspirado em amplificadores, marca própria VTTRIG; família gráfica identificada heurísticamente pelo nome de arquivo `.nam` e por metadados confiáveis quando disponíveis; possibilidade de correção manual.
+- **Pedalboard:** pedais padronizados, inspirados no **tipo físico de stompbox**, mas chassis, textos e marca VTTRIG originais: VTTCHORUS, VTTDELAY, VTTREVERB, VTTCOMP, VTTSUSTAIN, VTTGATE, VTTDRIVE, VTTAMP e VTTCAB. Cada efeito tem cor própria, knobs, footswitch clicável, LED on/off, microanimações, bypass e reordenação de cadeia.
+- **Biblioteca local e presets:** salvar/carregar, arrastar módulos, nomes e parâmetros próprios por instância, futuro import/export JSON versionado, snapshots e modelos associados por hash/path.
+- **NAM A2-Lite / A2-Full:** modelos `.nam` para amps e pedais de drive; IR `.wav` para caixas; calibração, trims, ganho de entrada/saída. **Capturas NAM são snapshots** do equipamento; knobs decorativos da skin não alteram os controles físicos que foram capturados. EQ/ganho próprios só devem influenciar o som através de blocos DSP externos bem definidos.
+- **TONE3000:** suporte local `.nam` antes de API. Integração futura usando OAuth/Select/Load Tone oficial, obedecendo os termos e sem replicar indevidamente um catálogo concorrente; nunca colocar chave secreta da API na WebView.
+
+## 2. Critérios para selecionar código
+
+Não existe um único “melhor” universal. As escolhas abaixo conciliam **recomendações reais na comunidade Linux/audio**, características sonoras, maturidade, licença clara e possibilidade de extrair o **motor DSP**, em vez de embutir outro plugin com GUI. Benchmark com ouvido e CPU na máquina-alvo antes de congelar algoritmos.
+
+- **Qualidade musical:** comparação A/B às cegas com volumes igualados, guitarra limpa/crunch/high gain e testes de mix.
+- **Baixa latência e RT-safe:** sem heap/locks/IO/log no callback, buffers inicializados fora do thread de áudio, prevenção de denormal, mudanças suavizadas, estabilidade em 48 kHz e buffers 64/128/256.
+- **Licenças:** auditadas por arquivo e por dependência; manter notices. Preferir código MIT/BSD-3-Clause. Software gratuito **não** implica código aberto.
+- **Integração:** processamento em bloco, sem WebView no thread de áudio; configuração e pré-carregamento assíncronos, swap seguro de estados.
+- **Identidade:** usar DSP aberto com UI VTTRIG original. Não reutilizar logos, gráficos, texturas e marcas comerciais de terceiros.
+
+## 3. Matriz de candidatos, referências e decisão
+
+| Pedal / implementação | Motor aberto candidato | Licença do projeto | Papel no VTTRIG | Nota de adoção |
+|---|---|---|---|---|
+| **VTTREVERB / Cloud** | [Ghost Note CloudSeedCore](https://github.com/GhostNoteAudio/CloudSeedCore) | MIT | **Primeira opção para caudas densas / modulação / ambient** | Core do Cloud Seed separado da GUI fechada; requer integração C++ e testes de CPU |
+| **VTTREVERB / Plate/Room** | [Dragonfly Reverb](https://github.com/michaelwillis/dragonfly-reverb) | GPLv3 | **Referência de timbre e A/B**, não copiar direto para uma base MIT | Muito recomendado nos fóruns Linux; compartilhar código exige análise da GPL do produto derivado |
+| **VTTREVERB / alternative** | [Airwindows Verbity / Galactic / kPlate](https://github.com/airwindows/airwindows) | MIT | **Experimentos A/B** para plate/hall/efeitos especiais | Caracteres distintos, possível combinar em modos separados |
+| **VTTDELAY / Tape** | [Airwindows TapeDelay2](https://github.com/airwindows/airwindows) | MIT | **Primeiro tape delay** | Boa fonte para caráter analógico; validar controles reais disponíveis no algoritmo |
+| **VTTDELAY / Multi-tap** | [CHOW Matrix](https://github.com/Chowdhury-DSP/ChowMatrix) | BSD-3-Clause | **Candidato a modo avançado**, múltiplas linhas/feedback | Reuso do DSP precisa checar dependências de JUCE/terceiros; não transportar o plugin inteiro sem auditoria |
+| **VTTDELAY / Clean** | delay line próprio, usando [DaisySP](https://github.com/electro-smith/DaisySP) como referência de utilitários | MIT no DaisySP principal | **Implementação curta e testável** de delay digital, tap tempo, feedback | Essencial para presets previsíveis; algoritmos de caráter vão em modos específicos |
+| **VTTCHORUS / Stereo** | [Airwindows StereoChorus](https://github.com/airwindows/airwindows) | MIT | **Candidato A/B de chorus estéreo** | Comparar com DaisySP para robustez, mono compatibility e ruído |
+| **VTTCHORUS / Classic** | [DaisySP Chorus](https://github.com/electro-smith/DaisySP) | MIT na árvore principal | **Primeira implementação do chorus clássico** | Código modular, controles LFO/depth/delay/feedback e fácil portar em DSP nativo |
+| **VTTCOMP / Smooth** | [Airwindows ButterComp2](https://github.com/airwindows/airwindows) | MIT | **Compressor musical de guitarra**, candidato inicial | Mapear controles reais do algoritmo; não inventar ratio/attack/threshold se não existirem no core |
+| **VTTCOMP / Character** | [Airwindows Pressure5](https://github.com/airwindows/airwindows) | MIT | **Modo punch/character**, opcional | A/B contra clean para não hipercomprimir o transiente |
+| **VTTCOMP / Transparent** | [LSP Compressor](https://github.com/lsp-plugins/) | LGPLv3 | **Referência técnica de dinâmica**, possível integração isolada conforme licença | Compressor com envelope, knee, attack/release, sidechain; auditar obrigações de distribuição antes de importar |
+| **VTTSUSTAIN** | envelope/detector/ganho do **VTTCOMP** reaproveitados, sem duplicar DSP | VTTRIG próprio / licenças das partes reutilizadas | **Voz sonora separada**, baseada em compressão paralela/tempo de release musical | Sustain não deve ser apenas knob sem efeito; calibrar ruído e makeup |
+| **VTTAMP/VTTDRIVE** | [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) | MIT | **Engine de capturas A2** | Versões 0.5.x adicionaram processamento A2 e melhorias de desempenho; validar com arquivos A2-Lite/Full reais |
+
+**Recomendação inicial de protótipos DSP:** CloudSeedCore para reverb, TapeDelay2 para delay tape, DaisySP Chorus para chorus clássico, ButterComp2 para compressor musical. O CHOW Matrix é destaque para uma segunda opção de delay e LSP/Dragonfly são bons alvos de comparação. Esta seleção ainda depende de teste de audição e profiling; “mais recomendado” não é uma medição objetiva.
+
+### Referências comunitárias (não são benchmarking controlado)
+- [r/linuxaudio — Linux plugins thread](https://www.reddit.com/r/linuxaudio/comments/wntpyd/linux_plugins_thread_2022/): recomenda Dragonfly e cita CHOW Matrix, delays do LSP e Airwindows.
+- [r/linuxaudio — Native reverb/delay for ambient music](https://www.reddit.com/r/linuxaudio/comments/1l7xnp6/native_reverbdelay_vsts_for_ambient_music/): usos reportados de Dragonfly, TAL, LSP Slapback, Guitarix e outros.
+- [r/linuxaudio — Favorite FOSS plugins](https://www.reddit.com/r/linuxaudio/comments/qxba6e/favorite_foss_plugins/): Airwindows entre as sugestões.
+- [r/linuxaudio — How good are LSP plugins?](https://www.reddit.com/r/linuxaudio/comments/1ezvlv0/how_good_quality_are_the_linux_studio_project/): experiência positiva em cobertura técnica, mas UI criticada; VTTRIG pode ganhar muito com UX própria.
+
+## 4. Design de som por pedal: requisitos mínimos
+
+**VTTDELAY:** modos Digital, Tape, depois Multi-tap; parâmetros Time (ms), Sync/Division, Feedback, Mix, Tone (HP/LP), Mod (se disponível), Trails e tap tempo; feedback com teto seguro; sem cliques ao trocar time (interpolação/crossfade).
+
+**VTTREVERB:** modos Cloud, Hall/Room/Plate quando comprovados; parâmetros Decay, Size, Predelay, Tone/High-cut, Mix, Modulation; impedir tail infinita por erro e permitir preservar tails no bypass; avaliar carga da CloudSeed separadamente.
+
+**VTTCHORUS:** modos Classic e Stereo; Rate, Depth, Mix, Delay, Width, Feedback; testes de cancelamento mono, ranges estáveis e transientes sem pops; padrão sonoro de baixo ruído.
+
+**VTTCOMP:** um modo Smooth guitarra e outro Transparent/Punch após escuta; controles devem corresponder à implementação real, com gain reduction meter genuíno quando DSP existir; entrada, limiar, attack/release, makeup, ratio/knee somente se suportados.
+
+**VTTSUSTAIN:** algoritmo baseado em compressão calibrada + envelope/release; controles Sustain, Attack, Level e talvez Blend; evitar amplificação extrema do ruído. Mesmo motor de dinâmica, preset e UI distintos.
+
+**Gate** acompanha ruído da cadeia e deve ter histerese/release musical; **Cab IR** aceita WAV, conversão de sample rate fora do callback, processamento particionado quando necessário; **NAM** com input trim e calibração real por modelo.
+
+## 5. Arquitetura e contrato de integração
+
+```text
+Tauri 2 / React (apenas UI)
+  ├─ Amp Focus: skin VTTRIG por nome de .nam + override
+  ├─ stompboxes VTT: LED/footswitch/bypass, drag/drop, inspector
+  └─ presets, browser NAM/IR, MIDI, configurações
+            ↓ comandos não RT, por fila
+Rust app controller / services
+  ├─ indexação de modelos A2/IR e configuração assíncrona
+  ├─ presets versionados / persistência
+  └─ snapshot de telemetria para UI (nunca ler processo de áudio diretamente)
+            ↓ estados imutáveis / troca segura
+C++/Rust Native Audio Engine (sem WebView)
+  ├─ Audio backend: PipeWire/JACK, conforme disponibilidade no Fedora
+  ├─ Input calibration → gate/comp/sustain → NAM drive → NAM amp
+  ├─ cab IR → chorus → delay → reverb → output/limiter/meter
+  ├─ adapters: NAM core / CloudSeed / Airwindows / DaisySP
+  └─ porta separada no futuro: CLAP/VST3 para REAPER
+```
+
+A ordem acima é **preset padrão**, não um bloqueio: o usuário pode reordenar a cadeia. Preservar canais mono/stereo de forma explícita, compensação de latência por módulo e parâmetros suavizados. Instanciar/modelos/IR e alocar delays no worker; o callback só processa buffers prealocados. Não misturar DSP de plugins com GUI de terceiros nem executar Tauri em callback de áudio.
+
+## 6. Validação antes de chamar qualquer pedal de “pronto”
+
+1. **Licenciamento:** arquivo por arquivo, dependências transitivas, `THIRD_PARTY_NOTICES.md`, license scanning; decidir licença final do produto de forma explícita.
+2. **DSP offline:** impulses, step response, sweep, noise floor, clipping, impulse decay, stereo tests, sample-rate changes, disabled/bypass null tests.
+3. **A/B ouvido:** fonte dry regravada via loopback; comparar VTTRIG a cada plugin original com RMS/LUFS equiparados, presets equivalentes, escuta cega para clean, crunch, high gain e ambient.
+4. **Realtime:** teste em Fedora + interface USB, 48 kHz e buffers 64/128/256, medir xruns, CPU, latência de ida e volta, memória estável em 10+ min, sem travar UI.
+5. **Presets:** snapshots reproduzíveis, defaults, migrações, paths quebrados tratados; não salvar segredos da API em JSON.
+6. **UI:** LED só significa bypass local até engine conectada; knobs da skin de amp não prometem controle de gain/bass/mid capturados. Simulações devem permanecer marcadas como protótipo.
+
+## 7. Sequência recomendada de implementação
+
+- **Etapa A:** finalizar revisão UI e testes do PR #1 (não confundir preview visual com motor).
+- **Etapa B:** criar `engine-core` standalone sem efeitos, IO real PipeWire/JACK, medição de latência e contrato thread-safe.
+- **Etapa C:** NAM A2 `.nam` e Cabinet IR `.wav`, primeiro funcional com áudio real, testes offline e benchmark.
+- **Etapa D:** um por um: DaisySP Chorus, TapeDelay2, CloudSeedCore, compressor ButterComp2; preservar licenses e provar equivalência A/B com a implementação original.
+- **Etapa E:** variantes avançadas (CHOW Matrix, Pressure5, modelos de reverb) e sustain com dinâmica musical.
+- **Etapa F:** integração OAuth Tone3000 e CLAP/VST3 compartilhando motor de áudio.
+
+**Decisão:** somente declarar algoritmo adotado no produto após implementação, teste auditivo, profiling e auditoria de licença. Estas são fontes de referência/candidatos, não DSP já instalado.
