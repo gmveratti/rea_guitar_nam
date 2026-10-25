@@ -45,6 +45,11 @@ test("body click raises pedal and opens editor; footswitch remains independent",
   await body.click({ position: { x: 20, y: 135 } });
   await page.keyboard.press("Escape");
   await expect(editor).toHaveCount(0);
+
+  await body.click({ position: { x: 20, y: 135 } });
+  await expect(editor).toBeVisible();
+  await page.locator(".amp-grille").click({ position: { x: 20, y: 20 } });
+  await expect(editor).toHaveCount(0);
 });
 
 test("pedal settings and arbitrary order persist in saved rig presets", async ({ page }) => {
