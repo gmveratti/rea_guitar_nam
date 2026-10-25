@@ -96,8 +96,6 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
         <label className="file-picker"><Upload size={16} /> Selecionar .nam
           <input type="file" accept=".nam" onChange={(event) => { importCandidate(event.target.files?.[0]); event.target.value = ""; }} />
         </label>
-      </div>
-
       </div>}
 
       {!minimal && <div className="amp-choices">
@@ -107,7 +105,6 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
         }}><option value="">Exemplos visuais</option>{DEMOS.map((name) => <option key={name} value={name}>{humanizeModelName(name)}</option>)}</select></div>
         <div className="amp-dropdown"><label htmlFor="skin-family">ESTILO DO AMPLIFICADOR</label><select id="skin-family" value={overrideFamily} onChange={(event) => onOverrideChange(event.target.value as AmpFamily | "auto")}><option value="auto">Automático pelo nome</option>{AMP_FAMILIES.filter((item) => item.id !== "generic").map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}<option value="generic">VTTRIG Standard</option></select></div>
         <div className="skin-origin"><RotateCw size={13} /> {skin.match === "manual" ? "Visual escolhido manualmente" : skin.match === "filename" ? "Estilo detectado por nome" : "Estilo VTTRIG padrão"}</div>
-      </div>
       </div>}
       {error ? <div className="model-warning"><Info size={15}/>{error}</div> : null}
       {!minimal && <div className="demo-disclaimer"><FileAudio2 size={14}/><span>O arquivo selecionado altera apenas a aparência. A2-Lite/Full, processamento de áudio e leitura de metadados serão integrados ao motor nativo em uma próxima etapa.</span><FolderOpen size={14}/></div>}
