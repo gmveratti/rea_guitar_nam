@@ -10,7 +10,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -19,11 +19,15 @@ const FRAMES: usize = 128;
 const RING_SIZE: usize = 16_384;
 const SAFE_GAIN: f32 = 0.12;
 
+const INPUT_FAULT: u8 = 1;
+const OUTPUT_FAULT: u8 = 2;
+const ENGINE_FAULT: u8 = 4;
+
 pub struct LiveSession {
     input: Stream,
     output: Stream,
     running: Arc<AtomicBool>,
-    failed: Arc<AtomicBool>,
+    faults: Arc<AtomicU8>,
     underruns: Arc<AtomicU64>,
     overflows: Arc<AtomicU64>,
     child: Child,
@@ -39,6 +43,9 @@ pub struct LiveState {
 pub struct LiveStatus {
     pub running: bool,
     pub failed: bool,
+    pub input_failed: bool,
+    pub output_failed: bool,
+    pub engine_failed: bool,
     pub underruns: u64,
     pub overflows: u64,
     pub mode: &'static str,
@@ -50,9 +57,14 @@ pub fn status(state: &LiveState) -> Result<LiveStatus, String> {
         .lock()
         .map_err(|_| "Audio state unavailable")?;
     let session = guard.as_ref();
+    let faults = session.map_or(0, |s| s.faults.load(Ordering::Relaxed));
     Ok(LiveStatus {
+        // A failed session still needs an explicit Stop to release its devices.
         running: session.is_some(),
-        failed: session.is_some_and(|s| s.failed.load(Ordering::Relaxed)),
+        failed: faults != 0,
+        input_failed: faults & INPUT_FAULT != 0,
+        output_failed: faults & OUTPUT_FAULT != 0,
+        engine_failed: faults & ENGINE_FAULT != 0,
         underruns: session.map_or(0, |s| s.underruns.load(Ordering::Relaxed)),
         overflows: session.map_or(0, |s| s.overflows.load(Ordering::Relaxed)),
         mode: "live_nam_ir_pipe",
@@ -231,7 +243,7 @@ pub fn start(
     let (mut input_tx, mut input_rx) = RingBuffer::<f32>::new(RING_SIZE);
     let (mut output_tx, mut output_rx) = RingBuffer::<f32>::new(RING_SIZE);
     let running = Arc::new(AtomicBool::new(true));
-    let failed = Arc::new(AtomicBool::new(false));
+    let faults = Arc::new(AtomicU8::new(0));
     let underruns = Arc::new(AtomicU64::new(0));
     let overflows = Arc::new(AtomicU64::new(0));
     let input_channels = usize::from(input_cfg.channels);
@@ -240,9 +252,9 @@ pub fn start(
     let in_overflows = Arc::clone(&overflows);
     let out_underruns = Arc::clone(&underruns);
     let out_overflows = Arc::clone(&overflows);
-    let input_error = Arc::clone(&failed);
-    let output_error = Arc::clone(&failed);
-    let output_silence = Arc::clone(&failed);
+    let input_error = Arc::clone(&faults);
+    let output_error = Arc::clone(&faults);
+    let output_silence = Arc::clone(&faults);
     let input_stream = match input.build_input_stream(
         &input_cfg,
         move |data: &[f32], _| {
@@ -254,7 +266,7 @@ pub fn start(
             }
         },
         move |_error| {
-            input_error.store(true, Ordering::Relaxed);
+            input_error.fetch_or(INPUT_FAULT, Ordering::Relaxed);
         },
         None,
     ) {
@@ -269,7 +281,7 @@ pub fn start(
         &output_cfg,
         move |data: &mut [f32], _| {
             for frame in data.chunks_mut(output_channels) {
-                let value = if output_silence.load(Ordering::Relaxed) {
+                let value = if output_silence.load(Ordering::Relaxed) != 0 {
                     0.0
                 } else {
                     match output_rx.pop() {
@@ -291,7 +303,7 @@ pub fn start(
             }
         },
         move |_error| {
-            output_error.store(true, Ordering::Relaxed);
+            output_error.fetch_or(OUTPUT_FAULT, Ordering::Relaxed);
         },
         None,
     ) {
@@ -308,11 +320,13 @@ pub fn start(
         return Err(format!("Não foi possível iniciar monitoramento: {e}"));
     }
     let worker_running = Arc::clone(&running);
-    let worker_failed = Arc::clone(&failed);
+    let worker_faults = Arc::clone(&faults);
     let worker = thread::spawn(move || {
         let mut input_bytes = [0u8; FRAMES * 4];
         let mut output_bytes = [0u8; FRAMES * 4];
-        while worker_running.load(Ordering::Relaxed) {
+        while worker_running.load(Ordering::Relaxed)
+            && worker_faults.load(Ordering::Relaxed) == 0
+        {
             if input_rx.slots() < FRAMES {
                 thread::sleep(Duration::from_millis(1));
                 continue;
@@ -324,7 +338,7 @@ pub fn start(
             if in_pipe.write_all(&input_bytes).is_err()
                 || out_pipe.read_exact(&mut output_bytes).is_err()
             {
-                worker_failed.store(true, Ordering::Relaxed);
+                worker_faults.fetch_or(ENGINE_FAULT, Ordering::Relaxed);
                 break;
             }
             for chunk in output_bytes.as_chunks::<4>().0 {
@@ -337,7 +351,7 @@ pub fn start(
         input: input_stream,
         output: output_stream,
         running,
-        failed,
+        faults,
         underruns,
         overflows,
         child,
@@ -379,6 +393,16 @@ mod tests {
         let s = status(&LiveState::default()).unwrap();
         assert!(!s.running);
         assert_eq!(s.mode, "live_nam_ir_pipe");
+    }
+    #[test]
+    fn engine_and_device_faults_are_independent() {
+        let faults = AtomicU8::new(0);
+        faults.fetch_or(INPUT_FAULT, Ordering::Relaxed);
+        assert_eq!(faults.load(Ordering::Relaxed) & ENGINE_FAULT, 0);
+        faults.fetch_or(ENGINE_FAULT, Ordering::Relaxed);
+        assert_ne!(faults.load(Ordering::Relaxed) & INPUT_FAULT, 0);
+        assert_ne!(faults.load(Ordering::Relaxed) & ENGINE_FAULT, 0);
+        assert_eq!(faults.load(Ordering::Relaxed) & OUTPUT_FAULT, 0);
     }
     #[test]
     fn output_queue_overflow_is_accounted_without_blocking() {
