@@ -52,6 +52,16 @@ jobs:
       - name: Check Windows bundle config and generated ICO
         run: python scripts/check_windows_bundle.py --preflight
 
+      - name: Compile and stage live NAM/IR sidecar
+        shell: pwsh
+        run: |
+          cmake -S engine -B engine/build-live -DBUILD_TESTING=ON -DVTTRIG_BUILD_JACK=OFF
+          cmake --build engine/build-live --config Release --target vttrig-nam-live --parallel 2
+          ctest --test-dir engine/build-live -C Release --output-on-failure -R "live_sidecar"
+          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
+          $triple = (rustc --print host-tuple).Trim()
+          Copy-Item engine/build-live/Release/vttrig-nam-live.exe "src-tauri/binaries/vttrig-nam-live-$triple.exe"
+
       - name: Check Windows Rust code
         run: cargo check --manifest-path src-tauri/Cargo.toml
       - name: Check Rust formatting

@@ -125,7 +125,7 @@ pub fn list_hosts() -> Vec<HostInfo> {
         .collect()
 }
 
-fn validate_buffer(frames: u32) -> Result<(), String> {
+pub(crate) fn validate_buffer(frames: u32) -> Result<(), String> {
     if [64, 128, 256, 512, 1024].contains(&frames) {
         Ok(())
     } else {
@@ -133,7 +133,7 @@ fn validate_buffer(frames: u32) -> Result<(), String> {
     }
 }
 
-fn choose_device(
+pub(crate) fn choose_device(
     host: &cpal::Host,
     input: bool,
     index: usize,

@@ -17,6 +17,8 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 cpal = { version = "0.17", default-features = true }
 rtrb = "0.3"
+serde_json = "1"
+tauri-plugin-dialog = "2"
 
 # CPAL backends are intentionally selectable only when compiled and present.
 # ASIO requires Steinberg SDK/toolchain setup and is NOT enabled in default CI.
