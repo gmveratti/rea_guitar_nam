@@ -14,7 +14,9 @@ fn audio_list_hosts() -> Vec<audio::HostInfo> {
 }
 
 #[tauri::command]
-fn audio_monitor_status(state: State<'_, audio::AudioState>) -> Result<audio::MonitorStatus, String> {
+fn audio_monitor_status(
+    state: State<'_, audio::AudioState>,
+) -> Result<audio::MonitorStatus, String> {
     audio::status(&state)
 }
 
