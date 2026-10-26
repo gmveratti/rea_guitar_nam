@@ -3,11 +3,9 @@
 // The UI is not yet connected; the eventual backend will translate the pedalboard
 // order into a new pre-prepared graph, swapped safely at an audio-block boundary.
 #include "effect_chain.hpp"
-#include "chain_manifest.hpp"
+#include "nam_processing.hpp"
 
 #include <jack/jack.h>
-#include <NAM/dsp.h>
-#include <NAM/get_dsp.h>
 
 #include <algorithm>
 #include <array>
@@ -22,7 +20,6 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -39,8 +36,8 @@ void usage() {
   std::cout
       << "VTTRIG flexible NAM/IR JACK engine (experimental)\n"
       << "Usage: vttrig-nam-jack [--nam MODEL.nam | --ir CABINET.wav] ... [--bypass]\n"
-      << "       vttrig-nam-jack --chain-json ordered-chain.json\\n"
-      << "       vttrig-nam-jack --validate-chain-json ordered-chain.json\\n"
+      << "       vttrig-nam-jack --chain-json ordered-chain.json\n"
+      << "       vttrig-nam-jack --validate-chain-json ordered-chain.json\n"
       << "Blocks execute in EXACT command-line order. Repeat any kind or use --bypass\n"
       << "immediately after the block to disable that instance. Up to 24 stages.\n"
       << "Examples:\n"
@@ -80,51 +77,6 @@ std::vector<PlannedEffect> parse_plan(int argc, char* argv[]) {
   }
   if (planned.empty()) throw std::invalid_argument("Add at least one --nam or --ir block");
   return planned;
-}
-
-// Expose one mono NAM/IR model as a graph node.
-// The NAM Core process API accepts mutable pointers. Graph buffers are writable.
-class NamMonoProcessor final : public vttrig::MonoProcessor {
-public:
-  explicit NamMonoProcessor(std::unique_ptr<nam::DSP> model)
-    : model_(std::move(model)) {}
-
-  void process(vttrig::Sample* input, vttrig::Sample* output, int frames) noexcept override {
-    static_assert(std::is_same_v<vttrig::Sample, NAM_SAMPLE>,
-        "The VTTRIG graph sample type must match NAM_SAMPLE");
-    NAM_SAMPLE* inputs[] = {input};
-    NAM_SAMPLE* outputs[] = {output};
-    model_->process(inputs, outputs, frames);
-  }
-
-private:
-  std::unique_ptr<nam::DSP> model_;
-};
-
-vttrig::MonoChain prepare_chain(const std::vector<PlannedEffect>& specs) {
-  vttrig::MonoChain chain;
-  for (std::size_t i = 0; i < specs.size(); ++i) {
-    const auto& spec = specs[i];
-    // Slow operations stay outside the realtime callback.
-    auto model = nam::get_dsp(spec.path);
-    if (!model) throw std::runtime_error("Failed to load effect: " + spec.path.string());
-    if (model->NumInputChannels() != 1 || model->NumOutputChannels() != 1) {
-      throw std::runtime_error("Only mono .nam/IR are supported: " + spec.path.string());
-    }
-    const double expected_rate = model->GetExpectedSampleRate();
-    if (spec.kind != "cabinet" && expected_rate > 0.0 && std::abs(expected_rate - 48000.0) > 1.0) {
-      throw std::runtime_error("Resampling neural models is not yet supported: " + spec.path.string());
-    }
-    // WAV IR models support Reset() rate conversion; prepare that now.
-    model->Reset(48000.0, static_cast<int>(kMaxFrames));
-    chain.append(vttrig::Stage{
-      spec.id,
-      spec.kind,
-      spec.enabled,
-      std::make_unique<NamMonoProcessor>(std::move(model))
-    });
-  }
-  return chain;
 }
 
 struct Engine {
@@ -186,14 +138,7 @@ int main(int argc, char* argv[]) {
       (std::string(argv[1]) == "--chain-json" ||
        std::string(argv[1]) == "--validate-chain-json");
     if (chain_json) {
-      const auto chain_path = std::filesystem::path(argv[2]);
-      if (!std::filesystem::is_regular_file(chain_path) ||
-          std::filesystem::file_size(chain_path) > 256 * 1024) {
-        throw std::invalid_argument("Chain JSON must be an existing file of at most 256 KiB");
-      }
-      std::ifstream input(chain_path);
-      if (!input) throw std::runtime_error("Unable to read chain JSON");
-      planned = vttrig::parse_chain_manifest(input);
+      planned = vttrig::load_chain_file(argv[2]);
       if (std::string(argv[1]) == "--validate-chain-json") {
         std::cout << "Validated chain v1 with " << planned.size()
                   << " ordered nodes (files not opened; no audio started).\\n";
@@ -204,7 +149,7 @@ int main(int argc, char* argv[]) {
     }
     // Prepared graph is immutable after activation.
     Engine engine;
-    engine.chain = prepare_chain(planned);
+    engine.chain = vttrig::prepare_chain(planned);
 
     jack_status_t status{};
     JackClient client(jack_client_open("VTTRIG_NAM", JackNoStartServer, &status));

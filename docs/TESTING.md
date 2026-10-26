@@ -85,6 +85,27 @@ Esses testes garantem somente distribuição e UI. **Não** validam áudio
 NAM A2, IR, interfaces ASIO/WASAPI, latência nem processamento DSP
 (no Windows ou Linux), ainda não conectados ao aplicativo Tauri.
 
+## PR #9: regressão do núcleo NAM/IR multiplataforma
+
+O workflow `VTTRIG NAM cross-platform DSP` agora usa matriz C++
+**Ubuntu 24.04/GCC** e **Windows 2022/MSVC**. Em cada plataforma exige:
+
+- CMake configurar/compilar `vttrig_nam_core` e
+  `vttrig-nam-offline` com o mesmo commit pinned do NAM Core;
+- No Linux, compilar também `vttrig-nam-jack`, sem alterar sua callback;
+- Executar `ctest --test-dir engine/build -C Release --output-on-failure`;
+- Confirmar schema v1, ordem arbitrária, IDs únicos e bypass por instância;
+- Regressões offline PCM16 e IEEE float32, 48 kHz mono,
+  input inválido, amostras não finitas, tail de bloco de 1 frame,
+  passthrough com cadeia vazia e pedal em bypass;
+- Publicar binários de linha de comando separados do AppImage Tauri.
+
+Esta etapa permite processamento offline sem placa de áudio; **não prova
+realtime**, USB audio interface, WASAPI/ASIO, A2 Full/Lite de modelos reais,
+latência nem comando Tauri→DSP. A próxima integração deverá manter as
+mesmas invariantes, com testes de amostras reais licenciadas e A/B com
+Gateway/TONE3000.
+
 ## Exigência para pull requests
 
 Descrever cada bug como:
