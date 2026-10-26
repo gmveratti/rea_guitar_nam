@@ -24,6 +24,24 @@ Os pedais mantêm os chassis e cores atuais:
 - **Salvar preset** mantém a cadeia e seus valores, mas ainda **não processa áudio**
   no Tauri. Nenhuma alteração nesta interface significa integração DSP finalizada.
 
+## Amplificador: posição vazia até selecionar NAM (PR #7)
+
+A primeira entrada do VTTRIG não presume um amplificador carregado.
+Em vez de mostrar um amp fictício, a área central apresenta uma moldura
+com botão **(+) Adicionar amplificador**. O usuário pode escolher um
+arquivo `.nam` pelo seletor, arrastá-lo à área ou selecionar um dos
+modelos de demonstração no menu superior. Só então a skin dinâmica
+VTTRIG aparece. Se escolher novamente **+ Adicionar NAM** no menu,
+a área retorna ao estado vazio, sem modificar os pedais e sua ordem.
+
+A entrada física do amp ganhou um plug e cabo **decorativos e discretos**.
+A prévia continua sem carregar/rodar o DSP do arquivo escolhido; apenas o
+nome serve para escolher o estilo de amplificador. A escolha pode ser
+salva em um preset e recuperada depois. Testes de regressão em
+`e2e/amp-empty-state.spec.ts` cobrem o estado vazio, a seleção,
+a remoção e a posição do cabo. Os comportamentos do PR #6 continuam
+cobertos pelas suítes existentes.
+
 ## Ajustes visuais e interação do amplificador (PR #6)
 
 Após testar o AppImage no Fedora, refinamos o estúdio para ficar mais próximo

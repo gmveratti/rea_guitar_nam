@@ -5,8 +5,9 @@ test("clean navigation starts with empty board and a clear add control", async (
   await expect(page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button")).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Adicionar primeiro efeito" })).toBeVisible();
   await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toHaveCount(0);
-  await expect(page.locator(".amp-art")).toBeVisible();
-  await expect(page.locator(".amp-wordmark")).toHaveText("VTTRIG");
+  await expect(page.locator(".amp-art-empty")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Adicionar amplificador NAM" })).toBeVisible();
+  await expect(page.locator(".amp-case")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Adicionar primeiro efeito" }).click();
   await expect(page.getByRole("region", { name: "Biblioteca de efeitos" })).toBeVisible();
@@ -92,4 +93,39 @@ test("legacy demonstration rigs remain available by explicit action", async ({ p
   await page.getByRole("button", { name: "Configurações" }).click();
   await page.getByRole("button", { name: "Limpar" }).click();
   await expect(page.getByRole("button", { name: "Adicionar primeiro efeito" })).toBeVisible();
+});
+
+
+test("left navigation floats separately from header and keeps all three destinations", async ({ page }) => {
+  await page.goto("/");
+  const header = page.locator(".clean-topbar");
+  const rail = page.getByRole("navigation", { name: "Navegação principal" });
+  const tabs = rail.getByRole("button");
+
+  await expect(tabs).toHaveCount(3);
+  await expect(rail).toHaveCSS("position", "sticky");
+
+  for (const width of [1440, 1000]) {
+    await page.setViewportSize({ width, height: 900 });
+    const headerBox = await header.boundingBox();
+    const railBox = await rail.boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(railBox).not.toBeNull();
+    if (!headerBox || !railBox) continue;
+
+    // Regression: a full-height left column must not touch the topbar.
+    expect(railBox.y - (headerBox.y + headerBox.height)).toBeGreaterThanOrEqual(12);
+    expect(railBox.x).toBeGreaterThan(0);
+    expect(railBox.height).toBeLessThan(450);
+    expect(railBox.x + railBox.width).toBeLessThan(width / 5);
+    await expect(rail).not.toHaveCSS("border-top-left-radius", "0px");
+  }
+
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveAttribute("aria-current", "page");
+  await expect(tabs.nth(0)).not.toHaveAttribute("aria-current", "page");
+  await tabs.nth(2).click();
+  await expect(tabs.nth(2)).toHaveAttribute("aria-current", "page");
+  await tabs.nth(0).click();
+  await expect(tabs.nth(0)).toHaveAttribute("aria-current", "page");
 });

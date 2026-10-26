@@ -1,5 +1,5 @@
-import { useState, type CSSProperties, type DragEvent } from "react";
-import { Cpu, FileAudio2, FolderOpen, Info, RotateCw, Upload } from "lucide-react";
+import { useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { Cpu, FileAudio2, FolderOpen, Info, Plus, RotateCw, Upload } from "lucide-react";
 import { AMP_FAMILIES, classifyNamFilename, humanizeModelName, type AmpFamily } from "../lib/ampSkins";
 
 type Props = {
@@ -42,6 +42,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
   const skin = classifyNamFilename(modelName, overrideFamily);
   const [error, setError] = useState("");
   const [powered, setPowered] = useState(true);
+  const emptyPicker = useRef<HTMLInputElement>(null);
   function importCandidate(file: File | undefined) {
     if (!file) return;
     if (!/\.nam$/i.test(file.name)) {
@@ -66,6 +67,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
         <div className="hero-status"><span className="status-pulse" /> NAM A2 • VISUAL DEMO</div>
       </div>}
 
+      {modelName ? (
       <div
         className={`amp-art amp-${skin.id} ${powered ? "amp-is-on" : "amp-is-off"}`}
         onDragOver={(event) => event.preventDefault()}
@@ -85,10 +87,48 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
             <div className="amp-controls">
               {skin.controls.map((label, index) => <FaceKnob key={skin.id + label} label={label} index={index} />)}
             </div>
-            <div className="amp-jack"><span className="jack-hole" /><span className="amp-cable-plug" aria-hidden="true" /><svg className="amp-cable" aria-hidden="true" viewBox="0 0 180 115" fill="none"><path d="M 4 4 C 34 19, 18 50, 63 58 S 151 72, 175 113" /></svg><small>INPUT</small></div>
+            <div className="amp-jack">
+              <span className="jack-hole" />
+              <svg className="amp-cable" aria-hidden="true" viewBox="0 0 95 160" fill="none">
+                <path className="amp-cable-metal" d="M 2 12 L 18 27" />
+                <path className="amp-cable-plug" d="M 15 24 L 29 38" />
+                <path className="amp-cable-wire" d="M 27 37 C 43 52, 47 72, 39 91 C 31 109, 46 134, 39 162" />
+                <path className="amp-cable-highlight" d="M 32 42 C 45 58, 44 76, 38 91" />
+              </svg>
+              <small>INPUT</small>
+            </div>
           </div>
         </div>
       </div>
+      ) : (
+        <div className="amp-art amp-art-empty" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
+          <div className="amp-empty-slot">
+            <span className="amp-empty-eyebrow">VTTRIG / AMPLIFIER</span>
+            <button
+              type="button"
+              className="amp-empty-add"
+              aria-label="Adicionar amplificador NAM"
+              onClick={() => emptyPicker.current?.click()}
+            >
+              <Plus size={34} strokeWidth={1.6} />
+            </button>
+            <strong>Adicionar amplificador</strong>
+            <span>Selecione um modelo .nam ou arraste o arquivo para cá</span>
+            <small>A seleção do modelo altera somente o visual nesta versão.</small>
+            <input
+              ref={emptyPicker}
+              type="file"
+              accept=".nam"
+              className="amp-empty-file-input"
+              aria-label="Selecionar arquivo NAM"
+              onChange={(event) => {
+                importCandidate(event.currentTarget.files?.[0]);
+                event.currentTarget.value = "";
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {!minimal && <div className="amp-model-bar">
         <div className="amp-model-info">
