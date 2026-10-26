@@ -233,3 +233,24 @@ realtime thread. Read [../docs/TESTING.md](../docs/TESTING.md).
 Future A/B validation: Gateway/TONE3000 with the same capture and
 level-matched dry input; CPU/xruns/roundtrip latency at buffers 64/128/256
 on Fedora. Keep third-party NAM/Core licenses and attribution.
+
+## Live sidecar for VTTRIG (PR #11)
+
+The `vttrig-nam-live` executable accepts `--chain-json` with a schemaVersion
+1 chain (each node has id, kind amp/drive/cabinet, enabled, parameters and
+resource.path). All models are loaded and Reset(48000, 8192) before writing a
+single byte `R` handshake on stdout. After the handshake, stdin/stdout are
+reserved exclusively for blocks of **128 mono little-endian float32 samples**
+(512 bytes), with exactly one output block per input block. Errors go to
+stderr; no normal diagnostic output is mixed with binary PCM.
+
+The Rust CPAL host uses a worker thread with blocking stdin/stdout pipes,
+isolated from SPSC queues feeding the audio callbacks. This prototype has
+nonzero buffering and no hardware latency guarantee. The standalone stream
+test uses a synthetic one-tap cabinet impulse response and checks bypass,
+active processing, invalid manifest behavior and finite samples.
+
+`-DVTTRIG_BUILD_JACK=OFF` permits compiling the sidecar on Linux without
+requiring JACK headers. Linux/JACK remains available by default for its
+separate host target. The Tauri workflows stage the sidecar with the correct
+target-triple suffix required by externalBin bundling on Windows and Linux.

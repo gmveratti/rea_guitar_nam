@@ -2,7 +2,49 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e futura engine nativa de áudio com suporte ao Neural Amp Modeler A2 (Lite/Full). **Sem Wine e sem yabridge.**
 
-> **Status: UI v0.1 + experimento de motor NAM JACK separado.** A interface Tauri **ainda não processa áudio**, não carrega redes NAM/IR e não controla ganho real; seus LEDs/knobs são visuais. Um executável C++ independente em `engine/` carrega blocos mono NAM `.nam` e IR `.wav` em ordem arbitrária via JACK/PipeWire. A versão CLI já teve build e smoke tests aprovados na CI; testes com modelos reais, equipamento e latência permanecem pendentes.
+> **Status: preview PR #11.** O Tauri agora oferece um **teste experimental NAM/IR ao vivo** em Configurações, com motor C++ incluído nos instaladores Windows e Linux. A interface principal dos outros pedais ainda é **visual**. A reprodução real, latência e estabilidade com interface de áudio física **não estão homologadas** e devem ser testadas em hardware.
+
+## PR #11: teste integrado de áudio NAM/IR real (Windows e Fedora)
+
+**Fluxo para testar com guitarra física:**
+
+1. Baixe o instalador de teste do PR #11 (Actions → `VTTRIG-Windows-x64` ou
+   `VTTRIG-Linux-x86_64`). O pacote deve incluir o sidecar `vttrig-nam-live`;
+   não copie só o executável Tauri, use a instalação completa.
+2. Conecte a interface de áudio e os **fones de ouvido**. Deixe o volume da
+   interface baixo para evitar picos e microfonia.
+3. Abra **Configurações → Áudio e dispositivos**, selecione backend disponível
+   (WASAPI no Windows, ALSA no Linux), entrada de guitarra e saída.
+4. Escolha modo **DRY** e teste a captura/saída por alguns segundos; pare.
+5. Escolha modo **NAM/IR**, clique **Escolher NAM (.nam)** e escolha um modelo
+   local compatível de 48 kHz. **Escolher gabinete (.wav)** adiciona uma IR
+   mono opcional. O arquivo real é selecionado por diálogo nativo e validado
+   no carregamento; o simples nome visual da tela Pedalboard não carrega DSP.
+6. Mantenha a ordem **NAM → IR** inicialmente; pode trocar pela opção
+   **IR antes do NAM** para comparar. Bypass individual é aplicado ao iniciar.
+7. Clique **Iniciar NAM/IR**, toque com volume baixo e confira o som.
+   Contadores de amostras em falta ou descartadas são exibidos na tela e
+   **não representam medição de latência**. Clique **Parar NAM/IR** antes de
+   trocar arquivos ou dispositivos.
+
+**O que o PR #11 entrega:** um subprocesso C++ NAM Core com handshake de
+carregamento, blocos mono de 128 float32 e filas SPSC entre callbacks CPAL
+e um worker Rust dedicado. O callback de dispositivo não executa modelo
+neural nem lê/grava pipes. É um protótipo de áudio ao vivo, sem SLA de
+latência, sem resampling e com backend padrão WASAPI/ALSA.
+ASIO/JACK não são habilitados por padrão e exigem drivers e builds à parte.
+
+**Limites:** somente NAM, Drive NAM e IR (mono) no motor; Chorus, Delay,
+Reverb, Gate, Compressor e demais pedais ainda **não estão conectados** ao
+áudio real. A cadeia usada é a configurada na seção de áudio para testes,
+não o pedalboard visual. O sidecar cria uma instância de modelo por início
+de monitoração; não modifica o arquivo `.nam` nem a IR original. Arquivos
+são fornecidos pelo usuário; não há capturas de terceiros embutidas.
+
+**Desenvolvimento local:** construa antes o sidecar C++ (CMake + compilador
+C++20) e coloque-o em `src-tauri/binaries/vttrig-nam-live-<rust-target>`
+(com `.exe` no Windows), então execute `npm run tauri dev`. A CI faz isso
+automaticamente para cada sistema antes do bundle Tauri.
 
 ## Interface clean e editor de pedais (PR #4)
 
