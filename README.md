@@ -122,6 +122,51 @@ npx tauri build --bundles appimage
 
 O AppImage resultante fica em `src-tauri/target/release/bundle/appimage/`.
 
+## Versão Windows x64 (PR #8)
+
+O [workflow VTTRIG Tauri Windows](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-windows.yml)
+usa um runner Windows 2022, compila o projeto com Rust/MSVC e empacota o
+instalador **NSIS `.exe`**. Em cada execução aprovada, aparece o artefato
+`VTTRIG-Windows-x64` na seção **Actions → execução → Artifacts**
+(disponível por 14 dias).
+
+Para testar, baixe o ZIP, extraia o `*-setup.exe` e execute o instalador
+no Windows 10/11 x64. **O instalador gerado pelo CI não é assinado
+digitalmente**: o Windows SmartScreen poderá mostrar um aviso de editor
+desconhecido. Verifique a procedência do arquivo pelo workflow do GitHub
+antes de executá-lo. Não contorne políticas de segurança corporativas.
+
+### Rodar pelo código-fonte no Windows
+
+Pré-requisitos: Node.js 22+, Rust/MSVC C++ Build Tools e Microsoft Edge
+WebView2, conforme [o guia oficial do Tauri](https://v2.tauri.app/start/prerequisites/#windows).
+
+```powershell
+git clone https://github.com/gmveratti/rea_guitar_nam.git
+cd rea_guitar_nam
+npm install
+npx tauri icon src-tauri/icons/icon.png --output src-tauri/icons
+npm run tauri dev
+```
+
+Para gerar o instalador localmente:
+
+```powershell
+npx tauri build --bundles nsis
+```
+
+Saída: `src-tauri/target/release/bundle/nsis/*-setup.exe`.
+
+**Arquitetura:** o arquivo `src-tauri/tauri.windows.conf.json` adiciona
+as opções exclusivas do Windows (`nsis` e `icons/icon.ico`). A configuração
+Linux e seu AppImage não são alterados. O `.ico` é gerado a partir do PNG
+VTTRIG existente pelo Tauri CLI, antes de compilar.
+
+**Limite:** esta build testa **somente a interface desktop**. Os módulos NAM,
+IR, pedais e os controles visuais ainda não processam áudio dentro do app.
+O motor experimental atual usa JACK e não roda no Windows. A futura engine
+multiplataforma precisará de backend de áudio Windows e testes próprios.
+
 ## Rodar desktop com Tauri
 
 Instale Rust/Cargo e as dependências Linux para desenvolvimento Tauri 2, incluindo WebKitGTK 4.1, conforme o [guia oficial do Tauri](https://v2.tauri.app/start/prerequisites/#linux).
