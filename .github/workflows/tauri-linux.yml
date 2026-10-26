@@ -35,6 +35,10 @@ jobs:
         run: python3 scripts/check_tauri_icons.py
       - run: npm install --no-audit --no-fund
       - run: npm run build
+      - name: Mirror Eigen upstream during GitLab outage
+        run: |
+          git config --global url."https://eigen.googlesource.com/mirror".insteadOf "https://gitlab.com/libeigen/eigen.git"
+          git config --global --add url."https://eigen.googlesource.com/mirror".insteadOf "https://gitlab.com/libeigen/eigen"
       - name: Compile and stage live NAM/IR sidecar
         shell: bash
         run: |

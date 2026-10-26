@@ -52,6 +52,11 @@ jobs:
       - name: Check Windows bundle config and generated ICO
         run: python scripts/check_windows_bundle.py --preflight
 
+      - name: Mirror Eigen upstream during GitLab outage
+        shell: pwsh
+        run: |
+          git config --global url."https://eigen.googlesource.com/mirror".insteadOf "https://gitlab.com/libeigen/eigen.git"
+          git config --global --add url."https://eigen.googlesource.com/mirror".insteadOf "https://gitlab.com/libeigen/eigen"
       - name: Compile and stage live NAM/IR sidecar
         shell: pwsh
         run: |
