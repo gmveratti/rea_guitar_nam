@@ -29,6 +29,9 @@ describe("pedal chain", () => {
     expect(validateChain([{ id: "x", kind: "amp", enabled: true, values: {} },
                           { id: "x", kind: "amp", enabled: true, values: {} }])).toBeNull();
     expect(validateChain("not an array")).toBeNull();
+    // Prototype properties must not masquerade as supported pedal kinds.
+    expect(validateChain([{ id: "x", kind: "constructor", enabled: true, values: {} }])).toBeNull();
+    expect(validateChain([{ id: "y", kind: "__proto__", enabled: true, values: {} }])).toBeNull();
   });
 
   it("restores valid parameters from a saved chain", () => {

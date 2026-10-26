@@ -32,6 +32,14 @@ int main() {
   assert(!plan[2].enabled);
   assert(plan[2].path.string() == "/tmp/other.nam");
 
+  // Uppercase extensions are valid on Windows and other filesystems as well.
+  // The Rust preflight already accepts them; native manifest parsing must agree.
+  std::istringstream uppercase(R"({"schemaVersion":1,"nodes":[{"id":"upper-nam","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"C:/Models/AMP.NAM"}},{"id":"upper-ir","kind":"cabinet","enabled":false,"parameters":{},"resource":{"path":"/tmp/IR.WAV"}}]})");
+  const auto uppercase_nodes = vttrig::parse_chain_manifest(uppercase);
+  assert(uppercase_nodes.size() == 2);
+  assert(uppercase_nodes[0].kind == "amp");
+  assert(uppercase_nodes[1].kind == "cabinet");
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"chorus","kind":"chorus","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));

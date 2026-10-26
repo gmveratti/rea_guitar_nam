@@ -4,6 +4,15 @@
 
 > **Status: preview PR #11.** O Tauri agora oferece um **teste experimental NAM/IR ao vivo** em Configurações, com motor C++ incluído nos instaladores Windows e Linux. A interface principal dos outros pedais ainda é **visual**. A reprodução real, latência e estabilidade com interface de áudio física **não estão homologadas** e devem ser testadas em hardware.
 
+## PR #14: configuração local persistente do monitor (proposta)
+
+- A seleção de modo DRY/WET, buffer, canal físico, arquivos NAM/IR, bypasses e ordem da cadeia de teste são salvos **localmente no WebView**, sem exigir login. Ao sair de Configurações e voltar, as escolhas continuam disponíveis.
+- **Nunca há início automático do áudio**. O usuário deve escolher entrada e saída novamente, pois os índices dos dispositivos USB podem mudar. O canal salvo só permanece quando for válido para a nova entrada.
+- Caminhos salvos são referências locais e podem deixar de existir após mover os arquivos; Rust/C++ continuam verificando os recursos ao iniciar. A cadeia visual da Pedalboard ainda não governa o processamento NAM/IR e os presets do pedalboard permanecem distintos da configuração de teste.
+- O modelo visual do amplificador e a skin passam a ser lembrados no rascunho, sem migrar nem alterar presets já gravados.
+- A validação do manifesto C++ passa a aceitar extensões .NAM/.WAV em maiúsculas, coerente com o seletor Rust; tipos de pedais vindos de propriedades herdadas deixam de passar na desserialização.
+- Regressões Vitest, Playwright e CTest protegem o comportamento. **A Teyun Q24, a latência e os modelos reais continuam exigindo teste físico.**
+
 ## PR #11: teste integrado de áudio NAM/IR real (Windows e Fedora)
 
 **Fluxo para testar com guitarra física:**

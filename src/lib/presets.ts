@@ -12,6 +12,45 @@ export type Preset = {
 const STORAGE_PREFIX = "rea-guitar-nam:v1:";
 const DRAFT_KEY = STORAGE_PREFIX + "draft";
 const PRESETS_KEY = STORAGE_PREFIX + "presets";
+const DRAFT_VISUAL_KEY = STORAGE_PREFIX + "draft-visual";
+
+export type DraftVisual = { modelName: string; ampFamily: AmpFamily | "auto" };
+const DEFAULT_DRAFT_VISUAL: DraftVisual = { modelName: "", ampFamily: "british" };
+const AMP_FAMILY_OPTIONS = new Set([
+  "auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic",
+]);
+
+type VisualStore = Pick<Storage, "getItem" | "setItem">;
+
+export function parseDraftVisual(value: unknown): DraftVisual {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_DRAFT_VISUAL };
+  }
+  const raw = value as Record<string, unknown>;
+  return {
+    modelName: typeof raw.modelName === "string" ? raw.modelName.slice(0, 200) : "",
+    ampFamily: typeof raw.ampFamily === "string" && AMP_FAMILY_OPTIONS.has(raw.ampFamily)
+      ? raw.ampFamily as AmpFamily | "auto" : DEFAULT_DRAFT_VISUAL.ampFamily,
+  };
+}
+
+export function loadDraftVisual(store?: VisualStore): DraftVisual {
+  try {
+    const text = (store ?? globalThis.localStorage).getItem(DRAFT_VISUAL_KEY);
+    return text ? parseDraftVisual(JSON.parse(text) as unknown) : { ...DEFAULT_DRAFT_VISUAL };
+  } catch {
+    return { ...DEFAULT_DRAFT_VISUAL };
+  }
+}
+
+export function saveDraftVisual(value: DraftVisual, store?: VisualStore): boolean {
+  try {
+    (store ?? globalThis.localStorage).setItem(DRAFT_VISUAL_KEY, JSON.stringify(parseDraftVisual(value)));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function safeRead(key: string): unknown {
   try {

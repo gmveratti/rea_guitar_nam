@@ -2,6 +2,8 @@
 
 #include <json.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <istream>
@@ -69,7 +71,14 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
     }
     const std::filesystem::path path(path_string);
     const std::string extension = (kind == "cabinet") ? ".wav" : ".nam";
-    if (path.extension() != extension) {
+    auto actual_extension = path.extension().string();
+    // Match the Rust picker: extension comparison is ASCII case-insensitive
+    // on both Windows and Linux, without modifying the actual resource path.
+    std::transform(actual_extension.begin(), actual_extension.end(),
+                   actual_extension.begin(), [](unsigned char c) {
+                     return static_cast<char>(std::tolower(c));
+                   });
+    if (actual_extension != extension) {
       throw std::invalid_argument(prefix + "expected " + extension + " file for " + kind);
     }
     // Parameters will be connected to the DSP adapter in a subsequent PR.
