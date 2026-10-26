@@ -22,7 +22,7 @@ export default function RigResourceList({ chain, resources, onPick, onClear, nat
     <section className="rig-resources" aria-label="Modelos e IRs do rig">
       <h3>Modelos da pedalboard <small>NAM / IR</small></h3>
       <p>Associe arquivos reais a cada módulo. O áudio respeita a ordem acima e cada footswitch. Mudanças durante o monitoramento precisam reiniciar a sessão.</p>
-      {models.length === 0 && <p role="status">Adicione um amplificador NAM ou gabinete IR pela Biblioteca.</p>}
+      {models.length === 0 && <p>Adicione um amplificador NAM ou gabinete IR pela Biblioteca.</p>}
       {models.map(({ pedal, position }) => {
         const path = resources[pedal.id];
         const title = pedal.kind === "cabinet" ? "VTTCAB · IR" : pedal.kind === "drive" ? "VTTDRIVE · NAM" : "VTTAMP · NAM";
