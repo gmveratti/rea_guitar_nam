@@ -87,7 +87,9 @@ if(BUILD_TESTING)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   add_test(NAME live_sidecar_streaming_protocol
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/live_protocol_test.py"
-            "$<TARGET_FILE:vttrig-nam-live>")
+            "$<TARGET_FILE:vttrig-nam-live>"
+            "${namcore_SOURCE_DIR}/example_models/wavenet.nam")
+  set_tests_properties(live_sidecar_streaming_protocol PROPERTIES TIMEOUT 60)
   add_test(NAME native_offline_manifest_validation
     COMMAND vttrig-nam-offline --validate-chain-json
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ordered-chain.json")
