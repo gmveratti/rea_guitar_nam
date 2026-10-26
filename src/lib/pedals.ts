@@ -189,7 +189,7 @@ export function validateChain(value: unknown): PedalInstance[] | null {
   for (const raw of value) {
     if (!raw || typeof raw !== "object") return null;
     const item = raw as Partial<PedalInstance>;
-    if (typeof item.kind !== "string" || !(item.kind in PEDALS)) return null;
+    if (typeof item.kind !== "string" || !Object.prototype.hasOwnProperty.call(PEDALS, item.kind)) return null;
     if (typeof item.id !== "string" || !item.id || ids.has(item.id)) return null;
     if (typeof item.enabled !== "boolean") return null;
     if (!item.values || typeof item.values !== "object" || Array.isArray(item.values)) return null;
