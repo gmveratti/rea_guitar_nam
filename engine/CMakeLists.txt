@@ -19,7 +19,11 @@ file(GLOB NAM_SOURCES CONFIGURE_DEPENDS
   "${namcore_SOURCE_DIR}/NAM/*/*.cpp"
 )
 
-add_library(vttrig_nam_core STATIC ${NAM_SOURCES})
+# NAM architectures (Linear IR, WaveNet, etc.) register themselves through
+# static initializers. When linked from a STATIC archive, the linker can
+# discard translation units that only contain those registrations.
+# An OBJECT library guarantees every parser is linked into each native host.
+add_library(vttrig_nam_core OBJECT ${NAM_SOURCES})
 target_compile_features(vttrig_nam_core PUBLIC cxx_std_20)
 target_compile_definitions(vttrig_nam_core PUBLIC NAM_ENABLE_A2_FAST)
 target_include_directories(vttrig_nam_core SYSTEM PUBLIC
