@@ -1,5 +1,6 @@
 import { validateChain, type PedalInstance } from "./pedals";
 import type { AmpFamily } from "./ampSkins";
+import { validateRigResources, type RigResources } from "./liveRig";
 
 export type Preset = {
   id: string;
@@ -7,14 +8,17 @@ export type Preset = {
   chain: PedalInstance[];
   modelName?: string;
   ampFamily?: AmpFamily | "auto";
+  ampPowered?: boolean;
+  resources?: RigResources;
 };
 
 const STORAGE_PREFIX = "rea-guitar-nam:v1:";
 const DRAFT_KEY = STORAGE_PREFIX + "draft";
 const PRESETS_KEY = STORAGE_PREFIX + "presets";
 const DRAFT_VISUAL_KEY = STORAGE_PREFIX + "draft-visual";
+const DRAFT_RESOURCES_KEY = STORAGE_PREFIX + "draft-resources";
 
-export type DraftVisual = { modelName: string; ampFamily: AmpFamily | "auto" };
+export type DraftVisual = { modelName: string; ampFamily: AmpFamily | "auto"; ampPowered?: boolean };
 const DEFAULT_DRAFT_VISUAL: DraftVisual = { modelName: "", ampFamily: "british" };
 const AMP_FAMILY_OPTIONS = new Set([
   "auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic",
@@ -31,6 +35,7 @@ export function parseDraftVisual(value: unknown): DraftVisual {
     modelName: typeof raw.modelName === "string" ? raw.modelName.slice(0, 200) : "",
     ampFamily: typeof raw.ampFamily === "string" && AMP_FAMILY_OPTIONS.has(raw.ampFamily)
       ? raw.ampFamily as AmpFamily | "auto" : DEFAULT_DRAFT_VISUAL.ampFamily,
+    ...(typeof raw.ampPowered === "boolean" ? { ampPowered: raw.ampPowered } : {}),
   };
 }
 
@@ -61,6 +66,19 @@ function safeRead(key: string): unknown {
   }
 }
 
+export function loadDraftResources(chain: readonly PedalInstance[]): RigResources {
+  return validateRigResources(safeRead(DRAFT_RESOURCES_KEY), chain);
+}
+
+export function saveDraftResources(resources: Readonly<RigResources>, chain: readonly PedalInstance[]): boolean {
+  try {
+    localStorage.setItem(DRAFT_RESOURCES_KEY, JSON.stringify(validateRigResources(resources, chain)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function loadDraft(): PedalInstance[] {
   return validateChain(safeRead(DRAFT_KEY)) ?? [];
 }
@@ -86,7 +104,9 @@ export function loadPresets(): Preset[] {
     const allowed = new Set(["auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic"]);
     const ampFamily = typeof data.ampFamily === "string" && allowed.has(data.ampFamily)
       ? data.ampFamily as AmpFamily | "auto" : undefined;
-    return [{ id: data.id, name: data.name, chain, modelName, ampFamily }];
+    const resources = validateRigResources(data.resources, chain);
+    const ampPowered = typeof data.ampPowered === "boolean" ? data.ampPowered : true;
+    return [{ id: data.id, name: data.name, chain, modelName, ampFamily, resources, ampPowered }];
   }).slice(0, 100);
 }
 
