@@ -133,3 +133,16 @@ de comparação, mas **não** cometer capturas comerciais nem gravações privad
 - Teste físico pendente: Teyun Q24 com guitarra no canal 1 e 2 (quando disponibilizados pelo backend), fones em volume baixo, DRY e NAM/IR com arquivos locais, mudanças de dispositivos entre sessões, desligar/remover USB enquanto toca, clicar Parar e reabrir.
 - Em desconexão, a saída deve silenciar quando possível, a UI deve indicar **qual etapa** falhou e continuar oferecendo Parar. *Rodando* significa que a sessão mantém recursos até ser finalizada, não que há sinal de áudio válido.
 - Registrar xruns, uso de CPU e latência real separadamente; contadores de amostras perdidas não são uma estimativa de latência. Sem medição e testes de hardware não há homologação WASAPI/ALSA/ASIO/JACK.
+
+
+## PR #14: persistência do setup e validação de presets
+
+Regressões obrigatórias:
+
+- `src/lib/audioSettings.test.ts`: configurações NAM/IR e bypass sobrevivem ao ciclo de armazenamento local; versões inválidas, caminhos corrompidos e armazenamento bloqueado recuperam valores seguros. O áudio nunca é iniciado por restaurar dados.
+- `src/lib/presetsVisual.test.ts` e `e2e/visual-draft.spec.ts`: nome visual do amplificador e família sobrevivem à troca de tela e recarga da WebView; presets legados não são alterados.
+- `src/lib/pedals.test.ts`: `constructor`/`__proto__` não podem passar como tipos de pedais nem causar exceções durante importação.
+- `engine/tests/manifest_tests.cpp`: extensões `.NAM`/`.WAV` maiúsculas devem ser aceitas no manifesto C++ sem modificar o caminho real.
+- Regressão manual com hardware: salvar NAM/IR, fechar/reabrir VTTRIG, conferir escolhas, reescolher dispositivos, verificar que nenhum stream liga sozinho; mover/apagar arquivo salvo e confirmar erro claro no próximo Start; validar canal de guitarra correto após trocar a interface USB.
+
+O setup NAM/IR **não é um preset DSP completo**. A unificação com a pedalboard visual e a construção de um único RigState continuam em etapa independente.
