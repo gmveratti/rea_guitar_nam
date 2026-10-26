@@ -5,8 +5,9 @@ test("clean navigation starts with empty board and a clear add control", async (
   await expect(page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button")).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Adicionar primeiro efeito" })).toBeVisible();
   await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toHaveCount(0);
-  await expect(page.locator(".amp-art")).toBeVisible();
-  await expect(page.locator(".amp-wordmark")).toHaveText("VTTRIG");
+  await expect(page.locator(".amp-art-empty")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Adicionar amplificador NAM" })).toBeVisible();
+  await expect(page.locator(".amp-case")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Adicionar primeiro efeito" }).click();
   await expect(page.getByRole("region", { name: "Biblioteca de efeitos" })).toBeVisible();
