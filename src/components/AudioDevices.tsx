@@ -56,10 +56,11 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
   const inputs = selected?.inputs.filter((d) => d.supportsMonitor) ?? [];
   const outputs = selected?.outputs.filter((d) => d.supportsMonitor) ?? [];
   const channelCount = inputs.find((d) => String(d.index) === inputIndex)?.channels ?? 0;
-  const livePreview = useMemo(() => {
-    try { return buildLiveBoardSnapshot(chain, resources, ampPowered); }
-    catch { return null; }
+  const livePlan = useMemo(() => {
+    try { return { preview: buildLiveBoardSnapshot(chain, resources, ampPowered), error: "" }; }
+    catch (error) { return { preview: null, error: String(error).replace(/^Error: /, "") }; }
   }, [chain, resources, ampPowered]);
+  const livePreview = livePlan.preview;
   const liveManifest = livePreview ? JSON.stringify({ schemaVersion: 1, nodes: livePreview.nodes }) : null;
 
   const refresh = useCallback(async () => {
@@ -229,7 +230,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
                       <li key={node.id}>{node.kind.toUpperCase()} · {node.enabled ? "ligado" : "bypass"} · {node.resource.path.split(/[\\\\/]/).pop()}</li>
                     )}</ol>
                   </>
-                ) : <p className="audio-device-warning" role="status">Vincule arquivos NAM/IR válidos a todos os módulos nativos ativos antes de iniciar.</p>}
+                ) : <p className="audio-device-warning" role="status">{livePlan.error}</p>}
               </section>
             )}
             {running && activeMode === "wet" &&
