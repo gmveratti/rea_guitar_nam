@@ -146,3 +146,12 @@ Regressões obrigatórias:
 - Regressão manual com hardware: salvar NAM/IR, fechar/reabrir VTTRIG, conferir escolhas, reescolher dispositivos, verificar que nenhum stream liga sozinho; mover/apagar arquivo salvo e confirmar erro claro no próximo Start; validar canal de guitarra correto após trocar a interface USB.
 
 O setup NAM/IR **não é um preset DSP completo**. A unificação com a pedalboard visual e a construção de um único RigState continuam em etapa independente.
+
+
+## PR #15: pedalboard → motor NAM/IR (inicial, reinício manual)
+
+- Vitest `src/lib/liveRig.test.ts`: ordem exata (IR→NAM ou NAM→IR), vários módulos do mesmo tipo, IDs e bypass por instância, power do amplificador, efeito não implementado ignorado com aviso, arquivos ausentes/errados, slots sem recursos em bypass e cadeia sem processadores válidos.
+- Vitest `src/lib/liveRigPresets.test.ts`: persistência de caminhos nativos por ID, compatibilidade de preset legado, descarte de recursos órfãos ao excluir um pedal.
+- Playwright `e2e/board-native-rig.spec.ts`: biblioteca associa slots NAM, interface web não simula drivers nativos, footswitch mantém bypass e preset após recarga.
+- Critério de áudio: `audio_start_live` recebe apenas `schemaVersion:1` com nós `amp/drive/cabinet` configurados em ordem visual. O usuário deve reiniciar para aplicar mudanças, nunca alterar o grafo C++ ativo no callback de áudio.
+- Não declarar aprovação de hardware pela CI. Teyun Q24 e sessões longas com guitarras reais são exigências posteriores; medição de latência e xruns pendente.
