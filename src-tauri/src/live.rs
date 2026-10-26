@@ -136,21 +136,46 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("Não foi possível iniciar o motor NAM: {e}"))?;
-    let mut ready = [0u8; 1];
-    let read = child
-        .stdout
-        .as_mut()
-        .ok_or("Pipe de saída indisponível")?
-        .read_exact(&mut ready);
-    if read.is_err() || ready != *b"R" {
-        let _ = child.wait();
-        let mut errors = String::new();
-        if let Some(stderr) = child.stderr.as_mut() {
-            let _ = stderr.read_to_string(&mut errors);
+    // The model is prepared before streaming. Bound the handshake so an
+    // unresponsive child cannot stall a Tauri control command indefinitely.
+    let mut stdout = child.stdout.take().ok_or("Pipe de saída indisponível")?;
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    let reader = thread::spawn(move || {
+        let mut ready = [0u8; 1];
+        let reply = stdout.read_exact(&mut ready).map(|_| ready[0]);
+        let _ = sender.send((reply, stdout));
+    });
+    match receiver.recv_timeout(Duration::from_secs(30)) {
+        Ok((Ok(b'R'), stdout)) => {
+            let _ = reader.join();
+            child.stdout = Some(stdout);
+            Ok(child)
         }
-        return Err(format!("Falha ao carregar NAM/IR: {}", errors.trim()));
+        Ok((reply, stdout)) => {
+            drop(stdout);
+            let _ = reader.join();
+            let _ = child.kill();
+            let _ = child.wait();
+            let mut errors = String::new();
+            if let Some(stderr) = child.stderr.as_mut() {
+                let _ = stderr.read_to_string(&mut errors);
+            }
+            let reason = if errors.trim().is_empty() {
+                format!("handshake inválido: {reply:?}")
+            } else {
+                errors.trim().to_owned()
+            };
+            Err(format!("Falha ao carregar NAM/IR: {reason}"))
+        }
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = reader.join();
+            Err(format!(
+                "Motor NAM não confirmou inicialização em 30 segundos: {error}"
+            ))
+        }
     }
-    Ok(child)
 }
 
 // The worker may outrun the output device. Count dropped WET frames too;
@@ -186,6 +211,7 @@ pub fn start(
         selection.output_index,
         selection.buffer_frames,
     )?;
+    audio::validate_input_channel(selection.input_channel, input_cfg.channels)?;
     let mut guard = state
         .session
         .lock()
@@ -209,22 +235,27 @@ pub fn start(
     let underruns = Arc::new(AtomicU64::new(0));
     let overflows = Arc::new(AtomicU64::new(0));
     let input_channels = usize::from(input_cfg.channels);
+    let input_channel = selection.input_channel;
     let output_channels = usize::from(output_cfg.channels);
     let in_overflows = Arc::clone(&overflows);
     let out_underruns = Arc::clone(&underruns);
     let out_overflows = Arc::clone(&overflows);
+    let input_error = Arc::clone(&failed);
+    let output_error = Arc::clone(&failed);
+    let output_silence = Arc::clone(&failed);
     let input_stream = match input.build_input_stream(
         &input_cfg,
         move |data: &[f32], _| {
             for frame in data.chunks(input_channels) {
-                let value = frame.first().copied().unwrap_or(0.0);
-                let value = if value.is_finite() { value } else { 0.0 };
+                let value = audio::selected_mono_sample(frame, input_channel);
                 if input_tx.push(value).is_err() {
                     in_overflows.fetch_add(1, Ordering::Relaxed);
                 }
             }
         },
-        |_error| {},
+        move |_error| {
+            input_error.store(true, Ordering::Relaxed);
+        },
         None,
     ) {
         Ok(stream) => stream,
@@ -238,11 +269,15 @@ pub fn start(
         &output_cfg,
         move |data: &mut [f32], _| {
             for frame in data.chunks_mut(output_channels) {
-                let value = match output_rx.pop() {
-                    Ok(sample) => sample,
-                    Err(_) => {
-                        out_underruns.fetch_add(1, Ordering::Relaxed);
-                        0.0
+                let value = if output_silence.load(Ordering::Relaxed) {
+                    0.0
+                } else {
+                    match output_rx.pop() {
+                        Ok(sample) => sample,
+                        Err(_) => {
+                            out_underruns.fetch_add(1, Ordering::Relaxed);
+                            0.0
+                        }
                     }
                 };
                 let value = if value.is_finite() {
@@ -255,7 +290,9 @@ pub fn start(
                 }
             }
         },
-        |_error| {},
+        move |_error| {
+            output_error.store(true, Ordering::Relaxed);
+        },
         None,
     ) {
         Ok(stream) => stream,
