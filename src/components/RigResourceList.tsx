@@ -13,22 +13,24 @@ type Props = {
 const fileLabel = (path: string) => path.split(/[\\/]/).pop() || path;
 
 export default function RigResourceList({ chain, resources, onPick, onClear, native }: Props) {
-  const models = chain.filter((p): p is PedalInstance & { kind: "amp" | "drive" | "cabinet" } =>
-    p.kind === "amp" || p.kind === "drive" || p.kind === "cabinet");
+  const models = chain.flatMap((pedal, index) =>
+    pedal.kind === "amp" || pedal.kind === "drive" || pedal.kind === "cabinet"
+      ? [{ pedal: pedal as PedalInstance & { kind: "amp" | "drive" | "cabinet" }, position: index + 1 }]
+      : []);
 
   return (
     <section className="rig-resources" aria-label="Modelos e IRs do rig">
       <h3>Modelos da pedalboard <small>NAM / IR</small></h3>
       <p>Associe arquivos reais a cada módulo. O áudio respeita a ordem acima e cada footswitch. Mudanças durante o monitoramento precisam reiniciar a sessão.</p>
       {models.length === 0 && <p role="status">Adicione um amplificador NAM ou gabinete IR pela Biblioteca.</p>}
-      {models.map((pedal, index) => {
+      {models.map(({ pedal, position }) => {
         const path = resources[pedal.id];
         const title = pedal.kind === "cabinet" ? "VTTCAB · IR" : pedal.kind === "drive" ? "VTTDRIVE · NAM" : "VTTAMP · NAM";
         return (
           <div className="audio-model-row rig-resource-row" key={pedal.id}>
-            <strong>{index + 1}. {title}</strong>
+            <strong>{position}. {title}</strong>
             {native && <button type="button" onClick={() => onPick(pedal.id, pedal.kind)}
-              aria-label={`Escolher arquivo para ${title} ${index + 1}`}><FolderOpen size={15}/> Selecionar {pedal.kind === "cabinet" ? ".wav" : ".nam"}</button>}
+              aria-label={`Escolher arquivo para ${title} ${position}`}><FolderOpen size={15}/> Selecionar {pedal.kind === "cabinet" ? ".wav" : ".nam"}</button>}
             <span title={path ?? ""}>{path ? fileLabel(path) : "Arquivo não selecionado"}</span>
             {path && <button type="button" className="secondary-button" onClick={() => onClear(pedal.id)}
               aria-label={`Limpar arquivo de ${title} ${index + 1}`}><X size={14}/> Limpar</button>}
