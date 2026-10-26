@@ -31,6 +31,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf libfuse2t64
+      - name: Validate AppImage icon (regression check)
+        run: python3 scripts/check_tauri_icons.py
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - run: cargo check --manifest-path src-tauri/Cargo.toml
