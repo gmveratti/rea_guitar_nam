@@ -9,7 +9,7 @@ import {
   PEDALS, PEDAL_KINDS, createPedal, factoryChain, movePedal,
   type PedalInstance, type PedalKind,
 } from "./lib/pedals";
-import { loadDraft, loadDraftResources, loadDraftVisual, loadPresets, saveDraft, saveDraftResources, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
+import { hasSavedDraftResources, loadDraft, loadDraftResources, loadDraftVisual, loadPresets, saveDraft, saveDraftResources, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
 import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
 import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
@@ -43,6 +43,7 @@ export default function App() {
   const [chain, setChain] = useState<PedalInstance[]>(loadDraft);
   const [resources, setResources] = useState<RigResources>(() => {
     const restored = loadDraftResources(chain);
+    if (hasSavedDraftResources()) return restored;
     // One-time migration of the standalone PR14 audio picker into the board.
     const legacy = loadAudioSettings();
     const next = { ...restored };
