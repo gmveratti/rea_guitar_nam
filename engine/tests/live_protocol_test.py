@@ -43,6 +43,24 @@ def run():
         actual = struct.unpack('<128f', out)
         assert all(math.isfinite(s) for s in actual)
         assert max(abs(s) for s in actual) > 0.01, 'Active cabinet must return sound'
+        # Regression: model registrars must survive native linking, not only
+        # the Linear IR registrar. Use an upstream example WaveNet model.
+        model = Path(sys.argv[2])
+        assert model.is_file(), f'Pinned upstream NAM test model missing: {model}'
+        nodes = [{'id': 'amp-1', 'kind': 'amp', 'enabled': True,
+                  'parameters': {}, 'resource': {'path': str(model)}}]
+        chain = json.dumps({'schemaVersion': 1, 'nodes': nodes}, separators=(',', ':'))
+        process = subprocess.Popen([binary, '--chain-json', chain],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        if process.stdout.read(1) != b'R':
+            stderr = process.stderr.read().decode(errors='replace')
+            raise AssertionError('NAM WaveNet registrar missing: ' + stderr)
+        out, err = process.communicate(struct.pack('<128f', *samples), timeout=20)
+        assert process.returncode == 0, err.decode(errors='replace')
+        assert len(out) == 512, len(out)
+        assert all(math.isfinite(s) for s in struct.unpack('<128f', out))
+
         invalid = subprocess.run([binary, '--chain-json', '{bad}'], capture_output=True, timeout=10)
         assert invalid.returncode != 0 and not invalid.stdout.startswith(b'R')
 
