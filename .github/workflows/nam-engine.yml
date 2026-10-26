@@ -1,8 +1,8 @@
-name: VTTRIG NAM JACK smoke
+name: VTTRIG NAM cross-platform DSP
 
 on:
   push:
-    branches: ["feat/tauri-pedalboard-foundation"]
+    branches: [main]
     paths:
       - "engine/**"
       - ".github/workflows/nam-engine.yml"
@@ -12,17 +12,55 @@ on:
       - ".github/workflows/nam-engine.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-nam-jack:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
+  native-core:
+    name: Portable NAM core (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
-      - name: Install Linux JACK and build dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build pkg-config libjack-jackd2-dev git
-      - name: Configure (downloads pinned upstream NAM core with submodules)
-        run: cmake -S engine -B engine/build -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-      - name: Build
-        run: cmake --build engine/build --parallel 2
-      - name: Smoke test (no audio device required)
-        run: ctest --test-dir engine/build --output-on-failure
+      - name: Install Linux JACK adapter dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libjack-jackd2-dev git
+
+      - name: Configure pinned NAM Core and native tests
+        run: cmake -S engine -B engine/build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build portable DSP and platform host
+        run: cmake --build engine/build --config Release --parallel 2
+      - name: Run regressions on this OS
+        run: ctest --test-dir engine/build -C Release --output-on-failure
+
+      - name: Verify Windows offline binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $file = "engine/build/Release/vttrig-nam-offline.exe"
+          if (-not (Test-Path $file)) { throw "Expected Windows NAM offline binary: $file" }
+          & $file --help
+      - name: Publish standalone Windows NAM processor
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: VTTRIG-NAM-Offline-Windows-x64
+          path: engine/build/Release/vttrig-nam-offline.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish standalone Linux NAM processor
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: VTTRIG-NAM-Offline-Linux-x64
+          path: engine/build/vttrig-nam-offline
+          if-no-files-found: error
+          retention-days: 14
