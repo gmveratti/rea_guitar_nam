@@ -19,9 +19,11 @@ Seções condicionais não introduzem novas tecnologias no projeto.
 - **Código aberto:** licenciamento e atribuição ao reutilizar NAM,
   CloudSeedCore, Airwindows, DaisySP e outros motores; validar DSP com
   testes offline, A/B e profiling, não apenas visualmente.
-- **Limite atual:** UI Tauri e motor NAM/JACK não estão integrados ao vivo.
-  Nunca relatar áudio real, latência ou compatibilidade como testados se
-  houver apenas smoke tests sem hardware.
+- **Limite atual:** o Tauri possui integração experimental de NAM/IR ao vivo;
+  o host JACK separado e os demais pedais seguem não integrados. A pedalboard
+  envia o manifesto ordenado somente ao iniciar/reiniciar uma sessão (PR #15).
+  Nunca relatar latência, estabilidade ou compatibilidade física como testados
+  quando houver apenas testes e builds de CI, sem interface de áudio real.
 - **Quality gate:** `make check`, além das verificações de interface e de
   hardware aplicáveis. Ver [docs/TESTING.md](docs/TESTING.md) e
   [docs/DSP_RESEARCH_AND_ARCHITECTURE.md](docs/DSP_RESEARCH_AND_ARCHITECTURE.md).
