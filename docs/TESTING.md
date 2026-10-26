@@ -123,3 +123,13 @@ Riscos / validação manual pendente:
 
 Na fase de áudio, guardar fixtures sintéticas, dados de medição e scripts
 de comparação, mas **não** cometer capturas comerciais nem gravações privadas.
+
+
+## Consolidação do áudio nativo (PR #13)
+
+- Confirmar que o código da seleção física da guitarra e os testes do PR #12 chegaram à `main`, não apenas à antiga branch do PR #11.
+- Executar `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check`, Clippy sem warnings, testes Rust, `npm test` e Playwright, Windows NSIS e Linux AppImage.
+- Testes de regressão sintéticos: desserializar `MonitorSelection` antigo (entrada 1 por padrão) e explícito (entrada 2), validar índice fora do limite, isolar falhas independentes de entrada, saída e motor NAM.
+- Teste físico pendente: Teyun Q24 com guitarra no canal 1 e 2 (quando disponibilizados pelo backend), fones em volume baixo, DRY e NAM/IR com arquivos locais, mudanças de dispositivos entre sessões, desligar/remover USB enquanto toca, clicar Parar e reabrir.
+- Em desconexão, a saída deve silenciar quando possível, a UI deve indicar **qual etapa** falhou e continuar oferecendo Parar. *Rodando* significa que a sessão mantém recursos até ser finalizada, não que há sinal de áudio válido.
+- Registrar xruns, uso de CPU e latência real separadamente; contadores de amostras perdidas não são uma estimativa de latência. Sem medição e testes de hardware não há homologação WASAPI/ALSA/ASIO/JACK.
