@@ -274,18 +274,28 @@ pub fn start(
     Ok(())
 }
 
-pub fn stop(state: &LiveState) -> Result<(), String> {
-    let session = state.session.lock().map_err(|_| "Audio state unavailable")?.take();
-    if let Some(mut session) = session {
-        session.running.store(false, Ordering::Relaxed);
-        let _ = session.input.pause();
-        let _ = session.output.pause();
-        let _ = session.child.kill();
-        let _ = session.child.wait();
-        if let Some(worker) = session.worker.take() {
+impl Drop for LiveSession {
+    fn drop(&mut self) {
+        // Stop the child even if the window closes without clicking Stop.
+        // Killing the child releases a worker blocked on the native pipe.
+        self.running.store(false, Ordering::Relaxed);
+        let _ = self.input.pause();
+        let _ = self.output.pause();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
     }
+}
+
+pub fn stop(state: &LiveState) -> Result<(), String> {
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| "Audio state unavailable")?
+        .take();
+    drop(session);
     Ok(())
 }
 

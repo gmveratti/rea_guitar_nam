@@ -23,7 +23,9 @@ def run():
         nodes = [{'id': 'cab-1', 'kind': 'cabinet', 'enabled': False, 'parameters': {}, 'resource': {'path': str(impulse)}}]
         chain = json.dumps({'schemaVersion': 1, 'nodes': nodes}, separators=(',', ':'))
         process = subprocess.Popen([binary, '--chain-json', chain], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        assert process.stdout.read(1) == b'R', 'Expected READY handshake'
+        if process.stdout.read(1) != b'R':
+            stderr = process.stderr.read().decode(errors='replace')
+            raise AssertionError('Expected READY handshake; native error: ' + stderr)
         samples = [0.25] + [0.0] * 127
         out, err = process.communicate(struct.pack('<128f', *samples), timeout=15)
         assert process.returncode == 0, err.decode()
