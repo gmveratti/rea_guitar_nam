@@ -256,7 +256,7 @@ export default function App() {
     setModelName(filename);
     setAmpFamily("auto");
     setNotice(filename
-      ? "Preview de skin selecionado. Para tocar, vincule um arquivo NAM real a um VTTAMP."
+      ? "Prévia visual selecionada; o modelo de demonstração não processa áudio. Para tocar, vincule um arquivo NAM real a um VTTAMP."
       : "Amplificador removido. Clique no + para escolher um NAM.");
   }
 
