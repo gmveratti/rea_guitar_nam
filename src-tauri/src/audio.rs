@@ -148,17 +148,16 @@ fn choose_device(
     };
     let range = ranges
         .into_iter()
-        .filter(|range| {
+        .find(|range| {
             range.sample_format() == SampleFormat::F32
                 && range.min_sample_rate() <= RATE
                 && range.max_sample_rate() >= RATE
                 && range.channels() > 0
         })
-        .next()
         .ok_or("Este dispositivo não oferece F32 a 48 kHz neste backend.")?;
 
     if let SupportedBufferSize::Range { min, max } = range.buffer_size() {
-        if frames < min || frames > max {
+        if frames < *min || frames > *max {
             return Err(format!(
                 "Buffer indisponível: o dispositivo aceita {min} a {max} frames."
             ));
