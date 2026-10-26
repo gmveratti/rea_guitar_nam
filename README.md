@@ -14,7 +14,7 @@
 2. Conecte a interface de áudio e os **fones de ouvido**. Deixe o volume da
    interface baixo para evitar picos e microfonia.
 3. Abra **Configurações → Áudio e dispositivos**, selecione backend disponível
-   (WASAPI no Windows, ALSA no Linux), entrada de guitarra e saída.
+   (WASAPI no Windows, ALSA no Linux), dispositivo de entrada, **canal da guitarra** (Entrada 1, 2 etc.) e saída.
 4. Escolha modo **DRY** e teste a captura/saída por alguns segundos; pare.
 5. Escolha modo **NAM/IR**, clique **Escolher NAM (.nam)** e escolha um modelo
    local compatível de 48 kHz. **Escolher gabinete (.wav)** adiciona uma IR
@@ -24,7 +24,7 @@
    **IR antes do NAM** para comparar. Bypass individual é aplicado ao iniciar.
 7. Clique **Iniciar NAM/IR**, toque com volume baixo e confira o som.
    Contadores de amostras em falta ou descartadas são exibidos na tela e
-   **não representam medição de latência**. Clique **Parar NAM/IR** antes de
+   **não representam medição de latência**. Se houver erro de driver, o monitor sinaliza falha e silencia a saída. Clique **Parar NAM/IR** antes de
    trocar arquivos ou dispositivos.
 
 **O que o PR #11 entrega:** um subprocesso C++ NAM Core com handshake de
@@ -32,7 +32,7 @@ carregamento, blocos mono de 128 float32 e filas SPSC entre callbacks CPAL
 e um worker Rust dedicado. O callback de dispositivo não executa modelo
 neural nem lê/grava pipes. É um protótipo de áudio ao vivo, sem SLA de
 latência, sem resampling e com backend padrão WASAPI/ALSA.
-ASIO/JACK não são habilitados por padrão e exigem drivers e builds à parte.
+ASIO/JACK não são habilitados por padrão e exigem drivers e builds à parte. A inicialização do motor é limitada a 30 segundos; o primeiro canal continua padrão caso a seleção não seja enviada.
 
 **Limites:** somente NAM, Drive NAM e IR (mono) no motor; Chorus, Delay,
 Reverb, Gate, Compressor e demais pedais ainda **não estão conectados** ao
