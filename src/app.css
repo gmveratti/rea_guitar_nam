@@ -729,3 +729,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   .amp-empty-slot {min-height:300px;}
   .board-view .amp-cable {transform:scale(.82);transform-origin:top left;}
 }
+
+
+/* Real device selection lives in settings; no DSP claims until the NAM core
+   is connected. Keeps native WebKitGTK/Edge selects legible. */
+.audio-device-card {align-items:flex-start;}
+.audio-device-card > div {width:100%;min-width:0;}
+.audio-device-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;margin:18px 0 10px;}
+.audio-device-fields label {display:block;color:#e2d0b9;font-size:11px;letter-spacing:.02em;}
+.audio-device-fields select {
+  width:100%;max-width:none;min-width:0;min-height:40px;
+  color-scheme:dark;appearance:none;
+  color:#f4ede4 !important;
+  background-color:#25262a !important;
+  border:1px solid #6b6156 !important;
+  border-radius:10px;
+  margin:7px 0 0;
+  padding:9px 12px;
+}
+.audio-device-fields select:disabled {opacity:.6;cursor:not-allowed;}
+.audio-device-fields option {background:#25262a;color:#f4ede4;}
+.settings-card .audio-device-note {font-size:11px;color:#a8aab1;margin:8px 0;}
+.settings-card .audio-device-warning {font-size:11px;color:#f0c997;margin:10px 0;}
+.audio-device-actions {display:flex;flex-wrap:wrap;gap:10px;margin:15px 0 0;}
+.audio-device-actions button {display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;}
+.audio-device-actions button:disabled {opacity:.5;cursor:not-allowed;}
+.settings-card .audio-device-message {border-left:3px solid #b88958;padding:9px 12px;background:#2b261f;margin-top:12px;font-size:12px;color:#eacfab;}
+@media(max-width:780px) {.audio-device-fields {grid-template-columns:1fr;}}
