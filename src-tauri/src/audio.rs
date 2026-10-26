@@ -68,7 +68,9 @@ pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
         .map_err(|_| "Audio state unavailable")?;
     Ok(MonitorStatus {
         running: guard.is_some(),
-        failed: guard.as_ref().is_some_and(|s| s.failed.load(Ordering::Relaxed)),
+        failed: guard
+            .as_ref()
+            .is_some_and(|s| s.failed.load(Ordering::Relaxed)),
         mode: "dry_monitor_only_no_nam_dsp",
     })
 }
@@ -197,7 +199,8 @@ pub(crate) fn validate_input_channel(channel: usize, channels: u16) -> Result<()
     } else {
         Err(format!(
             "Canal de entrada {} indisponível: o dispositivo tem {} canal(is).",
-            channel.saturating_add(1), channels
+            channel.saturating_add(1),
+            channels
         ))
     }
 }
@@ -262,7 +265,9 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
                     let _ = producer.push(selected_mono_sample(frame, input_channel));
                 }
             },
-            move |_error| { input_error.store(true, Ordering::Relaxed); },
+            move |_error| {
+                input_error.store(true, Ordering::Relaxed);
+            },
             None,
         )
         .map_err(|e| format!("Não foi possível abrir a entrada: {e}"))?;
@@ -282,7 +287,9 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
                     }
                 }
             },
-            move |_error| { output_error.store(true, Ordering::Relaxed); },
+            move |_error| {
+                output_error.store(true, Ordering::Relaxed);
+            },
             None,
         )
         .map_err(|e| format!("Não foi possível abrir a saída: {e}"))?;
