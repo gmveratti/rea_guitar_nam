@@ -34,6 +34,8 @@ neural nem lê/grava pipes. É um protótipo de áudio ao vivo, sem SLA de
 latência, sem resampling e com backend padrão WASAPI/ALSA.
 ASIO/JACK não são habilitados por padrão e exigem drivers e builds à parte. A inicialização do motor é limitada a 30 segundos; o primeiro canal continua padrão caso a seleção não seja enviada.
 
+**Diagnóstico do monitor (PR #13):** depois de selecionar o dispositivo e o canal físico da guitarra, inicie em DRY com o volume baixo. O VTTRIG agora distingue falha na **entrada** (captura/interface), na **saída** (reprodução) e no **motor NAM/IR** (pipe/processamento). Em caso de falha, o áudio de saída é silenciado quando o callback ainda está ativo; clique **Parar** para liberar streams/processo e só depois tente reconectar a interface. O estado *rodando* significa que a sessão ainda precisa ser parada, mesmo quando há erro. O modo DRY/WET é restaurado ao reabrir Configurações durante uma sessão. Nenhum desses indicadores mede a latência nem substitui o teste com hardware.
+
 **Limites:** somente NAM, Drive NAM e IR (mono) no motor; Chorus, Delay,
 Reverb, Gate, Compressor e demais pedais ainda **não estão conectados** ao
 áudio real. A cadeia usada é a configurada na seção de áudio para testes,
