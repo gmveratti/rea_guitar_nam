@@ -328,7 +328,7 @@ pub fn start(
                 break;
             }
             for chunk in output_bytes.as_chunks::<4>().0 {
-                let sample = f32::from_le_bytes(chunk.try_into().unwrap_or([0; 4]));
+                let sample = f32::from_le_bytes(*chunk);
                 push_processed_sample(&mut output_tx, sample, &out_overflows);
             }
         }
