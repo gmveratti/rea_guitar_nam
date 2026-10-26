@@ -12,6 +12,7 @@ import { loadDraft, loadPresets, saveDraft, savePresets, type Preset } from "./l
 import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
 import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
+import AudioDevices from "./components/AudioDevices";
 import { AMP_FAMILIES, humanizeModelName, type AmpFamily } from "./lib/ampSkins";
 
 type View = "board" | "library" | "settings";
@@ -50,7 +51,7 @@ export default function App() {
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
-        .then((status) => setEngine(status === "not_implemented" ? "áudio não implementado" : status))
+        .then((status) => setEngine(status === "dry_monitor_available_no_nam_dsp" ? "monitor DRY (sem NAM/DSP)" : status === "not_implemented" ? "áudio não implementado" : status))
         .catch(() => setEngine("motor indisponível"));
     }
   }, []);
@@ -374,6 +375,7 @@ export default function App() {
             <section className="settings-view" aria-label="Configurações VTTRIG">
               <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
               <div className="settings-stack">
+                <AudioDevices />
                 <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A interface Tauri ainda não envia parâmetros ao NAM/JACK.</p></div><span className="offline-pill">OFFLINE</span></div>
                 <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
                   <label htmlFor="skin-family">Família visual</label>

@@ -65,6 +65,41 @@ Regressões em `e2e/amp-and-pedal-regressions.spec.ts` e
 cabo, foco/fechamento, bypass e persistência. O processamento de áudio real
 ainda depende da integração futura do motor nativo.
 
+## Dispositivos de áudio nativos e monitor DRY (PR #10, primeira etapa)
+
+A tela **Configurações → Áudio e dispositivos** consulta backends de áudio
+compilados e instalados na máquina usando CPAL. É possível selecionar
+backend, entrada, saída e solicitar buffer de 64/128/256/512/1024 frames a
+**48 kHz**. A seleção funciona no aplicativo desktop Tauri, não na
+pré-visualização web.
+
+**Backends disponibilizados no build padrão:** WASAPI (Windows) e ALSA
+(Linux). O suporte ASIO e JACK é **opcional** (`cargo --features asio` ou
+`cargo --features jack`) e depende das bibliotecas, SDKs, toolchain e
+drivers de cada plataforma. Não há promessa de ASIO/JACK nesta build do
+instalador. O app somente lista hosts enumerados pelo CPAL. O formato
+admitido nesta primeira versão é **F32 mono/multicanal a 48 kHz**.
+
+Um botão explícito **Iniciar monitor DRY** abre a primeira entrada de áudio
+(canal 1) e duplica a guitarra limpa na saída escolhida. A monitoração usa
+um ring buffer de capacidade fixa sem lock entre os callbacks CPAL e um
+ganho máximo conservador (0,12). Caso o host não aceite o buffer solicitado
+ou a taxa/formato necessário, o app apresenta um erro, em vez de alegar que
+conectou o dispositivo. **Não há início automático do monitor.**
+
+**Cuidado:** abaixe o volume antes de iniciar e use fones ou monitores em
+baixo nível. Não conecte o sinal de saída de volta à entrada, porque isso
+pode causar microfonia. O processamento é **DRY** e não passa pelos pedais,
+AmpHero, capturas NAM ou IR. NÃO é um amplificador digital utilizável nesta
+fase; o DSP C++ ainda requer uma ponte em tempo real segura com o Tauri.
+
+Fluxo de validação manual pós-merge: abra o **desktop Tauri no Windows 11** ou **Fedora**, selecione backend e dispositivos,
+teste saída em nível mínimo, ligue/desligue, desconecte e reconecte a interface
+para verificar a apresentação do erro e a necessidade de atualizar o
+inventário. Testar buffers 64/128/256 conforme o driver permite e observar
+dropouts/xruns. A CI valida **somente compilação e lógica**, não drivers
+físicos e não ASIO; o comportamento acústico ainda exige hardware.
+
 ## O que funciona nesta primeira etapa
 
 - **Amp Focus:** amplificador estilizado por CSS. Classificação heurística por nome de .nam em famílias *British, American, Stadium, Chime, Modern, Boutique*. Seletor manual corrige falsos positivos.
