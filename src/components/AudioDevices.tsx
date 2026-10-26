@@ -3,6 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 import { audioFaultReason } from "../lib/audioFaults";
+import { loadAudioSettings, saveAudioSettings } from "../lib/audioSettings";
 
 type DeviceInfo = { index: number; name: string; channels: number; supportsMonitor: boolean };
 type HostInfo = { id: string; inputs: DeviceInfo[]; outputs: DeviceInfo[] };
@@ -16,24 +17,36 @@ const displayFile = (path: string) => path.split(/[\\/]/).pop() || path;
 
 export default function AudioDevices() {
   const native = isTauri();
+  // Preserve model/IR selections when navigating away or restarting the WebView.
+  // Device indices remain session-only: enumeration order can change after USB reconnect.
+  const [saved] = useState(loadAudioSettings);
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [hostId, setHostId] = useState("");
   const [inputIndex, setInputIndex] = useState("");
-  const [inputChannel, setInputChannel] = useState(0);
+  const [inputChannel, setInputChannel] = useState(saved.inputChannel);
   const [outputIndex, setOutputIndex] = useState("");
-  const [frames, setFrames] = useState(256);
-  const [mode, setMode] = useState<Mode>("dry");
+  const [frames, setFrames] = useState(saved.bufferFrames);
+  const [mode, setMode] = useState<Mode>(saved.mode);
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [ampPath, setAmpPath] = useState("");
-  const [cabPath, setCabPath] = useState("");
-  const [irBeforeAmp, setIrBeforeAmp] = useState(false);
-  const [bypassAmp, setBypassAmp] = useState(false);
-  const [bypassCab, setBypassCab] = useState(false);
+  const [ampPath, setAmpPath] = useState(saved.ampPath);
+  const [cabPath, setCabPath] = useState(saved.cabPath);
+  const [irBeforeAmp, setIrBeforeAmp] = useState(saved.irBeforeAmp);
+  const [bypassAmp, setBypassAmp] = useState(saved.bypassAmp);
+  const [bypassCab, setBypassCab] = useState(saved.bypassCab);
   const [liveStats, setLiveStats] = useState<LiveStatus | null>(null);
   const [dryStatus, setDryStatus] = useState<MonitorStatus | null>(null);
+
+  useEffect(() => {
+    // Save only the chosen setup, never live streams, a "running" flag or USB indices.
+    // Existing file paths are revalidated by the Rust/C++ backend on Start.
+    saveAudioSettings({
+      version: 1, mode, bufferFrames: frames, inputChannel,
+      ampPath, cabPath, irBeforeAmp, bypassAmp, bypassCab,
+    });
+  }, [mode, frames, inputChannel, ampPath, cabPath, irBeforeAmp, bypassAmp, bypassCab]);
 
   const selected = useMemo(() => hosts.find((h) => h.id === hostId), [hosts, hostId]);
   const inputs = selected?.inputs.filter((d) => d.supportsMonitor) ?? [];
@@ -52,7 +65,8 @@ export default function AudioDevices() {
       setHosts(available);
       setLiveStats(wet);
       setDryStatus(dry);
-      setMode(wet.running ? "wet" : "dry");
+      // A refresh must not overwrite the user's saved WET choice when idle.
+      if (wet.running || dry.running) setMode(wet.running ? "wet" : "dry");
       setRunning(dry.running || wet.running);
       setActiveMode(wet.running ? "wet" : dry.running ? "dry" : null);
       setHostId((previous) => available.some((h) => h.id === previous)
@@ -76,7 +90,8 @@ export default function AudioDevices() {
   }, [hostId, hosts, inputIndex, inputs, outputIndex, outputs, running]);
 
   useEffect(() => {
-    if (inputChannel >= channelCount) setInputChannel(0);
+    // Avoid clearing a restored channel while device enumeration is still pending.
+    if (channelCount > 0 && inputChannel >= channelCount) setInputChannel(0);
   }, [inputChannel, channelCount]);
   useEffect(() => {
     if (!native || !running || !activeMode) return;
@@ -231,7 +246,7 @@ export default function AudioDevices() {
                   <input type="checkbox" disabled={running} checked={irBeforeAmp} onChange={(e) => setIrBeforeAmp(e.target.checked)}/>
                   IR antes do NAM (desmarcado: NAM → IR)
                 </label>}
-                <p>Esta cadeia de teste é independente dos pedais visuais e preserva a ordem escolhida aqui. Modelos são carregados antes de abrir o monitor, nunca no callback de áudio.</p>
+                <p>Esta cadeia de teste é independente dos pedais visuais e preserva a ordem escolhida aqui. A configuração é lembrada localmente; arquivos removidos ou movidos precisam ser selecionados novamente. Os modelos só são carregados ao iniciar, nunca no callback de áudio.</p>
               </section>
             )}
             <p className="audio-device-note">48.000 Hz · canal de entrada selecionado enviado em mono para as saídas. Buffer pode ser recusado pelo driver. WASAPI/ALSA são padrão; ASIO/JACK exigem suporte opcional e drivers instalados.</p>
