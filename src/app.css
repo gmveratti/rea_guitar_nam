@@ -669,6 +669,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   stroke-linecap:round;
 }
 .board-view .amp-cable .amp-cable-plug {
+  transform:none;
+  position:static;
   stroke:#33373b;
   stroke-width:13;
   stroke-linecap:round;
