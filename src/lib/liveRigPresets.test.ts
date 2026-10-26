@@ -1,9 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPedal } from "./pedals";
 import { buildLiveBoardSnapshot } from "./liveRig";
 import { loadDraftResources, loadPresets, saveDraftResources, savePresets, type Preset } from "./presets";
 
 describe("PR15: native resource presets and draft migration", () => {
+  beforeEach(() => {
+    const data = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => { data.set(key, value); },
+      removeItem: (key: string) => { data.delete(key); },
+      clear: () => { data.clear(); },
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   it("saves and reloads ordered preset with model IDs, paths and bypass", () => {
     const amp = createPedal("amp"), ir = createPedal("cabinet");
     ir.enabled = false;
