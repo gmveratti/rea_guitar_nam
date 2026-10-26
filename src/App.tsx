@@ -113,7 +113,7 @@ export default function App() {
     const preset = presets.find((item) => item.id === id);
     if (!preset) return;
     setChain(structuredClone(preset.chain));
-    if (preset.modelName) setModelName(preset.modelName);
+    setModelName(preset.modelName ?? "");
     setAmpFamily(preset.ampFamily ?? "auto");
     setPresetName(preset.name);
     setActivePresetId(id);
@@ -181,7 +181,9 @@ export default function App() {
   function chooseModel(filename: string) {
     setModelName(filename);
     setAmpFamily("auto");
-    setNotice("Modelo selecionado para a visualização. O NAM ainda não processa áudio no Tauri.");
+    setNotice(filename
+      ? "Modelo selecionado para a visualização. O NAM ainda não processa áudio no Tauri."
+      : "Amplificador removido. Clique no + para escolher um NAM.");
   }
 
   function resetSelectedParameters() {
@@ -225,10 +227,11 @@ export default function App() {
         </div>
         <div className="model-compact">
           <label htmlFor="amp-example">MODELO</label>
-          <select id="amp-example" value={DEMO_MODELS.includes(modelName) ? modelName : ""} onChange={(event) => {
-            if (event.target.value) chooseModel(event.target.value);
+          <select id="amp-example" value={DEMO_MODELS.includes(modelName) ? modelName : modelName ? "__custom__" : ""} onChange={(event) => {
+            if (event.target.value !== "__custom__") chooseModel(event.target.value);
           }}>
-            <option value="">{humanizeModelName(modelName)}</option>
+            <option value="">+ Adicionar NAM</option>
+            {modelName && !DEMO_MODELS.includes(modelName) && <option value="__custom__">{humanizeModelName(modelName)}</option>}
             {DEMO_MODELS.map((name) => <option key={name} value={name}>{humanizeModelName(name)}</option>)}
           </select>
           <span className="preview-dot" title="Motor de áudio ainda não conectado" />
