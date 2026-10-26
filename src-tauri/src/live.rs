@@ -45,7 +45,10 @@ pub struct LiveStatus {
 }
 
 pub fn status(state: &LiveState) -> Result<LiveStatus, String> {
-    let guard = state.session.lock().map_err(|_| "Audio state unavailable")?;
+    let guard = state
+        .session
+        .lock()
+        .map_err(|_| "Audio state unavailable")?;
     let session = guard.as_ref();
     Ok(LiveStatus {
         running: session.is_some(),
@@ -65,7 +68,9 @@ fn validate_manifest(json: &str) -> Result<(), String> {
     if value["schemaVersion"] != 1 {
         return Err("Versão de cadeia inválida (esperado schemaVersion 1).".into());
     }
-    let nodes = value["nodes"].as_array().ok_or("Cadeia sem lista de efeitos")?;
+    let nodes = value["nodes"]
+        .as_array()
+        .ok_or("Cadeia sem lista de efeitos")?;
     if nodes.is_empty() || nodes.len() > 24 {
         return Err("Selecione de 1 até 24 modelos NAM/IR.".into());
     }
@@ -77,11 +82,16 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             "cabinet" => "wav",
             _ => return Err(format!("DSP ainda não implementado para {kind}")),
         };
-        if path.is_empty() || path.len() > 4096
+        if path.is_empty()
+            || path.len() > 4096
             || !std::path::Path::new(path).is_file()
-            || !path.to_ascii_lowercase().ends_with(&format!(".{allowed_extension}"))
+            || !path
+                .to_ascii_lowercase()
+                .ends_with(&format!(".{allowed_extension}"))
         {
-            return Err(format!("Arquivo de {kind} não encontrado ou incompatível: {path}"));
+            return Err(format!(
+                "Arquivo de {kind} não encontrado ou incompatível: {path}"
+            ));
         }
     }
     Ok(())
@@ -127,7 +137,10 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
         .spawn()
         .map_err(|e| format!("Não foi possível iniciar o motor NAM: {e}"))?;
     let mut ready = [0u8; 1];
-    let read = child.stdout.as_mut().ok_or("Pipe de saída indisponível")?
+    let read = child
+        .stdout
+        .as_mut()
+        .ok_or("Pipe de saída indisponível")?
         .read_exact(&mut ready);
     if read.is_err() || ready != [b'R'] {
         let _ = child.wait();
@@ -143,11 +156,7 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
 // The worker may outrun the output device. Count dropped WET frames too;
 // otherwise the UI would report zero overflows even while output is lost.
 // Single-producer ring operation is nonblocking and allocation-free.
-fn push_processed_sample(
-    queue: &mut rtrb::Producer<f32>,
-    sample: f32,
-    overflows: &AtomicU64,
-) {
+fn push_processed_sample(queue: &mut rtrb::Producer<f32>, sample: f32, overflows: &AtomicU64) {
     if queue.push(sample).is_err() {
         overflows.fetch_add(1, Ordering::Relaxed);
     }
@@ -164,23 +173,35 @@ pub fn start(
     }
     validate_manifest(&chain_json)?;
     audio::validate_buffer(selection.buffer_frames)?;
-    let id = cpal::HostId::from_str(&selection.host_id)
-        .map_err(|_| "Backend de áudio inválido")?;
+    let id = cpal::HostId::from_str(&selection.host_id).map_err(|_| "Backend de áudio inválido")?;
     if !cpal::available_hosts().contains(&id) {
         return Err("Backend de áudio indisponível".into());
     }
     let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
     let (input, input_cfg) =
         audio::choose_device(&host, true, selection.input_index, selection.buffer_frames)?;
-    let (output, output_cfg) =
-        audio::choose_device(&host, false, selection.output_index, selection.buffer_frames)?;
-    let mut guard = state.session.lock().map_err(|_| "Audio state unavailable")?;
+    let (output, output_cfg) = audio::choose_device(
+        &host,
+        false,
+        selection.output_index,
+        selection.buffer_frames,
+    )?;
+    let mut guard = state
+        .session
+        .lock()
+        .map_err(|_| "Audio state unavailable")?;
     if guard.is_some() {
         return Err("O áudio NAM já está ligado. Pare antes de trocar arquivos.".into());
     }
     let mut child = start_sidecar(&chain_json)?;
-    let mut in_pipe = child.stdin.take().ok_or("Entrada do motor NAM indisponível")?;
-    let mut out_pipe = child.stdout.take().ok_or("Saída do motor NAM indisponível")?;
+    let mut in_pipe = child
+        .stdin
+        .take()
+        .ok_or("Entrada do motor NAM indisponível")?;
+    let mut out_pipe = child
+        .stdout
+        .take()
+        .ok_or("Saída do motor NAM indisponível")?;
     let (mut input_tx, mut input_rx) = RingBuffer::<f32>::new(RING_SIZE);
     let (mut output_tx, mut output_rx) = RingBuffer::<f32>::new(RING_SIZE);
     let running = Arc::new(AtomicBool::new(true));
@@ -342,6 +363,9 @@ mod tests {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[{"kind":"chorus"}]}"#).is_err());
-        assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[{"kind":"amp","resource":{"path":"missing.nam"}}]}"#).is_err());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"amp","resource":{"path":"missing.nam"}}]}"#
+        )
+        .is_err());
     }
 }
