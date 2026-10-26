@@ -324,9 +324,7 @@ pub fn start(
     let worker = thread::spawn(move || {
         let mut input_bytes = [0u8; FRAMES * 4];
         let mut output_bytes = [0u8; FRAMES * 4];
-        while worker_running.load(Ordering::Relaxed)
-            && worker_faults.load(Ordering::Relaxed) == 0
-        {
+        while worker_running.load(Ordering::Relaxed) && worker_faults.load(Ordering::Relaxed) == 0 {
             if input_rx.slots() < FRAMES {
                 thread::sleep(Duration::from_millis(1));
                 continue;
