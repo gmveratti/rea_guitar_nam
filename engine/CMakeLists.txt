@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
-project(VTTRIG_NAM_JACK LANGUAGES CXX)
+project(VTTRIG_NAM_CORE LANGUAGES CXX)
 
-# Linux JACK proof-of-concept. Build independently of the Tauri WebView.
-# Pin the MIT NAM core to a reviewed upstream commit (v0.6.0).
+# One pinned MIT NAM implementation for both Linux/JACK and Windows/offline.
+# Building the upstream library is deliberately independent of audio backends.
 include(FetchContent)
 FetchContent_Declare(
   namcore
@@ -12,9 +12,6 @@ FetchContent_Declare(
   SOURCE_SUBDIR __vttrig_do_not_add_upstream_tools
 )
 FetchContent_MakeAvailable(namcore)
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(JACK REQUIRED IMPORTED_TARGET jack)
 
 file(GLOB NAM_SOURCES CONFIGURE_DEPENDS
   "${namcore_SOURCE_DIR}/NAM/*.cpp"
@@ -32,28 +29,58 @@ target_include_directories(vttrig_nam_core SYSTEM PUBLIC
   "${namcore_SOURCE_DIR}/Dependencies/AudioDSPTools/dsp"
 )
 
-add_executable(vttrig-nam-jack src/nam_jack.cpp)
-target_compile_features(vttrig-nam-jack PRIVATE cxx_std_20)
-target_link_libraries(vttrig-nam-jack PRIVATE vttrig_nam_core PkgConfig::JACK)
-target_compile_options(vttrig-nam-jack PRIVATE -Wall -Wextra -Wpedantic)
+function(vttrig_warnings target)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4 /UNDEBUG)
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+  endif()
+endfunction()
+
+# Portable renderer. No JACK, ALSA, WASAPI or WebView headers are required.
+add_executable(vttrig-nam-offline src/nam_offline.cpp)
+target_compile_features(vttrig-nam-offline PRIVATE cxx_std_20)
+target_link_libraries(vttrig-nam-offline PRIVATE vttrig_nam_core)
+vttrig_warnings(vttrig-nam-offline)
+
+# JACK is a Linux-specific host adapter. Do not require it on Windows.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(vttrig-nam-jack PRIVATE stdc++fs)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(JACK REQUIRED IMPORTED_TARGET jack)
+  add_executable(vttrig-nam-jack src/nam_jack.cpp)
+  target_compile_features(vttrig-nam-jack PRIVATE cxx_std_20)
+  target_link_libraries(vttrig-nam-jack PRIVATE vttrig_nam_core PkgConfig::JACK stdc++fs)
+  vttrig_warnings(vttrig-nam-jack)
 endif()
 
 include(CTest)
 if(BUILD_TESTING)
   add_executable(vttrig-chain-tests tests/chain_tests.cpp)
   target_compile_features(vttrig-chain-tests PRIVATE cxx_std_20)
-  target_compile_options(vttrig-chain-tests PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+  vttrig_warnings(vttrig-chain-tests)
+
   add_executable(vttrig-manifest-tests tests/manifest_tests.cpp)
   target_compile_features(vttrig-manifest-tests PRIVATE cxx_std_20)
   target_include_directories(vttrig-manifest-tests SYSTEM PRIVATE
     "${namcore_SOURCE_DIR}/Dependencies/nlohmann")
-  target_compile_options(vttrig-manifest-tests PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
-  add_test(NAME ordered_manifest_validation COMMAND vttrig-manifest-tests)
+  vttrig_warnings(vttrig-manifest-tests)
+
+  add_executable(vttrig-wav-tests tests/wav_tests.cpp)
+  target_compile_features(vttrig-wav-tests PRIVATE cxx_std_20)
+  vttrig_warnings(vttrig-wav-tests)
+
   add_test(NAME effect_chain_reorder_and_bypass COMMAND vttrig-chain-tests)
-  add_test(NAME native_manifest_cli_validation
-    COMMAND vttrig-nam-jack --validate-chain-json
+  add_test(NAME ordered_manifest_validation COMMAND vttrig-manifest-tests)
+  add_test(NAME portable_wav_read_write_render COMMAND vttrig-wav-tests)
+  add_test(NAME portable_renderer_help COMMAND vttrig-nam-offline --help)
+  add_test(NAME native_offline_manifest_validation
+    COMMAND vttrig-nam-offline --validate-chain-json
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ordered-chain.json")
-  add_test(NAME nam_engine_help COMMAND vttrig-nam-jack --help)
+
+  if(TARGET vttrig-nam-jack)
+    add_test(NAME native_manifest_cli_validation
+      COMMAND vttrig-nam-jack --validate-chain-json
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ordered-chain.json")
+    add_test(NAME nam_engine_help COMMAND vttrig-nam-jack --help)
+  endif()
 endif()
