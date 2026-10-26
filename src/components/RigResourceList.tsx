@@ -33,7 +33,7 @@ export default function RigResourceList({ chain, resources, onPick, onClear, nat
               aria-label={`Escolher arquivo para ${title} ${position}`}><FolderOpen size={15}/> Selecionar {pedal.kind === "cabinet" ? ".wav" : ".nam"}</button>}
             <span title={path ?? ""}>{path ? fileLabel(path) : "Arquivo não selecionado"}</span>
             {path && <button type="button" className="secondary-button" onClick={() => onClear(pedal.id)}
-              aria-label={`Limpar arquivo de ${title} ${index + 1}`}><X size={14}/> Limpar</button>}
+              aria-label={`Limpar arquivo de ${title} ${position}`}><X size={14}/> Limpar</button>}
           </div>
         );
       })}
