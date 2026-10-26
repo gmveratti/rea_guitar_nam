@@ -30,6 +30,9 @@
     ],
     "icon": [
       "icons/icon.png"
+    ],
+    "externalBin": [
+      "binaries/vttrig-nam-live"
     ]
   }
 }

@@ -51,7 +51,7 @@ export default function App() {
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
-        .then((status) => setEngine(status === "dry_monitor_available_no_nam_dsp" ? "monitor DRY (sem NAM/DSP)" : status === "not_implemented" ? "áudio não implementado" : status))
+        .then((status) => setEngine(status === "native_live_nam_ir_available" ? "NAM/IR ao vivo (experimental)" : status === "dry_monitor_available_no_nam_dsp" ? "monitor DRY (sem NAM/DSP)" : status === "not_implemented" ? "áudio não implementado" : status))
         .catch(() => setEngine("motor indisponível"));
     }
   }, []);

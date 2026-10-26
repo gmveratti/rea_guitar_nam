@@ -19,7 +19,11 @@ file(GLOB NAM_SOURCES CONFIGURE_DEPENDS
   "${namcore_SOURCE_DIR}/NAM/*/*.cpp"
 )
 
-add_library(vttrig_nam_core STATIC ${NAM_SOURCES})
+# NAM architectures (Linear IR, WaveNet, etc.) register themselves through
+# static initializers. When linked from a STATIC archive, the linker can
+# discard translation units that only contain those registrations.
+# An OBJECT library guarantees every parser is linked into each native host.
+add_library(vttrig_nam_core OBJECT ${NAM_SOURCES})
 target_compile_features(vttrig_nam_core PUBLIC cxx_std_20)
 target_compile_definitions(vttrig_nam_core PUBLIC NAM_ENABLE_A2_FAST)
 target_include_directories(vttrig_nam_core SYSTEM PUBLIC
@@ -43,8 +47,14 @@ target_compile_features(vttrig-nam-offline PRIVATE cxx_std_20)
 target_link_libraries(vttrig-nam-offline PRIVATE vttrig_nam_core)
 vttrig_warnings(vttrig-nam-offline)
 
+add_executable(vttrig-nam-live src/nam_live.cpp)
+target_compile_features(vttrig-nam-live PRIVATE cxx_std_20)
+target_link_libraries(vttrig-nam-live PRIVATE vttrig_nam_core)
+vttrig_warnings(vttrig-nam-live)
+
 # JACK is a Linux-specific host adapter. Do not require it on Windows.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+option(VTTRIG_BUILD_JACK "Build JACK adapter on Linux" ON)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND VTTRIG_BUILD_JACK)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(JACK REQUIRED IMPORTED_TARGET jack)
   add_executable(vttrig-nam-jack src/nam_jack.cpp)
@@ -73,6 +83,13 @@ if(BUILD_TESTING)
   add_test(NAME ordered_manifest_validation COMMAND vttrig-manifest-tests)
   add_test(NAME portable_wav_read_write_render COMMAND vttrig-wav-tests)
   add_test(NAME portable_renderer_help COMMAND vttrig-nam-offline --help)
+  add_test(NAME live_sidecar_help COMMAND vttrig-nam-live --help)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME live_sidecar_streaming_protocol
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/live_protocol_test.py"
+            "$<TARGET_FILE:vttrig-nam-live>"
+            "${namcore_SOURCE_DIR}/example_models/wavenet.nam")
+  set_tests_properties(live_sidecar_streaming_protocol PROPERTIES TIMEOUT 60)
   add_test(NAME native_offline_manifest_validation
     COMMAND vttrig-nam-offline --validate-chain-json
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ordered-chain.json")
