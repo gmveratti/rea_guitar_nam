@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 import { audioFaultReason } from "../lib/audioFaults";
 import { loadAudioSettings, saveAudioSettings } from "../lib/audioSettings";
+import { type PedalInstance } from "../lib/pedals";
+import { buildLiveBoardSnapshot, type RigResources } from "../lib/liveRig";
 
 type DeviceInfo = { index: number; name: string; channels: number; supportsMonitor: boolean };
 type HostInfo = { id: string; inputs: DeviceInfo[]; outputs: DeviceInfo[] };
@@ -13,9 +14,14 @@ type Mode = "dry" | "wet";
 
 const BUFFER_OPTIONS = [64, 128, 256, 512, 1024];
 const RATE = 48000;
-const displayFile = (path: string) => path.split(/[\\/]/).pop() || path;
+type Props = {
+  chain: readonly PedalInstance[];
+  resources: Readonly<RigResources>;
+  ampPowered: boolean;
+  compact?: boolean;
+};
 
-export default function AudioDevices() {
+export default function AudioDevices({ chain, resources, ampPowered, compact = false }: Props) {
   const native = isTauri();
   // Preserve model/IR selections when navigating away or restarting the WebView.
   // Device indices remain session-only: enumeration order can change after USB reconnect.
@@ -31,11 +37,7 @@ export default function AudioDevices() {
   const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [ampPath, setAmpPath] = useState(saved.ampPath);
-  const [cabPath, setCabPath] = useState(saved.cabPath);
-  const [irBeforeAmp, setIrBeforeAmp] = useState(saved.irBeforeAmp);
-  const [bypassAmp, setBypassAmp] = useState(saved.bypassAmp);
-  const [bypassCab, setBypassCab] = useState(saved.bypassCab);
+  const [appliedManifest, setAppliedManifest] = useState<string | null>(null);
   const [liveStats, setLiveStats] = useState<LiveStatus | null>(null);
   const [dryStatus, setDryStatus] = useState<MonitorStatus | null>(null);
 
@@ -44,14 +46,22 @@ export default function AudioDevices() {
     // Existing file paths are revalidated by the Rust/C++ backend on Start.
     saveAudioSettings({
       version: 1, mode, bufferFrames: frames, inputChannel,
-      ampPath, cabPath, irBeforeAmp, bypassAmp, bypassCab,
+      // Historical test settings are kept solely for migration; the board is now canonical.
+      ampPath: saved.ampPath, cabPath: saved.cabPath,
+      irBeforeAmp: saved.irBeforeAmp, bypassAmp: saved.bypassAmp, bypassCab: saved.bypassCab,
     });
-  }, [mode, frames, inputChannel, ampPath, cabPath, irBeforeAmp, bypassAmp, bypassCab]);
+  }, [mode, frames, inputChannel, saved]);
 
   const selected = useMemo(() => hosts.find((h) => h.id === hostId), [hosts, hostId]);
   const inputs = selected?.inputs.filter((d) => d.supportsMonitor) ?? [];
   const outputs = selected?.outputs.filter((d) => d.supportsMonitor) ?? [];
   const channelCount = inputs.find((d) => String(d.index) === inputIndex)?.channels ?? 0;
+  const livePlan = useMemo(() => {
+    try { return { preview: buildLiveBoardSnapshot(chain, resources, ampPowered), error: "" }; }
+    catch (error) { return { preview: null, error: String(error).replace(/^Error: /, "") }; }
+  }, [chain, resources, ampPowered]);
+  const livePreview = livePlan.preview;
+  const liveManifest = livePreview ? JSON.stringify({ schemaVersion: 1, nodes: livePreview.nodes }) : null;
 
   const refresh = useCallback(async () => {
     if (!native) return;
@@ -107,41 +117,19 @@ export default function AudioDevices() {
     return () => clearInterval(interval);
   }, [native, running, activeMode]);
 
-  async function pickFile(kind: "amp" | "cab") {
-    if (!native || running || busy) return;
-    try {
-      const candidate = await open({
-        multiple: false,
-        directory: false,
-        filters: [{ name: kind === "amp" ? "Neural Amp Model" : "Cabinet IR",
-          extensions: [kind === "amp" ? "nam" : "wav"] }],
-      });
-      if (typeof candidate === "string") {
-        if (kind === "amp") setAmpPath(candidate);
-        else setCabPath(candidate);
-        setMessage("Arquivo local selecionado. A validação DSP ocorre ao iniciar.");
-      }
-    } catch (error) {
-      setMessage(`Erro ao selecionar arquivo: ${String(error)}`);
-    }
-  }
-
-  function buildChain(): string {
-    const nodes = [
-      ...(ampPath ? [{ id: "live-amp-1", kind: "amp", enabled: !bypassAmp,
-        parameters: {}, resource: { path: ampPath } }] : []),
-      ...(cabPath ? [{ id: "live-cab-1", kind: "cabinet", enabled: !bypassCab,
-        parameters: {}, resource: { path: cabPath } }] : []),
-    ];
-    if (irBeforeAmp) nodes.reverse();
-    return JSON.stringify({ schemaVersion: 1, nodes });
-  }
-
   async function start() {
     if (!native || !hostId || inputIndex === "" || outputIndex === "" || busy) return;
-    if (mode === "wet" && !ampPath && !cabPath) {
-      setMessage("Carregue um NAM ou uma IR para iniciar o áudio processado.");
-      return;
+    let nextManifest: string | null = null;
+    let ignoredCount = 0;
+    if (mode === "wet") {
+      try {
+        const plan = buildLiveBoardSnapshot(chain, resources, ampPowered);
+        nextManifest = JSON.stringify({ schemaVersion: 1, nodes: plan.nodes });
+        ignoredCount = plan.ignored.length;
+      } catch (error) {
+        setMessage(String(error));
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -150,16 +138,17 @@ export default function AudioDevices() {
         outputIndex: Number(outputIndex), bufferFrames: frames, inputChannel,
       };
       if (mode === "wet") {
-        await invoke("audio_start_live", { selection, chainJson: buildChain() });
+        await invoke("audio_start_live", { selection, chainJson: nextManifest });
       } else {
         await invoke("audio_start_monitor", { selection });
       }
       setRunning(true);
+      setAppliedManifest(nextManifest);
       setDryStatus(null);
       setLiveStats(null);
       setActiveMode(mode);
       setMessage(mode === "wet"
-        ? "NAM/IR ligado. Atenção ao volume. Os pedais da tela ainda não atuam neste teste."
+        ? `NAM/IR da pedalboard iniciado. ${ignoredCount ? `${ignoredCount} efeito(s) visual(is) sem DSP foram ignorados. ` : ""}Alterações de ordem, bypass, power ou recursos exigem Parar e Iniciar.`
         : "Monitor DRY ligado: sem amp NAM ou pedais DSP. Use volume baixo.");
     } catch (error) {
       setRunning(false);
@@ -175,6 +164,7 @@ export default function AudioDevices() {
       await invoke(activeMode === "wet" ? "audio_stop_live" : "audio_stop_monitor");
       setRunning(false);
       setActiveMode(null);
+      setAppliedManifest(null);
       setMessage("Monitor de áudio desligado.");
     } catch (error) {
       setMessage(`Erro ao desligar áudio: ${String(error)}`);
@@ -184,11 +174,11 @@ export default function AudioDevices() {
   }
 
   return (
-    <article className="settings-card audio-device-card" aria-label="Áudio e dispositivos">
+    <article className={`settings-card audio-device-card ${compact ? "board-audio-controls" : ""}`} aria-label="Áudio e dispositivos">
       <AudioLines size={23}/>
       <div>
         <h2>Áudio e dispositivos</h2>
-        <p>Escolha um driver, entrada e saída. Teste a guitarra limpa (DRY) ou carregue arquivos reais .nam/.wav para ouvir o processamento nativo (NAM/IR). Outros pedais continuam somente visuais.</p>
+        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe NAM/IR da pedalboard na ordem visual. Outros pedais ainda não possuem DSP e são ignorados explicitamente.</p>
         {!native ? (
           <p role="status">Abra o aplicativo desktop para listar drivers e interfaces de áudio. Esta visualização web não acessa seus dispositivos.</p>
         ) : (
@@ -230,25 +220,22 @@ export default function AudioDevices() {
               </label>
             </div>
             {mode === "wet" && (
-              <section className="audio-live-models" aria-label="Modelos NAM e IR">
-                <h3>Modelos locais para o teste ao vivo</h3>
-                <div className="audio-model-row">
-                  <button type="button" disabled={busy || running} onClick={() => void pickFile("amp")}>Escolher NAM (.nam)</button>
-                  <span title={ampPath}>{ampPath ? displayFile(ampPath) : "Nenhum NAM selecionado"}</span>
-                  {ampPath && <label><input type="checkbox" checked={bypassAmp} disabled={running} onChange={(e) => setBypassAmp(e.target.checked)}/> Bypass</label>}
-                </div>
-                <div className="audio-model-row">
-                  <button type="button" disabled={busy || running} onClick={() => void pickFile("cab")}>Escolher gabinete (.wav)</button>
-                  <span title={cabPath}>{cabPath ? displayFile(cabPath) : "Sem IR (opcional)"}</span>
-                  {cabPath && <label><input type="checkbox" checked={bypassCab} disabled={running} onChange={(e) => setBypassCab(e.target.checked)}/> Bypass</label>}
-                </div>
-                {ampPath && cabPath && <label className="audio-order-switch">
-                  <input type="checkbox" disabled={running} checked={irBeforeAmp} onChange={(e) => setIrBeforeAmp(e.target.checked)}/>
-                  IR antes do NAM (desmarcado: NAM → IR)
-                </label>}
-                <p>Esta cadeia de teste é independente dos pedais visuais e preserva a ordem escolhida aqui. A configuração é lembrada localmente; arquivos removidos ou movidos precisam ser selecionados novamente. Os modelos só são carregados ao iniciar, nunca no callback de áudio.</p>
+              <section className="audio-live-models" aria-label="Cadeia NAM/IR da pedalboard">
+                <h3>Cadeia nativa da pedalboard</h3>
+                <p>Arquivos reais são associados a cada VTTAMP, VTTDRIVE e VTTCAB diretamente na pedalboard. Power, bypass e ordem são aplicados ao iniciar. Ajustes feitos durante a sessão precisam de reinício manual.</p>
+                {livePreview ? (
+                  <>
+                    <p role="status">{livePreview.nodes.length} módulo(s) NAM/IR preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
+                    <ol>{livePreview.nodes.map(node =>
+                      <li key={node.id}>{node.kind.toUpperCase()} · {node.enabled ? "ligado" : "bypass"} · {node.resource.path.split(/[\\\\/]/).pop()}</li>
+                    )}</ol>
+                  </>
+                ) : <p className="audio-device-warning" role="status">{livePlan.error}</p>}
               </section>
             )}
+            {running && activeMode === "wet" &&
+              (appliedManifest === null || liveManifest !== appliedManifest) &&
+              <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM/IR e depois Iniciar NAM/IR.</p>}
             <p className="audio-device-note">48.000 Hz · canal de entrada selecionado enviado em mono para as saídas. Buffer pode ser recusado pelo driver. WASAPI/ALSA são padrão; ASIO/JACK exigem suporte opcional e drivers instalados.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
             {running && activeMode === "dry" && dryStatus?.failed && (
@@ -262,7 +249,7 @@ export default function AudioDevices() {
               {running ? (
                 <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM/IR" : "DRY"}</button>
               ) : (
-                <button type="button" className="primary-button" disabled={busy || !hostId || inputIndex === "" || outputIndex === "" || (mode === "wet" && !ampPath && !cabPath)}
+                <button type="button" className="primary-button" disabled={busy || !hostId || inputIndex === "" || outputIndex === "" || (mode === "wet" && !liveManifest)}
                   onClick={() => void start()}><Volume2 size={15}/> Iniciar {mode === "wet" ? "NAM/IR" : "monitor DRY"}</button>
               )}
             </div>

@@ -1,19 +1,30 @@
 # VTTRIG 🎸
 
-**Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e futura engine nativa de áudio com suporte ao Neural Amp Modeler A2 (Lite/Full). **Sem Wine e sem yabridge.**
+**Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: preview PR #11.** O Tauri agora oferece um **teste experimental NAM/IR ao vivo** em Configurações, com motor C++ incluído nos instaladores Windows e Linux. A interface principal dos outros pedais ainda é **visual**. A reprodução real, latência e estabilidade com interface de áudio física **não estão homologadas** e devem ser testadas em hardware.
+> **Status: PR #15 em revisão.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **Hardware, estabilidade e latência ainda não estão homologados.**
 
-## PR #14: configuração local persistente do monitor (proposta)
+## PR #15: integração inicial da pedalboard ao áudio NAM/IR
+
+1. No **aplicativo desktop**, adicione VTTAMP, VTTDRIVE ou VTTCAB à pedalboard. O botão (+) do amplificador abre o seletor nativo de arquivos `.nam`.
+2. Na seção **Modelos da pedalboard**, associe um arquivo `.nam` para cada amplificador/drive e `.wav` para cada gabinete. Modelos repetidos são independentes pelo ID.
+3. Organize a ordem livremente. LEDs/footswitches e **POWER** do amp determinam o bypass dos módulos quando a sessão for iniciada. A tela avisa quando houver efeitos visuais ainda sem DSP.
+4. Na pedalboard (ou em Configurações), escolha driver, entrada, canal da guitarra, saída e buffer. Teste DRY e pare. Selecione NAM/IR e clique **Iniciar NAM/IR** com fones e volume baixo.
+5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
+6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
+
+Limitações: suporte nativo só para **NAM/Drive NAM e IR mono 48 kHz**. Gate, compressor, sustain, chorus, delay e reverb são **ignorados explicitamente no áudio**, não processados silenciosamente como efeitos. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+
+## Histórico: PR #14 · configuração local persistente do monitor
 
 - A seleção de modo DRY/WET, buffer, canal físico, arquivos NAM/IR, bypasses e ordem da cadeia de teste são salvos **localmente no WebView**, sem exigir login. Ao sair de Configurações e voltar, as escolhas continuam disponíveis.
 - **Nunca há início automático do áudio**. O usuário deve escolher entrada e saída novamente, pois os índices dos dispositivos USB podem mudar. O canal salvo só permanece quando for válido para a nova entrada.
-- Caminhos salvos são referências locais e podem deixar de existir após mover os arquivos; Rust/C++ continuam verificando os recursos ao iniciar. A cadeia visual da Pedalboard ainda não governa o processamento NAM/IR e os presets do pedalboard permanecem distintos da configuração de teste.
+- Caminhos salvos são referências locais e podem deixar de existir após mover os arquivos; Rust/C++ continuam verificando os recursos ao iniciar. A cadeia da pedalboard originalmente ainda não governava o NAM/IR; o PR #15 substitui essa antiga separação.
 - O modelo visual do amplificador e a skin passam a ser lembrados no rascunho, sem migrar nem alterar presets já gravados.
 - A validação do manifesto C++ passa a aceitar extensões .NAM/.WAV em maiúsculas, coerente com o seletor Rust; tipos de pedais vindos de propriedades herdadas deixam de passar na desserialização.
 - Regressões Vitest, Playwright e CTest protegem o comportamento. **A Teyun Q24, a latência e os modelos reais continuam exigindo teste físico.**
 
-## PR #11: teste integrado de áudio NAM/IR real (Windows e Fedora)
+## Histórico: PR #11 · primeiro teste independente de NAM/IR (Windows e Fedora)
 
 **Fluxo para testar com guitarra física:**
 
@@ -47,8 +58,7 @@ ASIO/JACK não são habilitados por padrão e exigem drivers e builds à parte. 
 
 **Limites:** somente NAM, Drive NAM e IR (mono) no motor; Chorus, Delay,
 Reverb, Gate, Compressor e demais pedais ainda **não estão conectados** ao
-áudio real. A cadeia usada é a configurada na seção de áudio para testes,
-não o pedalboard visual. O sidecar cria uma instância de modelo por início
+áudio real. O PR #11 usava uma cadeia separada na seção de áudio, agora substituída pela pedalboard no PR #15. O sidecar cria uma instância de modelo por início
 de monitoração; não modifica o arquivo `.nam` nem a IR original. Arquivos
 são fornecidos pelo usuário; não há capturas de terceiros embutidas.
 

@@ -8,6 +8,9 @@ type Props = {
   onModelChosen: (file: File) => void;
   onOverrideChange: (family: AmpFamily | "auto") => void;
   minimal?: boolean;
+  powered?: boolean;
+  onPowerChange?: (next: boolean) => void;
+  onPickNative?: () => void;
 };
 
 const DEMOS = [
@@ -38,10 +41,16 @@ function FaceKnob({ label, index }: { label: string; index: number }) {
   );
 }
 
-export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange, minimal = false }: Props) {
+export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange, minimal = false, powered, onPowerChange, onPickNative }: Props) {
   const skin = classifyNamFilename(modelName, overrideFamily);
   const [error, setError] = useState("");
-  const [powered, setPowered] = useState(true);
+  const [localPowered, setLocalPowered] = useState(true);
+  const isPowered = powered ?? localPowered;
+  function togglePower() {
+    const next = !isPowered;
+    if (onPowerChange) onPowerChange(next);
+    else setLocalPowered(next);
+  }
   const emptyPicker = useRef<HTMLInputElement>(null);
   function importCandidate(file: File | undefined) {
     if (!file) return;
@@ -69,7 +78,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
 
       {modelName ? (
       <div
-        className={`amp-art amp-${skin.id} ${powered ? "amp-is-on" : "amp-is-off"}`}
+        className={`amp-art amp-${skin.id} ${isPowered ? "amp-is-on" : "amp-is-off"}`}
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
       >
@@ -82,7 +91,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
             <span className="grille-caption">{skin.subtitle}</span>
           </div>
           <div className="amp-panel">
-            <div className="amp-power"><button type="button" className={`amp-power-switch ${powered ? "powered" : ""}`} aria-label={powered ? "Desligar amplificador" : "Ligar amplificador"} aria-pressed={powered} title="Power do amplificador (visual)" onClick={() => setPowered((on) => !on)}><span className="power-indicator" /></button><small>POWER</small></div>
+            <div className="amp-power"><button type="button" className={`amp-power-switch ${isPowered ? "powered" : ""}`} aria-label={isPowered ? "Desligar amplificador" : "Ligar amplificador"} aria-pressed={isPowered} title={onPowerChange ? "Power NAM (aplica após reiniciar o áudio)" : "Power do amplificador (visual)"} onClick={togglePower}><span className="power-indicator" /></button><small>POWER</small></div>
             <div className="amp-channel"><strong>{skin.title}</strong><span>{skin.channel}</span></div>
             <div className="amp-controls">
               {skin.controls.map((label, index) => <FaceKnob key={skin.id + label} label={label} index={index} />)}
@@ -108,13 +117,13 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
               type="button"
               className="amp-empty-add"
               aria-label="Adicionar amplificador NAM"
-              onClick={() => emptyPicker.current?.click()}
+              onClick={() => onPickNative ? onPickNative() : emptyPicker.current?.click()}
             >
               <Plus size={34} strokeWidth={1.6} />
             </button>
             <strong>Adicionar amplificador</strong>
             <span>Selecione um modelo .nam ou arraste o arquivo para cá</span>
-            <small>A seleção do modelo altera somente o visual nesta versão.</small>
+            <small>{onPickNative ? "Selecione o arquivo NAM real para vincular à cadeia." : "Escolha um modelo visual para pré-visualização."}</small>
             <input
               ref={emptyPicker}
               type="file"

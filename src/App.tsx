@@ -4,15 +4,19 @@ import {
   Save, Settings2, SlidersHorizontal, Trash2, Waves, Zap,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   PEDALS, PEDAL_KINDS, createPedal, factoryChain, movePedal,
   type PedalInstance, type PedalKind,
 } from "./lib/pedals";
-import { loadDraft, loadDraftVisual, loadPresets, saveDraft, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
+import { hasSavedDraftResources, loadDraft, loadDraftResources, loadDraftVisual, loadPresets, saveDraft, saveDraftResources, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
 import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
 import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
 import AudioDevices from "./components/AudioDevices";
+import RigResourceList from "./components/RigResourceList";
+import { loadAudioSettings } from "./lib/audioSettings";
+import { type RigResources } from "./lib/liveRig";
 import { AMP_FAMILIES, humanizeModelName, type AmpFamily } from "./lib/ampSkins";
 
 type View = "board" | "library" | "settings";
@@ -28,7 +32,7 @@ function readDrag(event: DragEvent<HTMLElement>): DragData | null {
   const value = event.dataTransfer.getData("text/plain");
   if (value.startsWith("library:")) {
     const kind = value.slice("library:".length) as PedalKind;
-    return kind in PEDALS ? { source: "library", kind } : null;
+    return Object.prototype.hasOwnProperty.call(PEDALS, kind) ? { source: "library", kind } : null;
   }
   if (value.startsWith("chain:")) return { source: "chain", id: value.slice("chain:".length) };
   return null;
@@ -37,6 +41,18 @@ function readDrag(event: DragEvent<HTMLElement>): DragData | null {
 export default function App() {
   const [visualDraft] = useState(loadDraftVisual);
   const [chain, setChain] = useState<PedalInstance[]>(loadDraft);
+  const [resources, setResources] = useState<RigResources>(() => {
+    const restored = loadDraftResources(chain);
+    if (hasSavedDraftResources()) return restored;
+    // One-time migration of the standalone PR14 audio picker into the board.
+    const legacy = loadAudioSettings();
+    const next = { ...restored };
+    const amp = chain.find(p => p.kind === "amp");
+    const cab = chain.find(p => p.kind === "cabinet");
+    if (amp && !next[amp.id] && legacy.ampPath) next[amp.id] = legacy.ampPath;
+    if (cab && !next[cab.id] && legacy.cabPath) next[cab.id] = legacy.cabPath;
+    return next;
+  });
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activePresetId, setActivePresetId] = useState("");
@@ -47,9 +63,11 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [modelName, setModelName] = useState(visualDraft.modelName);
   const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">(visualDraft.ampFamily);
+  const [ampPowered, setAmpPowered] = useState(visualDraft.ampPowered ?? true);
 
   useEffect(() => { saveDraft(chain); }, [chain]);
-  useEffect(() => { saveDraftVisual({ modelName, ampFamily }); }, [modelName, ampFamily]);
+  useEffect(() => { saveDraftResources(resources, chain); }, [resources, chain]);
+  useEffect(() => { saveDraftVisual({ modelName, ampFamily, ampPowered }); }, [modelName, ampFamily, ampPowered]);
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
@@ -92,6 +110,7 @@ export default function App() {
 
   function remove(id: string) {
     setChain((previous) => previous.filter((effect) => effect.id !== id));
+    setResources((previous) => { const next = { ...previous }; delete next[id]; return next; });
     if (selectedId === id) setSelectedId(null);
   }
 
@@ -104,7 +123,7 @@ export default function App() {
     const name = presetName.trim();
     if (!name) { setNotice("Dê um nome ao preset antes de salvar."); return; }
     const id = activePresetId || crypto.randomUUID();
-    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily };
+    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily, ampPowered, resources: { ...resources } };
     const updated = [...presets.filter((item) => item.id !== id), preset];
     if (!savePresets(updated)) { setNotice("Falha ao gravar preset no armazenamento local."); return; }
     setPresets(updated);
@@ -116,6 +135,8 @@ export default function App() {
     const preset = presets.find((item) => item.id === id);
     if (!preset) return;
     setChain(structuredClone(preset.chain));
+    setResources({ ...preset.resources });
+    setAmpPowered(preset.ampPowered ?? true);
     setModelName(preset.modelName ?? "");
     setAmpFamily(preset.ampFamily ?? "auto");
     setPresetName(preset.name);
@@ -136,6 +157,7 @@ export default function App() {
 
   function resetChain() {
     setChain(factoryChain());
+    setResources({});
     setView("board");
     setSelectedId(null);
     setActivePresetId("");
@@ -146,6 +168,7 @@ export default function App() {
 
   function clearChain() {
     setChain([]);
+    setResources({});
     setSelectedId(null);
     setView("board");
     setActivePresetId("");
@@ -181,11 +204,59 @@ export default function App() {
     return () => document.removeEventListener("pointerdown", closeWhenClickingAway);
   }, [selectedId, view]);
 
+  async function pickRigFile(id: string, kind: "amp" | "drive" | "cabinet") {
+    if (!isTauri()) {
+      setNotice("Importação real de NAM/IR requer o aplicativo desktop.");
+      return;
+    }
+    try {
+      const candidate = await open({
+        multiple: false, directory: false,
+        filters: [{ name: kind === "cabinet" ? "Cabinet IR" : "Neural Amp Model",
+          extensions: [kind === "cabinet" ? "wav" : "nam"] }],
+      });
+      if (typeof candidate !== "string") return;
+      setResources(previous => ({ ...previous, [id]: candidate }));
+      if (kind === "amp") {
+        setModelName(candidate.split(/[\\/]/).pop() ?? candidate);
+        setAmpFamily("auto");
+      }
+      setNotice("Arquivo associado ao rig. Reinicie NAM/IR se o áudio já estiver ativo.");
+    } catch (error) {
+      setNotice(`Falha ao selecionar arquivo: ${String(error)}`);
+    }
+  }
+
+  async function pickPrimaryAmp() {
+    if (!isTauri()) return;
+    try {
+      const candidate = await open({
+        multiple: false, directory: false,
+        filters: [{ name: "Neural Amp Model", extensions: ["nam"] }],
+      });
+      if (typeof candidate !== "string") return;
+      const existing = chain.find(effect => effect.kind === "amp");
+      const id = existing?.id ?? createPedal("amp").id;
+      if (!existing) {
+        // The new slot and its resource are committed together by instance ID.
+        setChain(previous => previous.length < 24
+          ? [...previous, { ...createPedal("amp"), id }] : previous);
+        if (chain.length >= 24) { setNotice("Limite de 24 pedais."); return; }
+      }
+      setResources(previous => ({ ...previous, [id]: candidate }));
+      setModelName(candidate.split(/[\\/]/).pop() ?? candidate);
+      setAmpFamily("auto");
+      setNotice("Amplificador NAM vinculado à pedalboard. Inicie o áudio para ouvir.");
+    } catch (error) {
+      setNotice(`Não foi possível carregar o NAM: ${String(error)}`);
+    }
+  }
+
   function chooseModel(filename: string) {
     setModelName(filename);
     setAmpFamily("auto");
     setNotice(filename
-      ? "Modelo selecionado para a visualização. O NAM ainda não processa áudio no Tauri."
+      ? "Prévia visual selecionada; o modelo de demonstração não processa áudio. Para tocar, vincule um arquivo NAM real a um VTTAMP."
       : "Amplificador removido. Clique no + para escolher um NAM.");
   }
 
@@ -263,6 +334,9 @@ export default function App() {
                 overrideFamily={ampFamily}
                 onModelChosen={(file) => chooseModel(file.name)}
                 onOverrideChange={setAmpFamily}
+                powered={ampPowered}
+                onPowerChange={setAmpPowered}
+                onPickNative={isTauri() ? () => { void pickPrimaryAmp(); } : undefined}
               />
 
               {selected && (
@@ -318,8 +392,12 @@ export default function App() {
                 </div>
                 <div className="route-label last"><span className="cable-line" /> OUTPUT <span className="in-out-marker" /></div>
               </section>
+              <RigResourceList chain={chain} resources={resources} native={isTauri()}
+                onPick={(id, kind) => { void pickRigFile(id, kind); }}
+                onClear={(id) => setResources(previous => { const next = { ...previous }; delete next[id]; return next; })} />
+              {isTauri() && <AudioDevices chain={chain} resources={resources} ampPowered={ampPowered} compact />}
               <footer className="board-footer">
-                <span><span className="preview-dot" /> INTERFACE DE DEMONSTRAÇÃO · {engine}</span>
+                <span><span className="preview-dot" /> {isTauri() ? "NAM/IR EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
                 {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
               </footer>
             </div>
@@ -335,7 +413,7 @@ export default function App() {
               <div className="library-categories">
                 <article className="collection-card">
                   <div className="collection-icon"><Guitar size={23}/></div><h2>NAMs</h2>
-                  <p>Capturas de amplificadores e drives. Atualmente disponíveis para pré-visualização da skin.</p>
+                  <p>Adicione VTTAMP ou VTTDRIVE para vincular arquivos .nam reais pela pedalboard.</p>
                   <label className="collection-upload">Selecionar .nam
                     <input type="file" accept=".nam" onChange={(event) => {
                       const file = event.target.files?.[0]; if (file) chooseModel(file.name);
@@ -347,7 +425,7 @@ export default function App() {
                 </article>
                 <article className="collection-card">
                   <div className="collection-icon"><Waves size={23}/></div><h2>IRs</h2>
-                  <p>Respostas de impulso para gabinetes. O carregamento de áudio real será integrado depois.</p>
+                  <p>Associe uma resposta de impulso .wav real ao VTTCAB na pedalboard.</p>
                   <button type="button" className="secondary-button" onClick={() => add("cabinet")}><Plus size={15}/> Adicionar VTTCAB</button>
                 </article>
               </div>
@@ -377,8 +455,8 @@ export default function App() {
             <section className="settings-view" aria-label="Configurações VTTRIG">
               <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
               <div className="settings-stack">
-                <AudioDevices />
-                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A interface Tauri ainda não envia parâmetros ao NAM/JACK.</p></div><span className="offline-pill">OFFLINE</span></div>
+                <AudioDevices chain={chain} resources={resources} ampPowered={ampPowered} />
+                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A ordem e o bypass da pedalboard são enviados ao motor NAM/IR ao iniciar. Controles de ganho/EQ continuam sem mapeamento DSP; mudanças durante o áudio exigem reinício.</p></div><span className="offline-pill">OFFLINE</span></div>
                 <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
                   <label htmlFor="skin-family">Família visual</label>
                   <select id="skin-family" value={ampFamily} onChange={(event) => setAmpFamily(event.target.value as AmpFamily | "auto")}>
