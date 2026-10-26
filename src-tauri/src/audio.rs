@@ -11,11 +11,15 @@ use cpal::{BufferSize, SampleFormat, Stream, StreamConfig, SupportedBufferSize};
 use rtrb::RingBuffer;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
 
 const RATE: u32 = 48_000;
 const RING_FRAMES: usize = 16_384;
 const SAFE_GAIN: f32 = 0.12;
+
+const INPUT_FAULT: u8 = 1;
+const OUTPUT_FAULT: u8 = 2;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,17 +43,23 @@ pub struct MonitorSelection {
     pub input_index: usize,
     pub output_index: usize,
     pub buffer_frames: u32,
+    #[serde(default)]
+    pub input_channel: usize,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonitorStatus {
     pub running: bool,
+    pub failed: bool,
+    pub input_failed: bool,
+    pub output_failed: bool,
     pub mode: &'static str,
 }
 
 pub struct MonitorStreams {
     _input: Stream,
     _output: Stream,
+    faults: Arc<AtomicU8>,
 }
 #[derive(Default)]
 pub struct AudioState {
@@ -61,8 +71,14 @@ pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
         .streams
         .lock()
         .map_err(|_| "Audio state unavailable")?;
+    let faults = guard
+        .as_ref()
+        .map_or(0, |s| s.faults.load(Ordering::Relaxed));
     Ok(MonitorStatus {
         running: guard.is_some(),
+        failed: faults != 0,
+        input_failed: faults & INPUT_FAULT != 0,
+        output_failed: faults & OUTPUT_FAULT != 0,
         mode: "dry_monitor_only_no_nam_dsp",
     })
 }
@@ -185,6 +201,28 @@ pub(crate) fn choose_device(
     ))
 }
 
+pub(crate) fn validate_input_channel(channel: usize, channels: u16) -> Result<(), String> {
+    if channel < usize::from(channels) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Canal de entrada {} indisponível: o dispositivo tem {} canal(is).",
+            channel.saturating_add(1),
+            channels
+        ))
+    }
+}
+
+// Called from the native callback; no allocation, locking or logging.
+pub(crate) fn selected_mono_sample(frame: &[f32], channel: usize) -> f32 {
+    let sample = frame.get(channel).copied().unwrap_or(0.0);
+    if sample.is_finite() {
+        sample
+    } else {
+        0.0
+    }
+}
+
 fn safe_sample(value: f32) -> f32 {
     if value.is_finite() {
         (value * SAFE_GAIN).clamp(-0.8, 0.8)
@@ -209,6 +247,7 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
         selection.output_index,
         selection.buffer_frames,
     )?;
+    validate_input_channel(selection.input_channel, input_config.channels)?;
     // Lock is used only on the control thread, never on an audio callback.
     let mut guard = state
         .streams
@@ -219,19 +258,24 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
     }
     let (mut producer, mut consumer) = RingBuffer::<f32>::new(RING_FRAMES);
     let input_channels = usize::from(input_config.channels);
+    let input_channel = selection.input_channel;
     let output_channels = usize::from(output_config.channels);
-    // Input callback only enqueues the first (mono guitar) channel. A full ring
-    // discards incoming frames; this is NOT a latency or dropout guarantee.
+    let faults = Arc::new(AtomicU8::new(0));
+    let input_error = Arc::clone(&faults);
+    let output_error = Arc::clone(&faults);
+    let output_silence = Arc::clone(&faults);
+    // Enqueue selected mono channel. Full ring drops frames; no latency guarantee.
     let input_stream = input
         .build_input_stream(
             &input_config,
             move |data: &[f32], _| {
                 for frame in data.chunks(input_channels) {
-                    let value = frame.first().copied().unwrap_or(0.0);
-                    let _ = producer.push(if value.is_finite() { value } else { 0.0 });
+                    let _ = producer.push(selected_mono_sample(frame, input_channel));
                 }
             },
-            |_error| {}, // No logs/I/O inside any audio callback.
+            move |_error| {
+                input_error.fetch_or(INPUT_FAULT, Ordering::Relaxed);
+            },
             None,
         )
         .map_err(|e| format!("Não foi possível abrir a entrada: {e}"))?;
@@ -241,13 +285,19 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
             &output_config,
             move |data: &mut [f32], _| {
                 for frame in data.chunks_mut(output_channels) {
-                    let sample = safe_sample(consumer.pop().unwrap_or(0.0));
+                    let sample = if output_silence.load(Ordering::Relaxed) != 0 {
+                        0.0
+                    } else {
+                        safe_sample(consumer.pop().unwrap_or(0.0))
+                    };
                     for channel in frame {
                         *channel = sample;
                     }
                 }
             },
-            |_error| {},
+            move |_error| {
+                output_error.fetch_or(OUTPUT_FAULT, Ordering::Relaxed);
+            },
             None,
         )
         .map_err(|e| format!("Não foi possível abrir a saída: {e}"))?;
@@ -261,6 +311,7 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
     *guard = Some(MonitorStreams {
         _input: input_stream,
         _output: output_stream,
+        faults,
     });
     Ok(())
 }
@@ -277,6 +328,37 @@ pub fn stop(state: &AudioState) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn guitar_channel_routes_correctly_and_rejects_invalid_indices() {
+        assert!(validate_input_channel(0, 2).is_ok());
+        assert!(validate_input_channel(1, 2).is_ok());
+        assert!(validate_input_channel(2, 2).is_err());
+        assert!(validate_input_channel(0, 0).is_err());
+        assert_eq!(selected_mono_sample(&[0.1, 0.75], 1), 0.75);
+        assert_eq!(selected_mono_sample(&[0.1, 0.75], 0), 0.1);
+        assert_eq!(selected_mono_sample(&[0.1], 1), 0.0);
+        assert_eq!(selected_mono_sample(&[f32::NAN, 0.3], 0), 0.0);
+    }
+    #[test]
+    fn independent_failure_bits_identify_input_and_output() {
+        let faults = AtomicU8::new(0);
+        assert_eq!(faults.load(Ordering::Relaxed), 0);
+        faults.fetch_or(INPUT_FAULT, Ordering::Relaxed);
+        assert_ne!(faults.load(Ordering::Relaxed) & INPUT_FAULT, 0);
+        assert_eq!(faults.load(Ordering::Relaxed) & OUTPUT_FAULT, 0);
+        faults.fetch_or(OUTPUT_FAULT, Ordering::Relaxed);
+        assert_eq!(faults.load(Ordering::Relaxed), INPUT_FAULT | OUTPUT_FAULT);
+    }
+    #[test]
+    fn deserializes_legacy_and_explicit_channel_selections() {
+        let base = r#"{"hostId":"wasapi","inputIndex":0,"outputIndex":0,"bufferFrames":256}"#;
+        let legacy: MonitorSelection = serde_json::from_str(base).unwrap();
+        assert_eq!(legacy.input_channel, 0);
+        let selected: MonitorSelection = serde_json::from_str(
+            r#"{"hostId":"wasapi","inputIndex":0,"outputIndex":0,"bufferFrames":256,"inputChannel":1}"#,
+        ).unwrap();
+        assert_eq!(selected.input_channel, 1);
+    }
     #[test]
     fn only_safe_buffer_options() {
         assert!(validate_buffer(64).is_ok());
