@@ -66,6 +66,12 @@ function safeRead(key: string): unknown {
   }
 }
 
+/** Distinguish an intentionally cleared rig from a rig never migrated from PR14. */
+export function hasSavedDraftResources(): boolean {
+  try { return localStorage.getItem(DRAFT_RESOURCES_KEY) !== null; }
+  catch { return false; }
+}
+
 export function loadDraftResources(chain: readonly PedalInstance[]): RigResources {
   return validateRigResources(safeRead(DRAFT_RESOURCES_KEY), chain);
 }
