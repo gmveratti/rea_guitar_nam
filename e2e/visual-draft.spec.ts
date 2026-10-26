@@ -10,6 +10,10 @@ test("visual amplifier draft survives WebView navigation and reload", async ({ p
   await page.getByRole("button", { name: "Pedalboard" }).click();
   await expect(page.locator("#amp-example")).toHaveValue("Marshall_JCM800_2203_A2.nam");
 
+  await expect.poll(() => page.evaluate(() =>
+    localStorage.getItem("rea-guitar-nam:v1:draft-visual")
+  )).toContain("Marshall_JCM800_2203_A2.nam");
+
   await page.reload();
   await expect(page.locator("#amp-example")).toHaveValue("Marshall_JCM800_2203_A2.nam");
   await expect(page.getByRole("button", { name: "Desligar amplificador" })).toBeVisible();
