@@ -93,6 +93,100 @@ It **does not yet manage file paths or send the snapshots to the audio
 process**. Tauri UI and the JACK engine are still independent. Existing
 legacy `--nam ... --ir ... --bypass` CLI remains supported.
 
+## PR #9: shared native NAM/IR core + offline renderer on Windows and Linux
+
+The NAM model loader and block chain are now in
+[`src/nam_processing.hpp`](src/nam_processing.hpp), **without JACK
+headers**. Both `vttrig-nam-jack` (Linux only) and the new
+`vttrig-nam-offline` (Windows/Linux) use the same pinned NeuralAmpModelerCore,
+same 48 kHz model preparation and identical ordered `MonoChain`.
+
+**This is a genuinely portable DSP processing path, but it is *offline*.**
+It does not access Windows audio interfaces, play sound live, run the React
+app or introduce WASAPI/ASIO. Those host integrations are subsequent work.
+
+### Build offline processor
+
+Linux with installed JACK headers:
+
+```bash
+cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build engine/build --config Release --parallel 2
+ctest --test-dir engine/build -C Release --output-on-failure
+./engine/build/vttrig-nam-offline --help
+```
+
+Windows using Visual Studio 2022, CMake, Git and MSVC:
+
+```powershell
+cmake -S engine -B engine/build -DBUILD_TESTING=ON
+cmake --build engine/build --config Release --parallel 2
+ctest --test-dir engine/build -C Release --output-on-failure
+.\engine\build\Release\vttrig-nam-offline.exe --help
+```
+
+On Windows, this project **does not require JACK** to compile the offline
+processor. GitHub Actions validates the same C++ with both toolchains and
+publishes `VTTRIG-NAM-Offline-Windows-x64` and
+`VTTRIG-NAM-Offline-Linux-x64` as standalone command-line builds.
+These are **not** part of the Tauri installer yet.
+
+### Render an actual NAM chain to WAV
+
+Record or export a **mono 48 kHz** dry guitar file `dry.wav` (PCM16 or
+IEEE float32). Create a versioned JSON chain. The `nodes` array is the
+user's true DSP order, and repeated effects keep separate IDs and bypass
+states:
+
+```json
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "drive-1", "kind": "drive", "enabled": true,
+      "parameters": {}, "resource": {"path": "models/drive.nam"}
+    },
+    {
+      "id": "amp-1", "kind": "amp", "enabled": true,
+      "parameters": {}, "resource": {"path": "models/amp.nam"}
+    },
+    {
+      "id": "cab-1", "kind": "cabinet", "enabled": true,
+      "parameters": {}, "resource": {"path": "irs/cab.wav"}
+    }
+  ]
+}
+```
+
+```bash
+vttrig-nam-offline --validate-chain-json rig.json
+vttrig-nam-offline --chain-json rig.json --input dry.wav --output processed.wav
+
+# Diagnostic audio roundtrip WITHOUT any model; for testing WAV I/O only:
+vttrig-nam-offline --passthrough --input dry.wav --output passthrough.wav
+```
+
+Input: **mono 48 kHz PCM16/float32 WAV**; output: **mono 48 kHz float32
+WAV**, finite samples safely clamped to ±1. The renderer processes 128-frame
+blocks including the final short block. Very large inputs (over ~128 MiB
+sample data) and unsupported channels/rates/formats fail explicitly;
+no implicit resampling or stereo downmixing. **No prerecorded proprietary
+NAM captures are bundled.** Supply compatible local, legitimately obtained
+models and IRs.
+
+### Validation limits
+
+The portable CTest suite protects WAV data integrity, PCM16/float32 reading,
+mono/48 kHz invariants, missing/malformed files, order and bypass behavior
+using synthetic processors. The CLI help and manifest validation require
+no audio device.
+
+This alone does **not** prove A2 Lite/Full compatibility for every real
+capture, DSP tone matching, seamless graph swaps, low latency, stereo, or
+live input on Windows. The future live Windows backend must adopt prepared
+graphs and meet the same callback-safety rules as JACK. All model loads,
+WAV I/O and graph construction here happen outside any realtime callback.
+
 ## Build on Fedora
 
 Install Fedora versions of `cmake`, `ninja`, `pkgconf-pkg-config`,
