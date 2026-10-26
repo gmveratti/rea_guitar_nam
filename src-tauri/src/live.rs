@@ -140,6 +140,19 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
     Ok(child)
 }
 
+// The worker may outrun the output device. Count dropped WET frames too;
+// otherwise the UI would report zero overflows even while output is lost.
+// Single-producer ring operation is nonblocking and allocation-free.
+fn push_processed_sample(
+    queue: &mut rtrb::Producer<f32>,
+    sample: f32,
+    overflows: &AtomicU64,
+) {
+    if queue.push(sample).is_err() {
+        overflows.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 pub fn start(
     state: &LiveState,
     dry: &AudioState,
@@ -178,6 +191,7 @@ pub fn start(
     let output_channels = usize::from(output_cfg.channels);
     let in_overflows = Arc::clone(&overflows);
     let out_underruns = Arc::clone(&underruns);
+    let out_overflows = Arc::clone(&overflows);
     let input_stream = match input.build_input_stream(
         &input_cfg,
         move |data: &[f32], _| {
@@ -257,7 +271,7 @@ pub fn start(
             }
             for chunk in output_bytes.chunks_exact(4) {
                 let sample = f32::from_le_bytes(chunk.try_into().unwrap_or([0; 4]));
-                let _ = output_tx.push(sample);
+                push_processed_sample(&mut output_tx, sample, &out_overflows);
             }
         }
     });
@@ -308,6 +322,21 @@ mod tests {
         assert!(!s.running);
         assert_eq!(s.mode, "live_nam_ir_pipe");
     }
+    #[test]
+    fn output_queue_overflow_is_accounted_without_blocking() {
+        let (mut producer, mut consumer) = RingBuffer::<f32>::new(2);
+        let overflows = AtomicU64::new(0);
+        push_processed_sample(&mut producer, 0.1, &overflows);
+        push_processed_sample(&mut producer, 0.2, &overflows);
+        push_processed_sample(&mut producer, 0.3, &overflows);
+        assert_eq!(overflows.load(Ordering::Relaxed), 1);
+        assert!((consumer.pop().unwrap() - 0.1).abs() < f32::EPSILON);
+        assert!((consumer.pop().unwrap() - 0.2).abs() < f32::EPSILON);
+        assert!(consumer.pop().is_err());
+        push_processed_sample(&mut producer, 0.4, &overflows);
+        assert_eq!(overflows.load(Ordering::Relaxed), 1);
+    }
+
     #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
