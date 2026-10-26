@@ -2,8 +2,8 @@
 //! CPU model loading and blocking pipes are confined to a worker thread.
 //! The CPAL device callbacks only copy samples through bounded SPSC rings.
 use crate::audio::{self, AudioState, MonitorSelection};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Stream, StreamConfig};
+use cpal::traits::{DeviceTrait, StreamTrait};
+use cpal::Stream;
 use rtrb::RingBuffer;
 use serde::Serialize;
 use std::io::{Read, Write};
@@ -142,7 +142,7 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
         .as_mut()
         .ok_or("Pipe de saída indisponível")?
         .read_exact(&mut ready);
-    if read.is_err() || ready != [b'R'] {
+    if read.is_err() || ready != *b"R" {
         let _ = child.wait();
         let mut errors = String::new();
         if let Some(stderr) = child.stderr.as_mut() {
@@ -280,7 +280,7 @@ pub fn start(
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            for chunk in input_bytes.chunks_exact_mut(4) {
+            for chunk in input_bytes.as_chunks_mut::<4>().0 {
                 let sample = input_rx.pop().unwrap_or(0.0);
                 chunk.copy_from_slice(&sample.to_le_bytes());
             }
@@ -290,7 +290,7 @@ pub fn start(
                 worker_failed.store(true, Ordering::Relaxed);
                 break;
             }
-            for chunk in output_bytes.chunks_exact(4) {
+            for chunk in output_bytes.as_chunks::<4>().0 {
                 let sample = f32::from_le_bytes(chunk.try_into().unwrap_or([0; 4]));
                 push_processed_sample(&mut output_tx, sample, &out_overflows);
             }
