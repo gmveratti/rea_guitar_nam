@@ -2,8 +2,8 @@
 //! CPU model loading and blocking pipes are confined to a worker thread.
 //! The CPAL device callbacks only copy samples through bounded SPSC rings.
 use crate::audio::{self, AudioState, MonitorSelection};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Stream, StreamConfig};
+use cpal::traits::{DeviceTrait, StreamTrait};
+use cpal::Stream;
 use rtrb::RingBuffer;
 use serde::Serialize;
 use std::io::{Read, Write};
@@ -171,7 +171,9 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
             let _ = child.kill();
             let _ = child.wait();
             let _ = reader.join();
-            Err(format!("Motor NAM não confirmou inicialização em 30 segundos: {error}"))
+            Err(format!(
+                "Motor NAM não confirmou inicialização em 30 segundos: {error}"
+            ))
         }
     }
 }
@@ -251,7 +253,9 @@ pub fn start(
                 }
             }
         },
-        move |_error| { input_error.store(true, Ordering::Relaxed); },
+        move |_error| {
+            input_error.store(true, Ordering::Relaxed);
+        },
         None,
     ) {
         Ok(stream) => stream,
@@ -286,7 +290,9 @@ pub fn start(
                 }
             }
         },
-        move |_error| { output_error.store(true, Ordering::Relaxed); },
+        move |_error| {
+            output_error.store(true, Ordering::Relaxed);
+        },
         None,
     ) {
         Ok(stream) => stream,
@@ -311,7 +317,7 @@ pub fn start(
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            for chunk in input_bytes.chunks_exact_mut(4) {
+            for chunk in input_bytes.as_chunks_mut::<4>().0 {
                 let sample = input_rx.pop().unwrap_or(0.0);
                 chunk.copy_from_slice(&sample.to_le_bytes());
             }
@@ -321,7 +327,7 @@ pub fn start(
                 worker_failed.store(true, Ordering::Relaxed);
                 break;
             }
-            for chunk in output_bytes.chunks_exact(4) {
+            for chunk in output_bytes.as_chunks::<4>().0 {
                 let sample = f32::from_le_bytes(chunk.try_into().unwrap_or([0; 4]));
                 push_processed_sample(&mut output_tx, sample, &out_overflows);
             }
