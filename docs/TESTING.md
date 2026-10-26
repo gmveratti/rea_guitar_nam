@@ -58,6 +58,33 @@ cmake --build engine/build -j2
 ctest --test-dir engine/build --output-on-failure
 ```
 
+
+## Windows x64: distribuição e validação
+
+O PR #8 adiciona a suíte independente `VTTRIG Tauri Windows` no GitHub
+Actions, usando MSVC/Rust e gerando um instalador NSIS.
+
+Critérios automatizados antes de aprovar o PR:
+
+- `npm run build`, `npm test`, `cargo check`, `cargo fmt --check`,
+  `cargo clippy -- -D warnings` e `cargo test` em runner Windows;
+- PNG da marca VTTRIG válido e geração da versão Windows `icon.ico`;
+- `python -m unittest discover -s scripts -p "test_windows_bundle.py"`;
+- `python scripts/check_windows_bundle.py --preflight`, incluindo layers
+  ICO 32px e 256px e override `tauri.windows.conf.json`;
+- `npx tauri build --bundles nsis` e verificação posterior do instalador
+  `*-setup.exe` e do executável `vttrig.exe`;
+- artefato `VTTRIG-Windows-x64` efetivamente publicado no Actions.
+
+**Validação manual obrigatória após o CI:** instalar o `.exe` num Windows
+10/11 x64 de teste; abrir, navegar pelas três abas, carregar o visual de um
+NAM, conferir o estado vazio (+), manipular pedais, LEDs, drag-and-drop,
+salvar e reabrir presets, e desinstalar. Verificar aparência no WebView2.
+
+Esses testes garantem somente distribuição e UI. **Não** validam áudio
+NAM A2, IR, interfaces ASIO/WASAPI, latência nem processamento DSP
+(no Windows ou Linux), ainda não conectados ao aplicativo Tauri.
+
 ## Exigência para pull requests
 
 Descrever cada bug como:
