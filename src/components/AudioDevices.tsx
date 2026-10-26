@@ -5,7 +5,7 @@ import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 
 type DeviceInfo = { index: number; name: string; channels: number; supportsMonitor: boolean };
 type HostInfo = { id: string; inputs: DeviceInfo[]; outputs: DeviceInfo[] };
-type MonitorStatus = { running: boolean; mode: string };
+type MonitorStatus = { running: boolean; failed: boolean; mode: string };
 type LiveStatus = { running: boolean; failed: boolean; underruns: number; overflows: number; mode: string };
 type Mode = "dry" | "wet";
 
@@ -18,6 +18,7 @@ export default function AudioDevices() {
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [hostId, setHostId] = useState("");
   const [inputIndex, setInputIndex] = useState("");
+  const [inputChannel, setInputChannel] = useState(0);
   const [outputIndex, setOutputIndex] = useState("");
   const [frames, setFrames] = useState(256);
   const [mode, setMode] = useState<Mode>("dry");
@@ -31,10 +32,12 @@ export default function AudioDevices() {
   const [bypassAmp, setBypassAmp] = useState(false);
   const [bypassCab, setBypassCab] = useState(false);
   const [liveStats, setLiveStats] = useState<LiveStatus | null>(null);
+  const [dryFailed, setDryFailed] = useState(false);
 
   const selected = useMemo(() => hosts.find((h) => h.id === hostId), [hosts, hostId]);
   const inputs = selected?.inputs.filter((d) => d.supportsMonitor) ?? [];
   const outputs = selected?.outputs.filter((d) => d.supportsMonitor) ?? [];
+  const channelCount = inputs.find((d) => String(d.index) === inputIndex)?.channels ?? 0;
 
   const refresh = useCallback(async () => {
     if (!native) return;
@@ -47,6 +50,7 @@ export default function AudioDevices() {
       ]);
       setHosts(available);
       setLiveStats(wet);
+      setDryFailed(dry.failed);
       setRunning(dry.running || wet.running);
       setActiveMode(wet.running ? "wet" : dry.running ? "dry" : null);
       setHostId((previous) => available.some((h) => h.id === previous)
@@ -70,8 +74,18 @@ export default function AudioDevices() {
   }, [hostId, hosts, inputIndex, inputs, outputIndex, outputs, running]);
 
   useEffect(() => {
-    if (!native || !running || activeMode !== "wet") return;
-    const tick = () => { void invoke<LiveStatus>("audio_live_status").then(setLiveStats).catch(() => {}); };
+    if (inputChannel >= channelCount) setInputChannel(0);
+  }, [inputChannel, channelCount]);
+  useEffect(() => {
+    if (!native || !running || !activeMode) return;
+    const tick = () => {
+      if (activeMode === "wet") {
+        void invoke<LiveStatus>("audio_live_status").then(setLiveStats).catch(() => {});
+      } else {
+        void invoke<MonitorStatus>("audio_monitor_status").then((status) => setDryFailed(status.failed)).catch(() => {});
+      }
+    };
+    tick();
     const interval = setInterval(tick, 2000);
     return () => clearInterval(interval);
   }, [native, running, activeMode]);
@@ -116,7 +130,7 @@ export default function AudioDevices() {
     try {
       const selection = {
         hostId, inputIndex: Number(inputIndex),
-        outputIndex: Number(outputIndex), bufferFrames: frames,
+        outputIndex: Number(outputIndex), bufferFrames: frames, inputChannel,
       };
       if (mode === "wet") {
         await invoke("audio_start_live", { selection, chainJson: buildChain() });
@@ -124,6 +138,7 @@ export default function AudioDevices() {
         await invoke("audio_start_monitor", { selection });
       }
       setRunning(true);
+      setDryFailed(false);
       setActiveMode(mode);
       setMessage(mode === "wet"
         ? "NAM/IR ligado. Atenção ao volume. Os pedais da tela ainda não atuam neste teste."
@@ -168,9 +183,14 @@ export default function AudioDevices() {
                 </select>
               </label>
               <label htmlFor="audio-input">Entrada
-                <select id="audio-input" value={inputIndex} onChange={(event) => setInputIndex(event.target.value)} disabled={busy || running}>
+                <select id="audio-input" value={inputIndex} onChange={(event) => { setInputIndex(event.target.value); setInputChannel(0); }} disabled={busy || running}>
                   {inputs.length === 0 && <option value="">Sem entrada F32 / 48 kHz</option>}
                   {inputs.map((d) => <option key={d.index} value={d.index}>{d.name} ({d.channels} canais)</option>)}
+                </select>
+              </label>
+              <label htmlFor="audio-input-channel">Canal da guitarra
+                <select id="audio-input-channel" value={inputChannel} onChange={(event) => setInputChannel(Number(event.target.value))} disabled={busy || running || channelCount === 0}>
+                  {Array.from({ length: channelCount }, (_, i) => <option value={i} key={i}>Entrada {i + 1}</option>)}
                 </select>
               </label>
               <label htmlFor="audio-output">Saída
@@ -211,10 +231,13 @@ export default function AudioDevices() {
                 <p>Esta cadeia de teste é independente dos pedais visuais e preserva a ordem escolhida aqui. Modelos são carregados antes de abrir o monitor, nunca no callback de áudio.</p>
               </section>
             )}
-            <p className="audio-device-note">48.000 Hz · mono de entrada enviado para as saídas. Buffer pode ser recusado pelo driver. WASAPI/ALSA são padrão; ASIO/JACK exigem suporte opcional e drivers instalados.</p>
+            <p className="audio-device-note">48.000 Hz · canal de entrada selecionado enviado em mono para as saídas. Buffer pode ser recusado pelo driver. WASAPI/ALSA são padrão; ASIO/JACK exigem suporte opcional e drivers instalados.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
+            {running && activeMode === "dry" && dryFailed && (
+              <p className="audio-device-warning" role="alert">Falha no dispositivo de áudio. Pare o monitor e atualize os dispositivos antes de tentar novamente.</p>
+            )}
             {running && activeMode === "wet" && liveStats && (
-              <p className="audio-device-note" role="status">NAM/IR: {liveStats.failed ? "falha no motor, desligue e revise arquivos" : "ativo"} · amostras em falta: {liveStats.underruns} · descartadas: {liveStats.overflows}. Estes contadores não equivalem à latência.</p>
+              <p className="audio-device-note" role="status">NAM/IR: {liveStats.failed ? "falha no motor ou dispositivo; pare e revise a configuração" : "ativo"} · amostras em falta: {liveStats.underruns} · descartadas: {liveStats.overflows}. Estes contadores não equivalem à latência.</p>
             )}
             <div className="audio-device-actions">
               <button className="secondary-button" type="button" disabled={busy || running} onClick={() => void refresh()}><RefreshCw size={15}/> Atualizar dispositivos</button>
