@@ -1,0 +1,279 @@
+//! Native device selection and opt-in, attenuated DRY monitoring.
+//!
+//! No NAM, IR or pedal DSP is attached here. Input and output callbacks
+//! communicate via a bounded lock-free single-producer/single-consumer ring.
+//! They never allocate, lock, call Tauri or touch the filesystem.
+//!
+//! WASAPI (Windows) and ALSA (Linux) are built by default. ASIO / JACK only
+//! appear when both their optional CPAL feature and system drivers are present.
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{BufferSize, SampleFormat, Stream, StreamConfig, SupportedBufferSize};
+use rtrb::RingBuffer;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use std::sync::Mutex;
+
+const RATE: u32 = 48_000;
+const RING_FRAMES: usize = 16_384;
+const SAFE_GAIN: f32 = 0.12;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    pub index: usize,
+    pub name: String,
+    pub channels: u16,
+    pub supports_monitor: bool,
+}
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostInfo {
+    pub id: String,
+    pub inputs: Vec<DeviceInfo>,
+    pub outputs: Vec<DeviceInfo>,
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorSelection {
+    pub host_id: String,
+    pub input_index: usize,
+    pub output_index: usize,
+    pub buffer_frames: u32,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorStatus {
+    pub running: bool,
+    pub mode: &'static str,
+}
+
+pub struct MonitorStreams {
+    _input: Stream,
+    _output: Stream,
+}
+#[derive(Default)]
+pub struct AudioState {
+    streams: Mutex<Option<MonitorStreams>>,
+}
+
+pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
+    let guard = state.streams.lock().map_err(|_| "Audio state unavailable")?;
+    Ok(MonitorStatus {
+        running: guard.is_some(),
+        mode: "dry_monitor_only_no_nam_dsp",
+    })
+}
+
+fn supports_48k_float(device: &cpal::Device, input: bool) -> Option<u16> {
+    let configs = if input {
+        device.supported_input_configs().ok()?
+    } else {
+        device.supported_output_configs().ok()?
+    };
+    configs
+        .filter(|range| {
+            range.sample_format() == SampleFormat::F32
+                && range.min_sample_rate() <= RATE
+                && range.max_sample_rate() >= RATE
+                && range.channels() > 0
+        })
+        .map(|range| range.channels())
+        .next()
+}
+
+fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
+    let iterator = if input {
+        host.input_devices()
+    } else {
+        host.output_devices()
+    };
+    match iterator {
+        Ok(devices) => devices
+            .enumerate()
+            .map(|(index, device)| {
+                let supported = supports_48k_float(&device, input);
+                DeviceInfo {
+                    index,
+                    name: device.name().unwrap_or_else(|_| format!("Dispositivo {index}")),
+                    channels: supported.unwrap_or(0),
+                    supports_monitor: supported.is_some(),
+                }
+            })
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn list_hosts() -> Vec<HostInfo> {
+    cpal::available_hosts()
+        .into_iter()
+        .filter_map(|id| {
+            let host = cpal::host_from_id(id).ok()?;
+            Some(HostInfo {
+                id: id.to_string().to_lowercase(),
+                inputs: devices(&host, true),
+                outputs: devices(&host, false),
+            })
+        })
+        .collect()
+}
+
+fn validate_buffer(frames: u32) -> Result<(), String> {
+    if [64, 128, 256, 512, 1024].contains(&frames) {
+        Ok(())
+    } else {
+        Err("Selecione um buffer de 64, 128, 256, 512 ou 1024 samples.".into())
+    }
+}
+
+fn choose_device(
+    host: &cpal::Host,
+    input: bool,
+    index: usize,
+    frames: u32,
+) -> Result<(cpal::Device, StreamConfig), String> {
+    let mut iterator = if input {
+        host.input_devices().map_err(|e| e.to_string())?
+    } else {
+        host.output_devices().map_err(|e| e.to_string())?
+    };
+    let device = iterator
+        .nth(index)
+        .ok_or("Dispositivo desconectado. Atualize a lista.")?;
+    let ranges = if input {
+        device.supported_input_configs().map_err(|e| e.to_string())?
+    } else {
+        device.supported_output_configs().map_err(|e| e.to_string())?
+    };
+    let range = ranges
+        .filter(|range| {
+            range.sample_format() == SampleFormat::F32
+                && range.min_sample_rate() <= RATE
+                && range.max_sample_rate() >= RATE
+                && range.channels() > 0
+        })
+        .next()
+        .ok_or("Este dispositivo não oferece F32 a 48 kHz neste backend.")?;
+
+    if let SupportedBufferSize::Range { min, max } = range.buffer_size() {
+        if frames < *min || frames > *max {
+            return Err(format!(
+                "Buffer indisponível: o dispositivo aceita {min} a {max} frames."
+            ));
+        }
+    }
+    Ok((
+        device,
+        StreamConfig {
+            channels: range.channels(),
+            sample_rate: RATE,
+            buffer_size: BufferSize::Fixed(frames),
+        },
+    ))
+}
+
+fn safe_sample(value: f32) -> f32 {
+    if value.is_finite() {
+        (value * SAFE_GAIN).clamp(-0.8, 0.8)
+    } else {
+        0.0
+    }
+}
+
+pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), String> {
+    validate_buffer(selection.buffer_frames)?;
+    let id = cpal::HostId::from_str(&selection.host_id)
+        .map_err(|_| "Backend de áudio não reconhecido".to_owned())?;
+    if !cpal::available_hosts().contains(&id) {
+        return Err("Backend não está disponível neste computador/build.".into());
+    }
+    let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
+    let (input, input_config) =
+        choose_device(&host, true, selection.input_index, selection.buffer_frames)?;
+    let (output, output_config) =
+        choose_device(&host, false, selection.output_index, selection.buffer_frames)?;
+    // Lock is used only on the control thread, never on an audio callback.
+    let mut guard = state.streams.lock().map_err(|_| "Audio state unavailable")?;
+    if guard.is_some() {
+        return Err("O monitor já está ligado. Desligue antes de alterar o dispositivo.".into());
+    }
+    let (mut producer, mut consumer) = RingBuffer::<f32>::new(RING_FRAMES);
+    let input_channels = usize::from(input_config.channels);
+    let output_channels = usize::from(output_config.channels);
+    // Input callback only enqueues the first (mono guitar) channel. A full ring
+    // discards incoming frames; this is NOT a latency or dropout guarantee.
+    let input_stream = input
+        .build_input_stream(
+            &input_config,
+            move |data: &[f32], _| {
+                for frame in data.chunks(input_channels) {
+                    let value = frame.first().copied().unwrap_or(0.0);
+                    let _ = producer.push(if value.is_finite() { value } else { 0.0 });
+                }
+            },
+            |_error| {}, // No logs/I/O inside any audio callback.
+            None,
+        )
+        .map_err(|e| format!("Não foi possível abrir a entrada: {e}"))?;
+
+    let output_stream = output
+        .build_output_stream(
+            &output_config,
+            move |data: &mut [f32], _| {
+                for frame in data.chunks_mut(output_channels) {
+                    let sample = safe_sample(consumer.pop().unwrap_or(0.0));
+                    for channel in frame {
+                        *channel = sample;
+                    }
+                }
+            },
+            |_error| {},
+            None,
+        )
+        .map_err(|e| format!("Não foi possível abrir a saída: {e}"))?;
+    // No autostart. This only executes following an explicit UI click.
+    output_stream
+        .play()
+        .map_err(|e| format!("Não foi possível iniciar a saída: {e}"))?;
+    input_stream
+        .play()
+        .map_err(|e| format!("Não foi possível iniciar a entrada: {e}"))?;
+    *guard = Some(MonitorStreams {
+        _input: input_stream,
+        _output: output_stream,
+    });
+    Ok(())
+}
+
+pub fn stop(state: &AudioState) -> Result<(), String> {
+    let mut guard = state.streams.lock().map_err(|_| "Audio state unavailable")?;
+    *guard = None;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn only_safe_buffer_options() {
+        assert!(validate_buffer(64).is_ok());
+        assert!(validate_buffer(128).is_ok());
+        assert!(validate_buffer(1024).is_ok());
+        assert!(validate_buffer(0).is_err());
+        assert!(validate_buffer(8192).is_err());
+    }
+    #[test]
+    fn monitoring_sanitizes_and_limits_output() {
+        assert!((safe_sample(1.0) - 0.12).abs() < 1e-6);
+        assert_eq!(safe_sample(f32::NAN), 0.0);
+        assert_eq!(safe_sample(f32::INFINITY), 0.0);
+        assert_eq!(safe_sample(9999.0), 0.8);
+    }
+    #[test]
+    fn inactive_state_never_implies_nam_processing() {
+        let state = AudioState::default();
+        let value = status(&state).unwrap();
+        assert!(!value.running);
+        assert_eq!(value.mode, "dry_monitor_only_no_nam_dsp");
+    }
+}
