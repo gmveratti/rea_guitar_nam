@@ -57,7 +57,10 @@ pub struct AudioState {
 }
 
 pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
-    let guard = state.streams.lock().map_err(|_| "Audio state unavailable")?;
+    let guard = state
+        .streams
+        .lock()
+        .map_err(|_| "Audio state unavailable")?;
     Ok(MonitorStatus {
         running: guard.is_some(),
         mode: "dry_monitor_only_no_nam_dsp",
@@ -95,7 +98,10 @@ fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
                 let supported = supports_48k_float(&device, input);
                 DeviceInfo {
                     index,
-                    name: device.description().map(|d| d.name().to_string()).unwrap_or_else(|_| format!("Dispositivo {index}")),
+                    name: device
+                        .description()
+                        .map(|d| d.name().to_string())
+                        .unwrap_or_else(|_| format!("Dispositivo {index}")),
                     channels: supported.unwrap_or(0),
                     supports_monitor: supported.is_some(),
                 }
@@ -142,9 +148,15 @@ fn choose_device(
         .nth(index)
         .ok_or("Dispositivo desconectado. Atualize a lista.")?;
     let ranges = if input {
-        device.supported_input_configs().map_err(|e| e.to_string())?.collect::<Vec<_>>()
+        device
+            .supported_input_configs()
+            .map_err(|e| e.to_string())?
+            .collect::<Vec<_>>()
     } else {
-        device.supported_output_configs().map_err(|e| e.to_string())?.collect::<Vec<_>>()
+        device
+            .supported_output_configs()
+            .map_err(|e| e.to_string())?
+            .collect::<Vec<_>>()
     };
     let range = ranges
         .into_iter()
@@ -191,10 +203,17 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
     let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
     let (input, input_config) =
         choose_device(&host, true, selection.input_index, selection.buffer_frames)?;
-    let (output, output_config) =
-        choose_device(&host, false, selection.output_index, selection.buffer_frames)?;
+    let (output, output_config) = choose_device(
+        &host,
+        false,
+        selection.output_index,
+        selection.buffer_frames,
+    )?;
     // Lock is used only on the control thread, never on an audio callback.
-    let mut guard = state.streams.lock().map_err(|_| "Audio state unavailable")?;
+    let mut guard = state
+        .streams
+        .lock()
+        .map_err(|_| "Audio state unavailable")?;
     if guard.is_some() {
         return Err("O monitor já está ligado. Desligue antes de alterar o dispositivo.".into());
     }
@@ -247,7 +266,10 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
 }
 
 pub fn stop(state: &AudioState) -> Result<(), String> {
-    let mut guard = state.streams.lock().map_err(|_| "Audio state unavailable")?;
+    let mut guard = state
+        .streams
+        .lock()
+        .map_err(|_| "Audio state unavailable")?;
     *guard = None;
     Ok(())
 }
