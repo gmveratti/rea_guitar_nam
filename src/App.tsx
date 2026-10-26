@@ -8,7 +8,7 @@ import {
   PEDALS, PEDAL_KINDS, createPedal, factoryChain, movePedal,
   type PedalInstance, type PedalKind,
 } from "./lib/pedals";
-import { loadDraft, loadPresets, saveDraft, savePresets, type Preset } from "./lib/presets";
+import { loadDraft, loadDraftVisual, loadPresets, saveDraft, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
 import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
 import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
@@ -35,6 +35,7 @@ function readDrag(event: DragEvent<HTMLElement>): DragData | null {
 }
 
 export default function App() {
+  const [visualDraft] = useState(loadDraftVisual);
   const [chain, setChain] = useState<PedalInstance[]>(loadDraft);
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -44,10 +45,11 @@ export default function App() {
   const [view, setView] = useState<View>("board");
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
-  const [modelName, setModelName] = useState("");
-  const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">("british");
+  const [modelName, setModelName] = useState(visualDraft.modelName);
+  const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">(visualDraft.ampFamily);
 
   useEffect(() => { saveDraft(chain); }, [chain]);
+  useEffect(() => { saveDraftVisual({ modelName, ampFamily }); }, [modelName, ampFamily]);
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
