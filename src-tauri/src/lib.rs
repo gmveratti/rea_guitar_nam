@@ -1,8 +1,8 @@
 mod audio;
 mod live;
 
-use tauri::State;
 use std::sync::Mutex;
+use tauri::State;
 
 // Commands that create/stop streams must be serialised across DRY and NAM.
 // Never acquired inside a CPAL callback or NAM worker audio processing.
@@ -34,7 +34,10 @@ fn audio_start_monitor(
     gate: State<'_, AudioCommandGate>,
     selection: audio::MonitorSelection,
 ) -> Result<(), String> {
-    let _lock = gate.0.lock().map_err(|_| "Audio command gate unavailable")?;
+    let _lock = gate
+        .0
+        .lock()
+        .map_err(|_| "Audio command gate unavailable")?;
     if live::status(&live)?.running {
         return Err("Desligue o NAM/IR antes de iniciar o DRY.".into());
     }
@@ -46,7 +49,10 @@ fn audio_stop_monitor(
     state: State<'_, audio::AudioState>,
     gate: State<'_, AudioCommandGate>,
 ) -> Result<(), String> {
-    let _lock = gate.0.lock().map_err(|_| "Audio command gate unavailable")?;
+    let _lock = gate
+        .0
+        .lock()
+        .map_err(|_| "Audio command gate unavailable")?;
     audio::stop(&state)
 }
 
@@ -63,7 +69,10 @@ fn audio_start_live(
     selection: audio::MonitorSelection,
     chain_json: String,
 ) -> Result<(), String> {
-    let _lock = gate.0.lock().map_err(|_| "Audio command gate unavailable")?;
+    let _lock = gate
+        .0
+        .lock()
+        .map_err(|_| "Audio command gate unavailable")?;
     live::start(&state, &dry, selection, chain_json)
 }
 
@@ -72,7 +81,10 @@ fn audio_stop_live(
     state: State<'_, live::LiveState>,
     gate: State<'_, AudioCommandGate>,
 ) -> Result<(), String> {
-    let _lock = gate.0.lock().map_err(|_| "Audio command gate unavailable")?;
+    let _lock = gate
+        .0
+        .lock()
+        .map_err(|_| "Audio command gate unavailable")?;
     live::stop(&state)
 }
 
