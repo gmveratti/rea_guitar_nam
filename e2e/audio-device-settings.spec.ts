@@ -9,6 +9,7 @@ test("settings explain native device selection without pretending browser has dr
   await expect(audio.getByText(/guitarra limpa/)).toBeVisible();
   await expect(audio.getByRole("status")).toContainText("aplicativo desktop");
   await expect(audio.getByRole("button", { name: "Iniciar monitor DRY" })).toHaveCount(0);
+  await expect(audio.locator("#audio-input-channel")).toHaveCount(0);
 
   // The new settings card cannot change the pedalboard order or the amp slot.
   await page.getByRole("button", { name: "Pedalboard" }).click();
