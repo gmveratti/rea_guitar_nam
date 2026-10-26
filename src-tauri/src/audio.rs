@@ -66,11 +66,12 @@ pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
 
 fn supports_48k_float(device: &cpal::Device, input: bool) -> Option<u16> {
     let configs = if input {
-        device.supported_input_configs().ok()?
+        device.supported_input_configs().ok()?.collect::<Vec<_>>()
     } else {
-        device.supported_output_configs().ok()?
+        device.supported_output_configs().ok()?.collect::<Vec<_>>()
     };
     configs
+        .into_iter()
         .filter(|range| {
             range.sample_format() == SampleFormat::F32
                 && range.min_sample_rate() <= RATE
@@ -94,7 +95,7 @@ fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
                 let supported = supports_48k_float(&device, input);
                 DeviceInfo {
                     index,
-                    name: device.name().unwrap_or_else(|_| format!("Dispositivo {index}")),
+                    name: device.description().map(|d| d.name().to_string()).unwrap_or_else(|_| format!("Dispositivo {index}")),
                     channels: supported.unwrap_or(0),
                     supports_monitor: supported.is_some(),
                 }
@@ -141,11 +142,12 @@ fn choose_device(
         .nth(index)
         .ok_or("Dispositivo desconectado. Atualize a lista.")?;
     let ranges = if input {
-        device.supported_input_configs().map_err(|e| e.to_string())?
+        device.supported_input_configs().map_err(|e| e.to_string())?.collect::<Vec<_>>()
     } else {
-        device.supported_output_configs().map_err(|e| e.to_string())?
+        device.supported_output_configs().map_err(|e| e.to_string())?.collect::<Vec<_>>()
     };
     let range = ranges
+        .into_iter()
         .filter(|range| {
             range.sample_format() == SampleFormat::F32
                 && range.min_sample_rate() <= RATE
@@ -156,7 +158,7 @@ fn choose_device(
         .ok_or("Este dispositivo não oferece F32 a 48 kHz neste backend.")?;
 
     if let SupportedBufferSize::Range { min, max } = range.buffer_size() {
-        if frames < *min || frames > *max {
+        if frames < min || frames > max {
             return Err(format!(
                 "Buffer indisponível: o dispositivo aceita {min} a {max} frames."
             ));
