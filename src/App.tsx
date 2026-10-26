@@ -394,7 +394,7 @@ export default function App() {
               <RigResourceList chain={chain} resources={resources} native={isTauri()}
                 onPick={(id, kind) => { void pickRigFile(id, kind); }}
                 onClear={(id) => setResources(previous => { const next = { ...previous }; delete next[id]; return next; })} />
-              <AudioDevices chain={chain} resources={resources} ampPowered={ampPowered} compact />
+              {isTauri() && <AudioDevices chain={chain} resources={resources} ampPowered={ampPowered} compact />}
               <footer className="board-footer">
                 <span><span className="preview-dot" /> {isTauri() ? "NAM/IR EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
                 {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
