@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("amplifier power is a working visual switch and the cable stays connected", async ({ page }) => {
   await page.goto("/");
+  await page.locator("#amp-example").selectOption("Marshall_JCM800_2203_A2.nam");
   const amp = page.getByRole("region", { name: "Amplificador virtual VTTRIG" });
   const powerOff = amp.getByRole("button", { name: "Desligar amplificador" });
   await expect(powerOff).toHaveAttribute("aria-pressed", "true");
