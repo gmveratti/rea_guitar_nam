@@ -14,3 +14,13 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+cpal = { version = "0.17", default-features = true }
+rtrb = "0.3"
+
+# CPAL backends are intentionally selectable only when compiled and present.
+# ASIO requires Steinberg SDK/toolchain setup and is NOT enabled in default CI.
+[features]
+default = []
+asio = ["cpal/asio"]
+jack = ["cpal/jack"]
