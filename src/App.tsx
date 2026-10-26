@@ -191,6 +191,20 @@ export default function App() {
       effect.id === selected.id ? { ...effect, values: defaults } : effect
     ));
   }
+  function renderPedal(effect: PedalInstance, index: number) {
+    return (
+      <PedalFace key={effect.id} index={index} pedal={effect}
+        selected={selectedId === effect.id}
+        onSelect={() => setSelectedId((current) => current === effect.id ? null : effect.id)}
+        onToggle={() => toggle(effect.id)}
+        onRemove={() => remove(effect.id)}
+        onParameter={(key, value) => setParameter(effect.id, key, value)}
+        onMoveDragStart={(event) => event.dataTransfer.setData("text/plain", `chain:${effect.id}`)}
+        onDrop={dropAt}
+      />
+    );
+  }
+
   return (
     <div className="app clean-ui">
       <header className="topbar clean-topbar">
@@ -246,17 +260,25 @@ export default function App() {
               />
 
               {selected && (
-                <PedalFocusPanel
-                  pedal={selected}
-                  position={selectedIndex}
-                  count={chain.length}
-                  onClose={() => setSelectedId(null)}
-                  onToggle={() => toggle(selected.id)}
-                  onParameter={(key, value) => setParameter(selected.id, key, value)}
-                  onMove={(position) => setChain((previous) => movePedal(previous, selected.id, position))}
-                  onReset={resetSelectedParameters}
-                  onSavePreset={saveCurrentPreset}
-                />
+                <div className="pedal-focus-overlay">
+                  <button type="button" className="pedal-focus-backdrop" onClick={() => setSelectedId(null)} aria-label="Fechar edição do pedal" />
+                  <div className="pedal-focus-stage" role="dialog" aria-modal="true" aria-label={`Editar ${VTT_PEDAL_NAMES[selected.kind]}`}>
+                    <div className="pedal-focus-mount">
+                      {renderPedal(selected, selectedIndex)}
+                    </div>
+                    <PedalFocusPanel
+                      pedal={selected}
+                      position={selectedIndex}
+                      count={chain.length}
+                      onClose={() => setSelectedId(null)}
+                      onToggle={() => toggle(selected.id)}
+                      onParameter={(key, value) => setParameter(selected.id, key, value)}
+                      onMove={(position) => setChain((previous) => movePedal(previous, selected.id, position))}
+                      onReset={resetSelectedParameters}
+                      onSavePreset={saveCurrentPreset}
+                    />
+                  </div>
+                </div>
               )}
 
               <section className="signal-route clean-route" aria-label="Cadeia de pedais">
@@ -279,17 +301,12 @@ export default function App() {
                       <button type="button" className="add-slot clean-add-slot" aria-label="Adicionar efeito" title="Adicionar efeito" onClick={() => openView("library")}>
                         <Plus size={27} /><span>Adicionar</span>
                       </button>
-                      {chain.map((effect, index) => (
-                        <PedalFace key={effect.id} index={index} pedal={effect}
-                          selected={selectedId === effect.id}
-                          onSelect={() => setSelectedId((current) => current === effect.id ? null : effect.id)}
-                          onToggle={() => toggle(effect.id)}
-                          onRemove={() => remove(effect.id)}
-                          onParameter={(key, value) => setParameter(effect.id, key, value)}
-                          onMoveDragStart={(event) => event.dataTransfer.setData("text/plain", `chain:${effect.id}`)}
-                          onDrop={dropAt}
-                        />
-                      ))}
+                      {chain.map((effect, index) => effect.id === selectedId ? (
+                        <div className="pedal-focus-placeholder" key={effect.id} aria-hidden="true">
+                          <span>{VTT_PEDAL_NAMES[effect.kind]}</span>
+                          <small>EDITANDO</small>
+                        </div>
+                      ) : renderPedal(effect, index))}
                     </>
                   )}
                 </div>

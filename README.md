@@ -24,6 +24,29 @@ Os pedais mantêm os chassis e cores atuais:
 - **Salvar preset** mantém a cadeia e seus valores, mas ainda **não processa áudio**
   no Tauri. Nenhuma alteração nesta interface significa integração DSP finalizada.
 
+## Ajustes visuais e interação do amplificador (PR #6)
+
+Após testar o AppImage no Fedora, refinamos o estúdio para ficar mais próximo
+do mockup aprovado. O amplificador mantém as skins e controles existentes,
+mas traz grade texturizada mais profunda, logo VTTRIG em estilo clássico,
+painel metálico dourado e plug/cabo decorativo na entrada.
+
+- **POWER clicável:** alterna LED/iluminação do amplificador via estado React.
+  É **apenas visual**, não liga/desliga DSP nem altera o dispositivo JACK.
+- **Seletores legíveis no Fedora/WebKitGTK:** inputs e dropdowns recebem
+  fundos escuros, cores explícitas e `color-scheme: dark`.
+- **Edição física dos pedais:** clicar no corpo **eleva e amplia o próprio
+  pedal atual** (não cria outro chassis). Seu footswitch e knobs permanecem
+  interativos; parâmetros/preset aparecem ao lado no mesmo palco flutuante.
+  Clique fora, X e Escape fecham o foco. A ordem da cadeia não é alterada.
+- **Presets e ordem livre permanecem intactos:** módulos repetidos e seus
+  parâmetros independentes não são duplicados ao abrir/fechar o foco.
+
+Regressões em `e2e/amp-and-pedal-regressions.spec.ts` e
+`e2e/clean-pedal-focus.spec.ts` protegem power, contraste dos campos,
+cabo, foco/fechamento, bypass e persistência. O processamento de áudio real
+ainda depende da integração futura do motor nativo.
+
 ## O que funciona nesta primeira etapa
 
 - **Amp Focus:** amplificador estilizado por CSS. Classificação heurística por nome de .nam em famílias *British, American, Stadium, Chime, Modern, Boutique*. Seletor manual corrige falsos positivos.

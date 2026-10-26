@@ -41,6 +41,7 @@ function FaceKnob({ label, index }: { label: string; index: number }) {
 export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange, minimal = false }: Props) {
   const skin = classifyNamFilename(modelName, overrideFamily);
   const [error, setError] = useState("");
+  const [powered, setPowered] = useState(true);
   function importCandidate(file: File | undefined) {
     if (!file) return;
     if (!/\.nam$/i.test(file.name)) {
@@ -66,7 +67,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
       </div>}
 
       <div
-        className={`amp-art amp-${skin.id}`}
+        className={`amp-art amp-${skin.id} ${powered ? "amp-is-on" : "amp-is-off"}`}
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
       >
@@ -74,16 +75,17 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
           <div className="amp-handle" />
           <div className="amp-case-edges" />
           <div className="amp-grille">
-            <div className="amp-branding"><span className="amp-wordmark">VTTRIG</span><span className="amp-edition">{skin.series}</span></div>
+            <span className="amp-grille-rim" aria-hidden="true" />
+            <div className="amp-branding"><span className="amp-wordmark">VTTRIG</span><span className="amp-edition">{skin.series} · ANALOG SOUL / NEURAL HEART</span></div>
             <span className="grille-caption">{skin.subtitle}</span>
           </div>
           <div className="amp-panel">
-            <div className="amp-power"><span className="power-indicator" /><small>POWER</small></div>
+            <div className="amp-power"><button type="button" className={`amp-power-switch ${powered ? "powered" : ""}`} aria-label={powered ? "Desligar amplificador" : "Ligar amplificador"} aria-pressed={powered} title="Power do amplificador (visual)" onClick={() => setPowered((on) => !on)}><span className="power-indicator" /></button><small>POWER</small></div>
             <div className="amp-channel"><strong>{skin.title}</strong><span>{skin.channel}</span></div>
             <div className="amp-controls">
               {skin.controls.map((label, index) => <FaceKnob key={skin.id + label} label={label} index={index} />)}
             </div>
-            <div className="amp-jack"><span className="jack-hole" /><small>INPUT</small></div>
+            <div className="amp-jack"><span className="jack-hole" /><span className="amp-cable-plug" aria-hidden="true" /><svg className="amp-cable" aria-hidden="true" viewBox="0 0 180 115" fill="none"><path d="M 4 4 C 34 19, 18 50, 63 58 S 151 72, 175 113" /></svg><small>INPUT</small></div>
           </div>
         </div>
       </div>
