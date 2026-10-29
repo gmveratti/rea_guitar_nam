@@ -71,7 +71,7 @@ export function buildLiveBoardSnapshot(
     }
     nodes.push({
       id: effect.id,
-      kind: effect.kind as NativeRigNode["kind"],
+      kind: effect.kind as "amp" | "drive" | "cabinet",
       enabled,
       parameters: { ...effect.values },
       resource: { path },
