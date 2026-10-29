@@ -227,7 +227,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
                   <>
                     <p role="status">{livePreview.nodes.length} módulo(s) nativo(s) preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
                     <ol>{livePreview.nodes.map(node =>
-                      <li key={node.id}>{node.kind.toUpperCase()} · {node.enabled ? "ligado" : "bypass"} · {node.resource.path.split(/[\\\\/]/).pop()}</li>
+                      <li key={node.id}>{node.kind.toUpperCase()} · {node.enabled ? "ligado" : "bypass"} · {('resource' in node ? node.resource.path : 'DSP interno').split(/[\\\\/]/).pop()}</li>
                     )}</ol>
                   </>
                 ) : <p className="audio-device-warning" role="status">{livePlan.error}</p>}
