@@ -135,6 +135,25 @@ int main() {
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{"tone":50}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{},"resource":{"path":"fake.nam"}}]})"));
 
+  // Room Reverb uses file-free native DSP and precise UI parameter ranges.
+  std::istringstream reverb_stream(R"({"schemaVersion":1,"nodes":[
+    {"id":"rv-a","kind":"reverb","enabled":true,
+     "parameters":{"size":67,"decay":4.2,"mix":24}},
+    {"id":"dl","kind":"delay","enabled":true,"parameters":{}},
+    {"id":"rv-b","kind":"reverb","enabled":false,"parameters":{}}
+  ]})");
+  const auto reverbs = vttrig::parse_chain_manifest(reverb_stream);
+  assert(reverbs.size() == 3);
+  assert(reverbs[0].kind == "reverb" && reverbs[2].kind == "reverb");
+  assert(reverbs[0].path.empty() && reverbs[0].parameters.at("decay") == 4.2);
+  assert(!reverbs[2].enabled);
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"r","kind":"reverb","enabled":true,"parameters":{"size":101}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"r","kind":"reverb","enabled":true,"parameters":{"decay":0.1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"r","kind":"reverb","enabled":true,"parameters":{"decay":15.1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"r","kind":"reverb","enabled":true,"parameters":{"mix":-1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"r","kind":"reverb","enabled":true,"parameters":{"predelay":20}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"r","kind":"reverb","enabled":true,"parameters":{},"resource":{"path":"fake.wav"}}]})"));
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"flanger","kind":"flanger","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
