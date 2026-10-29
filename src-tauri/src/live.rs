@@ -122,7 +122,8 @@ fn validate_manifest(json: &str) -> Result<(), String> {
                 .as_object()
                 .ok_or("Parâmetros do VTT Compressor inválidos")?;
             for (name, value) in params {
-                let number = value.as_f64()
+                let number = value
+                    .as_f64()
                     .filter(|n| n.is_finite())
                     .ok_or("Parâmetro do compressor deve ser numérico e finito")?;
                 let valid = match name.as_str() {
@@ -479,10 +480,12 @@ mod tests {
         ).is_err());
         assert!(validate_manifest(
             r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"hold":300}}]}"#
-        ).is_err());
+        )
+        .is_err());
         assert!(validate_manifest(
             r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"attack":10}}]}"#
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
@@ -494,11 +497,13 @@ mod tests {
         ]}"#;
         assert!(validate_manifest(valid).is_ok());
         assert!(validate_manifest(
-          r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"compress":101}}]}"#
-        ).is_err());
+            r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"compress":101}}]}"#
+        )
+        .is_err());
         assert!(validate_manifest(
-          r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"attack":10}}]}"#
-        ).is_err());
+            r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"attack":10}}]}"#
+        )
+        .is_err());
         assert!(validate_manifest(
           r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{},"resource":{"path":"bad.nam"}}]}"#
         ).is_err());
