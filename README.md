@@ -16,6 +16,14 @@
 
 Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHITECTURE.md) e [guia oficial NAM × IR](https://www.tone3000.com/guides/neural-amp-modeler).
 
+## VTT Compressor Smooth (Airwindows ButterComp2)
+
+- **DSP C++ nativo**, adaptado do [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) (MIT), não apenas um pedal visual.
+- Controles sonoros reais: **Compress 0–100%**, **Output 0–200%**, **Dry/Wet 0–100%**. O algoritmo é um compressor suave/bipolar, não oferece Threshold/Ratio/Attack/Release independentes; esses knobs históricos eram somente visuais.
+- Mesmo contrato do VTTGATE: várias instâncias, bypass por pedal, ordem exata da cadeia, **sem arquivo `.nam`**. O motor aplica as configurações na inicialização, portanto é necessário **Parar/Iniciar** após editar.
+- Presets antigos continuam legíveis, mas os quatro parâmetros visuais antigos do compressor não são equivalentes aos controles ButterComp2 e são substituídos pelos defaults do modo Smooth.
+- Testes offline automatizados incluídos; **timbre, estabilidade e latência com interface USB ainda não homologados**.
+
 ## PR #15: integração inicial da pedalboard ao áudio NAM/IR
 
 1. No **aplicativo desktop**, adicione VTTAMP, VTTDRIVE ou VTTCAB à pedalboard. O botão (+) do amplificador abre o seletor nativo de arquivos `.nam`.
