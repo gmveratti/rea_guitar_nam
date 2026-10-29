@@ -60,6 +60,23 @@ int main() {
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"g","kind":"gate","enabled":true,"parameters":{"attack":10}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"g","kind":"gate","enabled":true,"parameters":{},"resource":{"path":"a.nam"}}]})"));
 
+  // File-free Airwindows ButterComp2 may appear before/after NAM or Gate.
+  std::istringstream compressor_stream(R"({"schemaVersion":1,"nodes":[
+    {"id":"cp-1","kind":"compressor","enabled":true,
+     "parameters":{"compress":55,"output":120,"mix":75}},
+    {"id":"g","kind":"gate","enabled":true,"parameters":{}},
+    {"id":"cp-2","kind":"compressor","enabled":false,"parameters":{}}
+  ]})");
+  const auto compressors = vttrig::parse_chain_manifest(compressor_stream);
+  assert(compressors.size() == 3);
+  assert(compressors[0].kind == "compressor" && compressors[2].kind == "compressor");
+  assert(compressors[0].path.empty() && compressors[0].parameters.at("compress") == 55.0);
+  assert(!compressors[2].enabled);
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"compressor","enabled":true,"parameters":{"compress":101}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"compressor","enabled":true,"parameters":{"output":201}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"compressor","enabled":true,"parameters":{"attack":20}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"compressor","enabled":true,"parameters":{},"resource":{"path":"fake.nam"}}]})"));
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"chorus","kind":"chorus","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
