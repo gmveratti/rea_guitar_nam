@@ -77,7 +77,10 @@ class RoomReverbMonoProcessor final : public MonoProcessor {
         ap.line[ap.head] = next;
         if (++ap.head == ap.line.size()) ap.head = 0;
       }
-      output[i] = dry * (1.0 - wet_) + tail * wet_;
+      // Bound the reverberant output for long RT60 / resonant signals without
+      // compressing the dry path or risking runaway output peaks.
+      const double safe_tail = std::tanh(tail);
+      output[i] = dry * (1.0 - wet_) + safe_tail * wet_;
     }
   }
 
