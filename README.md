@@ -234,8 +234,10 @@ Se houver problema com FUSE no host, experimente executar o AppImage com `APPIMA
 APPIMAGE_EXTRACT_AND_RUN=1 ./VTTRIG*.AppImage
 ```
 
-Este build **só executa a interface visual**. A captura NAM A2, áudio JACK,
-IR e controles dos pedais ainda não estão conectados ao aplicativo Tauri.
+**Estado atual dos instaladores:** o Tauri inclui o sidecar experimental
+NAM/IR e aceita modelos locais, mas drivers, estabilidade, latência e áudio
+com interface física ainda exigem homologação. Pedais sem DSP continuam
+apenas visuais; confira a situação mais recente no início deste README.
 
 ### Gerar binário local no Fedora (alternativa)
 
@@ -288,10 +290,11 @@ as opções exclusivas do Windows (`nsis` e `icons/icon.ico`). A configuração
 Linux e seu AppImage não são alterados. O `.ico` é gerado a partir do PNG
 VTTRIG existente pelo Tauri CLI, antes de compilar.
 
-**Limite:** esta build testa **somente a interface desktop**. Os módulos NAM,
-IR, pedais e os controles visuais ainda não processam áudio dentro do app.
-O motor experimental atual usa JACK e não roda no Windows. A futura engine
-multiplataforma precisará de backend de áudio Windows e testes próprios.
+**Limite:** o instalador do Windows inclui o sidecar NAM/IR experimental e
+usa os backends nativos disponíveis (por padrão, WASAPI). Ele não garante
+ASIO nem baixa latência: testes físicos com interface, guitarra e modelos
+reais ainda são necessários. Os pedais sem DSP implementado permanecem
+visuais.
 
 ## Rodar desktop com Tauri
 
