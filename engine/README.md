@@ -1,3 +1,5 @@
+# VTTRIG native NAM / IR JACK engine
+
 ## VTTGATE: open-source audio effect (TONE3000 NoiseGate)
 
 **Real native DSP, not merely a visual pedal.** The VTTRIG pedal chassis is
@@ -30,7 +32,6 @@ attenuation, hold, independent instances and bypass. Manifest and UI tests
 cover malformed values, missing resources and exact source order. As always,
 passing CI is not the same as a quality/latency test with a real guitar.
 
-# VTTRIG native NAM / IR JACK engine
 
 **Experimental standalone CLI for Fedora/PipeWire-JACK.** This is not the Tauri UI.
 The engine is based on the MIT-licensed NeuralAmpModelerCore used by Gateway,
