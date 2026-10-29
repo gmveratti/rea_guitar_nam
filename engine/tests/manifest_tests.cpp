@@ -77,6 +77,25 @@ int main() {
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"compressor","enabled":true,"parameters":{"attack":20}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"compressor","enabled":true,"parameters":{},"resource":{"path":"fake.nam"}}]})"));
 
+  // VTTSUSTAIN uses Airwindows Pressure5 dynamics with no .nam/.wav.
+  std::istringstream sustain_stream(R"({"schemaVersion":1,"nodes":[
+    {"id":"su-1","kind":"sustain","enabled":true,
+     "parameters":{"sustain":65,"speed":25,"level":-3,"mix":80}},
+    {"id":"cp-1","kind":"compressor","enabled":true,"parameters":{}},
+    {"id":"su-2","kind":"sustain","enabled":false,"parameters":{}}
+  ]})");
+  const auto sustains = vttrig::parse_chain_manifest(sustain_stream);
+  assert(sustains.size() == 3);
+  assert(sustains[0].kind == "sustain" && sustains[2].kind == "sustain");
+  assert(sustains[0].parameters.at("level") == -3.0 && sustains[0].path.empty());
+  assert(!sustains[2].enabled);
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{"sustain":101}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{"speed":-1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{"level":19}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{"attack":10}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{"mix":101}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{},"resource":{"path":"test.nam"}}]})"));
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"chorus","kind":"chorus","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
