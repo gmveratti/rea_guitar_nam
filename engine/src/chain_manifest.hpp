@@ -19,7 +19,7 @@ namespace vttrig {
 // the JACK engine. An array's order is the user's signal order.
 struct ManifestEffect {
   std::string id;
-  std::string kind; // "amp", "drive", "cabinet", "gate" or "compressor"
+  std::string kind; // "amp", "drive", "cabinet", "gate", "compressor" or "sustain"
   std::filesystem::path path; // empty for a file-free effect
   bool enabled = true;
   std::map<std::string, double> parameters; // evaluated during graph preparation
@@ -60,11 +60,11 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
       throw std::invalid_argument(prefix + "duplicate, empty or oversized effect id");
     }
 
-    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor") {
+    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor" && kind != "sustain") {
       throw std::invalid_argument(prefix + "DSP not implemented for effect kind: " + kind);
     }
     std::filesystem::path path;
-    if (kind == "gate" || kind == "compressor") {
+    if (kind == "gate" || kind == "compressor" || kind == "sustain") {
       // Native dynamics effects never load .nam/.wav files.
       if (node.contains("resource")) {
         throw std::invalid_argument(prefix + "native dynamics effect must not have a resource");
@@ -116,6 +116,16 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
             (name == "mix" && number >= 0.0 && number <= 100.0);
         if (!valid) {
           throw std::invalid_argument(prefix + "unknown or out-of-range compressor parameter: " + name);
+        }
+      }
+      if (kind == "sustain") {
+        const bool valid =
+            (name == "sustain" && number >= 0.0 && number <= 100.0) ||
+            (name == "speed" && number >= 0.0 && number <= 100.0) ||
+            (name == "level" && number >= -18.0 && number <= 18.0) ||
+            (name == "mix" && number >= 0.0 && number <= 100.0);
+        if (!valid) {
+          throw std::invalid_argument(prefix + "unknown or out-of-range sustain parameter: " + name);
         }
       }
       parameters.emplace(name, number);
