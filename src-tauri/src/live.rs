@@ -184,6 +184,30 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "delay" {
+            if node.get("resource").is_some() {
+                return Err("VTTDELAY não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTDELAY inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTDELAY deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "time" => (40.0..=1200.0).contains(&number),
+                    "feedback" => (0.0..=90.0).contains(&number),
+                    "mix" => (0.0..=100.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTDELAY: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
@@ -590,6 +614,26 @@ mod tests {
             r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"mix":101}}]}"#,
             r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"feedback":20}}]}"#,
             r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{},"resource":{"path":"bad.wav"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
+    fn accepts_file_free_delay_and_rejects_invalid_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"dly-a","kind":"delay","enabled":true,
+             "parameters":{"time":420,"feedback":38,"mix":28}},
+            {"id":"dly-b","kind":"delay","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"time":39}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"time":1201}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"feedback":91}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"mix":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"tone":20}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{},"resource":{"path":"fake.nam"}}]}"#,
         ] {
             assert!(validate_manifest(bad).is_err());
         }

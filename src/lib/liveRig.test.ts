@@ -95,11 +95,30 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
     expect(validateRigResources({ [ch.id]: "/wrong.nam" }, [ch])).toEqual({});
   });
 
+  it("maps native Delay time/feedback/mix, repeated instances and bypass", () => {
+    const delay = createPedal("delay"), chorus = createPedal("chorus");
+    const second = createPedal("delay");
+    delay.values.time = 650;
+    delay.values.feedback = 55;
+    delay.values.mix = 42;
+    second.enabled = false;
+    const board = buildLiveBoardSnapshot([second, chorus, delay], {});
+    expect(board.nodes.map(n => n.kind)).toEqual(["delay", "chorus", "delay"]);
+    expect(board.nodes.map(n => n.enabled)).toEqual([false, true, true]);
+    expect(board.nodes[2]).toEqual({
+      id: delay.id, kind: "delay", enabled: true,
+      parameters: { time: 650, feedback: 55, mix: 42 },
+    });
+    expect(board.ignored).toEqual([]);
+    expect(buildLiveBoardSnapshot([createPedal("delay")], {}).nodes[0].kind).toBe("delay");
+    expect(validateRigResources({ [delay.id]: "/not-delay.nam" }, [delay])).toEqual({});
+  });
+
   it("does not claim other unsupported visual pedals are running in DSP", () => {
-    const gate = createPedal("gate"), amp = createPedal("amp"), delay = createPedal("delay");
-    const result = buildLiveBoardSnapshot([gate, amp, delay], { [amp.id]: "/amp.nam" });
+    const gate = createPedal("gate"), amp = createPedal("amp"), reverb = createPedal("reverb");
+    const result = buildLiveBoardSnapshot([gate, amp, reverb], { [amp.id]: "/amp.nam" });
     expect(result.nodes.map(n => n.kind)).toEqual(["gate", "amp"]);
-    expect(result.ignored.map(n => n.kind)).toEqual(["delay"]);
+    expect(result.ignored.map(n => n.kind)).toEqual(["reverb"]);
   });
 
   it("refuses missing active resources and unsupported extensions", () => {
@@ -122,7 +141,7 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
   it("permits a gate-only native chain without a model", () => {
     const gate = createPedal("gate");
     expect(buildLiveBoardSnapshot([gate], {}).nodes.map(n => n.kind)).toEqual(["gate"]);
-    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*Compressor.*Sustain.*Chorus.*NAM.*IR/);
+    expect(() => buildLiveBoardSnapshot([createPedal("reverb")], {})).toThrow(/Noise Gate.*Compressor.*Sustain.*Chorus.*Delay.*NAM.*IR/);
   });
 
   it("validates and filters stale/corrupt resource mappings by node identity", () => {

@@ -78,6 +78,20 @@ describe("pedal chain", () => {
     expect(validateChain([pedal])?.[0].values).toEqual(pedal.values);
   });
 
+  it("retains legacy Delay time, feedback and mix when DSP becomes native", () => {
+    const legacy = [{
+      id: "delay-old", kind: "delay", enabled: false,
+      values: { time: 850, feedback: 45, mix: 18 },
+    }];
+    const parsed = validateChain(legacy);
+    expect(parsed?.[0]).toEqual({
+      id: "delay-old", kind: "delay", enabled: false,
+      values: { time: 850, feedback: 45, mix: 18 },
+    });
+    const current = createPedal("delay");
+    expect(validateChain([current])?.[0].values).toEqual(current.values);
+  });
+
   it("restores valid parameters from a saved chain", () => {
     const raw = [{ id: "amp-1", kind: "amp", enabled: true, values: { input: 45, output: -4 } }];
     const parsed = validateChain(raw);

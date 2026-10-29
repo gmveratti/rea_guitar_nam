@@ -19,7 +19,7 @@ namespace vttrig {
 // the JACK engine. An array's order is the user's signal order.
 struct ManifestEffect {
   std::string id;
-  std::string kind; // "amp", "drive", "cabinet", "gate", "compressor", "sustain" or "chorus"
+  std::string kind; // "amp", "drive", "cabinet", "gate", "compressor", "sustain", "chorus" or "delay"
   std::filesystem::path path; // empty for a file-free effect
   bool enabled = true;
   std::map<std::string, double> parameters; // evaluated during graph preparation
@@ -60,11 +60,11 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
       throw std::invalid_argument(prefix + "duplicate, empty or oversized effect id");
     }
 
-    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor" && kind != "sustain" && kind != "chorus") {
+    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor" && kind != "sustain" && kind != "chorus" && kind != "delay") {
       throw std::invalid_argument(prefix + "DSP not implemented for effect kind: " + kind);
     }
     std::filesystem::path path;
-    if (kind == "gate" || kind == "compressor" || kind == "sustain" || kind == "chorus") {
+    if (kind == "gate" || kind == "compressor" || kind == "sustain" || kind == "chorus" || kind == "delay") {
       // Native file-free effects never load .nam/.wav files.
       if (node.contains("resource")) {
         throw std::invalid_argument(prefix + "native effect must not have a resource");
@@ -135,6 +135,15 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
             (name == "mix" && number >= 0.0 && number <= 100.0);
         if (!valid) {
           throw std::invalid_argument(prefix + "unknown or out-of-range chorus parameter: " + name);
+        }
+      }
+      if (kind == "delay") {
+        const bool valid =
+            (name == "time" && number >= 40.0 && number <= 1200.0) ||
+            (name == "feedback" && number >= 0.0 && number <= 90.0) ||
+            (name == "mix" && number >= 0.0 && number <= 100.0);
+        if (!valid) {
+          throw std::invalid_argument(prefix + "unknown or out-of-range delay parameter: " + name);
         }
       }
       parameters.emplace(name, number);

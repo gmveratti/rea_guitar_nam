@@ -116,6 +116,25 @@ int main() {
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{"feedback":50}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{},"resource":{"path":"invalid.nam"}}]})"));
 
+  // Native file-free delay: time is actual milliseconds at 48 kHz.
+  std::istringstream delay_stream(R"({"schemaVersion":1,"nodes":[
+    {"id":"dly-a","kind":"delay","enabled":true,
+     "parameters":{"time":420,"feedback":38,"mix":28}},
+    {"id":"ch","kind":"chorus","enabled":true,"parameters":{}},
+    {"id":"dly-b","kind":"delay","enabled":false,"parameters":{}}
+  ]})");
+  const auto delay_nodes = vttrig::parse_chain_manifest(delay_stream);
+  assert(delay_nodes.size() == 3);
+  assert(delay_nodes[0].kind == "delay" && delay_nodes[2].kind == "delay");
+  assert(delay_nodes[0].path.empty() && delay_nodes[0].parameters.at("time") == 420.0);
+  assert(!delay_nodes[2].enabled);
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{"time":39}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{"time":1201}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{"feedback":91}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{"mix":-1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{"tone":50}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"d","kind":"delay","enabled":true,"parameters":{},"resource":{"path":"fake.nam"}}]})"));
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"flanger","kind":"flanger","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));

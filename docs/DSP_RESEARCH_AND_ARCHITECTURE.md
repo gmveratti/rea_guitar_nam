@@ -49,9 +49,9 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 | **VTTREVERB / Cloud** | [Ghost Note CloudSeedCore](https://github.com/GhostNoteAudio/CloudSeedCore) | MIT | **Primeira opção para caudas densas / modulação / ambient** | Core do Cloud Seed separado da GUI fechada; requer integração C++ e testes de CPU |
 | **VTTREVERB / Plate/Room** | [Dragonfly Reverb](https://github.com/michaelwillis/dragonfly-reverb) | GPLv3 | **Referência de timbre e A/B**, não copiar direto para uma base MIT | Muito recomendado nos fóruns Linux; compartilhar código exige análise da GPL do produto derivado |
 | **VTTREVERB / alternative** | [Airwindows Verbity / Galactic / kPlate](https://github.com/airwindows/airwindows) | MIT | **Experimentos A/B** para plate/hall/efeitos especiais | Caracteres distintos, possível combinar em modos separados |
-| **VTTDELAY / Tape** | [Airwindows TapeDelay2](https://github.com/airwindows/airwindows) | MIT | **Primeiro tape delay** | Boa fonte para caráter analógico; validar controles reais disponíveis no algoritmo |
+| **VTTDELAY / Tape futuro** | [Airwindows TapeDelay2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/TapeDelay2/TapeDelay2Proc.cpp) | MIT | **Modo futuro, não implementado nesta etapa** | Tempo baseado em velocidade do buffer, regeneração filtrada, ressonância e flutter: não equivale diretamente ao Time em ms |
 | **VTTDELAY / Multi-tap** | [CHOW Matrix](https://github.com/Chowdhury-DSP/ChowMatrix) | BSD-3-Clause | **Candidato a modo avançado**, múltiplas linhas/feedback | Reuso do DSP precisa checar dependências de JUCE/terceiros; não transportar o plugin inteiro sem auditoria |
-| **VTTDELAY / Clean** | delay line próprio, usando [DaisySP](https://github.com/electro-smith/DaisySP) como referência de utilitários | MIT no DaisySP principal | **Implementação curta e testável** de delay digital, tap tempo, feedback | Essencial para presets previsíveis; algoritmos de caráter vão em modos específicos |
+| **VTTDELAY / Classic mono** | **DSP original VTTRIG**, linha circular com feedback filtrado e saturação suave | Código próprio VTTRIG | **Implementado em C++20**, tempo exato 40–1200 ms, feedback 0–90%, mix 0–100% | Presets existentes compatíveis; feedback reduz brilho dos ecos; tap tempo, modos Tape e testes físicos pendentes |
 | **VTTCHORUS / Stereo** | [Airwindows StereoChorus](https://github.com/airwindows/airwindows) | MIT | **Candidato A/B de chorus estéreo** | Comparar com DaisySP para robustez, mono compatibility e ruído |
 | **VTTCHORUS / Classic mono** | [DaisySP Chorus](https://github.com/daisyaudio/DaisySP/blob/master/Source/Effects/chorus.cpp) | MIT | **Duas vozes com delay modulado e LFO triangular adaptadas em C++20** (PR Chorus), 48 kHz mono | Rate, Depth e Mix reais; feedback fixo 20%; versão estéreo e teste auditivo ainda pendentes |
 | **VTTCOMP / Smooth** | [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) | MIT | **DSP implementado em C++ nativo (PR Compressor)** | Parâmetros reais **Compress, Output, Dry/Wet**. Mono/48 kHz, sem VST/JUCE; A/B físico pendente |
@@ -72,6 +72,8 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 ## 4. Design de som por pedal: requisitos mínimos
 
 **VTTDELAY:** modos Digital, Tape, depois Multi-tap; parâmetros Time (ms), Sync/Division, Feedback, Mix, Tone (HP/LP), Mod (se disponível), Trails e tap tempo; feedback com teto seguro; sem cliques ao trocar time (interpolação/crossfade).
+
+**VTTDELAY:** modo Classic mono com Time em ms, Feedback e Mix reais e atraso exato em amostras. O filtro e saturação da regeneração suavizam as repetições; sem alegar equivalência ao Airwindows TapeDelay2. Modos Tape fiel, tap tempo sincronizado ao host, estéreo e A/B continuam pendentes.
 
 **VTTREVERB:** modos Cloud, Hall/Room/Plate quando comprovados; parâmetros Decay, Size, Predelay, Tone/High-cut, Mix, Modulation; impedir tail infinita por erro e permitir preservar tails no bypass; avaliar carga da CloudSeed separadamente.
 

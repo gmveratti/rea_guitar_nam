@@ -129,11 +129,11 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
   },
   delay: {
     kind: "delay",
-    title: "Tape Delay",
-    caption: "ECHO / TAPE",
+    title: "VTT Delay",
+    caption: "ECHO / DL-01",
     category: "AMBIÊNCIA",
     accent: "#2fbbcc",
-    description: "Delay estilo tape inspirado no Airwindows TapeDelay2.",
+    description: "Delay mono nativo com Time real em ms, Feedback de repetições suavizadas e Mix. Modo TapeDelay2 completo fica para uma etapa separada.",
     parameters: [
       { key: "time", label: "Time", min: 40, max: 1200, step: 10, unit: "ms", defaultValue: 420 },
       { key: "feedback", label: "Feedback", min: 0, max: 90, step: 1, unit: "%", defaultValue: 38 },
