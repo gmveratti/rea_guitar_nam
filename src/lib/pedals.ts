@@ -70,11 +70,12 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     caption: "DYNAMICS / SU-01",
     category: "DINÂMICA",
     accent: "#57aaee",
-    description: "Controle musical de sustain com compressão longa e compensação de nível. DSP ainda pendente.",
+    description: "Sustain nativo com núcleo de compressão Airwindows Pressure5 (MIT), Speed programável, Level e Dry/Wet.",
     parameters: [
       { key: "sustain", label: "Sustain", min: 0, max: 100, step: 1, unit: "%", defaultValue: 65 },
-      { key: "attack", label: "Attack", min: 1, max: 100, step: 1, unit: "ms", defaultValue: 12 },
+      { key: "speed", label: "Speed", min: 0, max: 100, step: 1, unit: "%", defaultValue: 25 },
       { key: "level", label: "Level", min: -18, max: 18, step: 0.5, unit: "dB", defaultValue: 0 },
+      { key: "mix", label: "Dry/Wet", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
     ],
   },
   drive: {
