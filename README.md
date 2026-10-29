@@ -2,7 +2,19 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: PR #15 em revisão.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **Hardware, estabilidade e latência ainda não estão homologados.**
+> **Status: PR #15 integrado à `main`.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **Hardware, estabilidade e latência ainda não estão homologados.**
+
+## Origem de amplificadores e gabinetes: TONE3000
+
+- **VTTAMP:** carregar modelos de amplificador **NAM A2-Lite ou A2-Full (`.nam`)** baixados de [TONE3000](https://www.tone3000.com/), executados no **NeuralAmpModelerCore**.
+- **VTTCAB:** carregar **Impulse Responses de gabinetes (`.wav`)** baixadas de [TONE3000](https://www.tone3000.com/guides/impulse-responses), processadas pelo **convolutor IR nativo**.
+- **VTTDRIVE:** carregar capturas de pedais de drive **NAM A2 (`.nam`)** do mesmo catálogo, usando o core NAM.
+
+**Fluxo disponível hoje:** baixar os arquivos pelo site, salvar no computador e selecioná-los na pedalboard. **Ainda não há navegador/download automático do TONE3000 no aplicativo**; uma possível integração oficial via API permanece no roadmap e depende dos termos da plataforma. Os arquivos de terceiros não são distribuídos junto com o VTTRIG. O TONE3000 também contém arquivos A1 legados: escolher e validar arquivos **A2-Lite/Full** quando esse for o objetivo.
+
+**Atenção ao tipo de captura:** um *Amp Head* normalmente é combinado com uma IR de gabinete; uma captura *Amp + Cab* já inclui o gabinete e não exige outra IR. O usuário segue livre para organizar e habilitar os módulos. O motor atual é experimental, mono/48 kHz, e a compatibilidade precisa ser validada em testes reais.
+
+Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHITECTURE.md) e [guia oficial NAM × IR](https://www.tone3000.com/guides/neural-amp-modeler).
 
 ## PR #15: integração inicial da pedalboard ao áudio NAM/IR
 
