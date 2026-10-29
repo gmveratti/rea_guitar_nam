@@ -2,6 +2,7 @@
 
 #include "chain_manifest.hpp"
 #include "effect_chain.hpp"
+#include "noise_gate.hpp"
 
 #include <NAM/dsp.h>
 #include <NAM/get_dsp.h>
@@ -53,8 +54,8 @@ inline std::vector<ManifestEffect> load_chain_file(
 
 // No host-specific types or thread operations here. The stages remain in the
 // exact source order, including duplicate kinds and bypassed instances.
-// Parameters in the JSON are validated by the manifest parser but are not
-// mapped to DSP controls yet. Do not present this as gain/EQ automation.
+// Gate parameters are applied during graph preparation. NAM/IR gain and EQ
+// controls remain visual-only; do not present them as mapped DSP controls.
 inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
                                double sample_rate = 48000.0) {
   if (!std::isfinite(sample_rate) || sample_rate != 48000.0) {
@@ -62,6 +63,21 @@ inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
   }
   MonoChain chain;
   for (const auto& spec : specs) {
+    if (spec.kind == "gate") {
+      NoiseGateParams p;
+      if (const auto it = spec.parameters.find("threshold"); it != spec.parameters.end())
+        p.threshold = it->second;
+      if (const auto it = spec.parameters.find("release"); it != spec.parameters.end())
+        p.release = it->second;
+      if (const auto it = spec.parameters.find("hold"); it != spec.parameters.end())
+        p.hold = it->second;
+      if (const auto it = spec.parameters.find("range"); it != spec.parameters.end())
+        p.range = it->second;
+      chain.append(Stage{
+          spec.id, spec.kind, spec.enabled,
+          std::make_unique<NoiseGateMonoProcessor>(p, sample_rate)});
+      continue;
+    }
     auto model = nam::get_dsp(spec.path);
     if (!model) {
       throw std::runtime_error("Failed to load effect: " + spec.path.string());

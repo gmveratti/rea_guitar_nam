@@ -7,6 +7,7 @@
 #include <cmath>
 #include <filesystem>
 #include <istream>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -18,9 +19,10 @@ namespace vttrig {
 // the JACK engine. An array's order is the user's signal order.
 struct ManifestEffect {
   std::string id;
-  std::string kind; // "amp", "drive" or "cabinet"
-  std::filesystem::path path;
+  std::string kind; // "amp", "drive", "cabinet" or "gate"
+  std::filesystem::path path; // empty for a file-free gate
   bool enabled = true;
+  std::map<std::string, double> parameters; // evaluated during graph preparation
 };
 
 inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
@@ -58,40 +60,58 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
       throw std::invalid_argument(prefix + "duplicate, empty or oversized effect id");
     }
 
-    if (kind != "amp" && kind != "drive" && kind != "cabinet") {
+    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate") {
       throw std::invalid_argument(prefix + "DSP not implemented for effect kind: " + kind);
     }
-    if (!node.contains("resource") || !node["resource"].is_object() ||
-        !node["resource"].contains("path") || !node["resource"]["path"].is_string()) {
-      throw std::invalid_argument(prefix + "a local model/IR resource.path is required");
+    std::filesystem::path path;
+    if (kind == "gate") {
+      // The VTTGATE is a portable DSP effect: it never loads .nam/.wav files.
+      if (node.contains("resource")) {
+        throw std::invalid_argument(prefix + "gate must not have a resource");
+      }
+    } else {
+      if (!node.contains("resource") || !node["resource"].is_object() ||
+          !node["resource"].contains("path") || !node["resource"]["path"].is_string()) {
+        throw std::invalid_argument(prefix + "a local model/IR resource.path is required");
+      }
+      const auto path_string = node["resource"]["path"].get<std::string>();
+      if (path_string.empty() || path_string.size() > 4096) {
+        throw std::invalid_argument(prefix + "model/IR resource.path is invalid");
+      }
+      path = std::filesystem::path(path_string);
+      const std::string extension = (kind == "cabinet") ? ".wav" : ".nam";
+      auto actual_extension = path.extension().string();
+      // Case-insensitive extension; never change the actual file path.
+      std::transform(actual_extension.begin(), actual_extension.end(),
+                     actual_extension.begin(), [](unsigned char c) {
+                       return static_cast<char>(std::tolower(c));
+                     });
+      if (actual_extension != extension) {
+        throw std::invalid_argument(prefix + "expected " + extension + " file for " + kind);
+      }
     }
-    const auto path_string = node["resource"]["path"].get<std::string>();
-    if (path_string.empty() || path_string.size() > 4096) {
-      throw std::invalid_argument(prefix + "model/IR resource.path is invalid");
-    }
-    const std::filesystem::path path(path_string);
-    const std::string extension = (kind == "cabinet") ? ".wav" : ".nam";
-    auto actual_extension = path.extension().string();
-    // Match the Rust picker: extension comparison is ASCII case-insensitive
-    // on both Windows and Linux, without modifying the actual resource path.
-    std::transform(actual_extension.begin(), actual_extension.end(),
-                   actual_extension.begin(), [](unsigned char c) {
-                     return static_cast<char>(std::tolower(c));
-                   });
-    if (actual_extension != extension) {
-      throw std::invalid_argument(prefix + "expected " + extension + " file for " + kind);
-    }
-    // Parameters will be connected to the DSP adapter in a subsequent PR.
-    // Reject malformed values rather than silently accepting unusable presets.
     if (!node.contains("parameters") || !node["parameters"].is_object()) {
       throw std::invalid_argument(prefix + "parameters must be a map");
     }
+    std::map<std::string, double> parameters;
     for (const auto& [name, value] : node["parameters"].items()) {
       if (!value.is_number() || !std::isfinite(value.get<double>())) {
         throw std::invalid_argument(prefix + "invalid parameter: " + name);
       }
+      const double number = value.get<double>();
+      if (kind == "gate") {
+        const bool valid =
+            (name == "threshold" && number >= -100.0 && number <= 0.0) ||
+            (name == "release" && number >= 5.0 && number <= 500.0) ||
+            (name == "hold" && number >= 0.0 && number <= 200.0) ||
+            (name == "range" && number >= 20.0 && number <= 80.0);
+        if (!valid) {
+          throw std::invalid_argument(prefix + "unknown or out-of-range gate parameter: " + name);
+        }
+      }
+      parameters.emplace(name, number);
     }
-    plan.push_back({id, kind, path, node["enabled"].get<bool>()});
+    plan.push_back({id, kind, path, node["enabled"].get<bool>(), std::move(parameters)});
   }
   return plan;
 }

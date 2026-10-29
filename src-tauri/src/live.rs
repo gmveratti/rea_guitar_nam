@@ -88,6 +88,32 @@ fn validate_manifest(json: &str) -> Result<(), String> {
     }
     for node in nodes {
         let kind = node["kind"].as_str().unwrap_or("");
+        if kind == "gate" {
+            // File-free TONE3000-derived DSP. Parameters must agree with C++ preflight.
+            if node.get("resource").is_some() {
+                return Err("VTTGATE não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTGATE inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTGATE deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "threshold" => (-100.0..=0.0).contains(&number),
+                    "release" => (5.0..=500.0).contains(&number),
+                    "hold" => (0.0..=200.0).contains(&number),
+                    "range" => (20.0..=80.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTGATE: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
@@ -415,6 +441,25 @@ mod tests {
         assert!(consumer.pop().is_err());
         push_processed_sample(&mut producer, 0.4, &overflows);
         assert_eq!(overflows.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn accepts_file_free_gate_and_rejects_invalid_parameters() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"gate-a","kind":"gate","enabled":true,
+             "parameters":{"threshold":-50,"release":50,"hold":20,"range":80}},
+            {"id":"gate-b","kind":"gate","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"gate","resource":{"path":"wrong.nam"},"parameters":{}}]}"#
+        ).is_err());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"hold":300}}]}"#
+        ).is_err());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"attack":10}}]}"#
+        ).is_err());
     }
 
     #[test]

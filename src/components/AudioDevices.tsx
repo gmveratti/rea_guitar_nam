@@ -178,7 +178,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
       <AudioLines size={23}/>
       <div>
         <h2>Áudio e dispositivos</h2>
-        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe NAM/IR da pedalboard na ordem visual. Outros pedais ainda não possuem DSP e são ignorados explicitamente.</p>
+        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe VTTGATE, NAM e IR da pedalboard na ordem visual. Compressor, Sustain, Chorus, Delay e Reverb ainda não possuem DSP e são ignorados explicitamente.</p>
         {!native ? (
           <p role="status">Abra o aplicativo desktop para listar drivers e interfaces de áudio. Esta visualização web não acessa seus dispositivos.</p>
         ) : (
@@ -225,9 +225,9 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
                 <p>Arquivos reais são associados a cada VTTAMP, VTTDRIVE e VTTCAB diretamente na pedalboard. Power, bypass e ordem são aplicados ao iniciar. Ajustes feitos durante a sessão precisam de reinício manual.</p>
                 {livePreview ? (
                   <>
-                    <p role="status">{livePreview.nodes.length} módulo(s) NAM/IR preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
+                    <p role="status">{livePreview.nodes.length} módulo(s) nativo(s) preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
                     <ol>{livePreview.nodes.map(node =>
-                      <li key={node.id}>{node.kind.toUpperCase()} · {node.enabled ? "ligado" : "bypass"} · {node.resource.path.split(/[\\\\/]/).pop()}</li>
+                      <li key={node.id}>{node.kind.toUpperCase()} · {node.enabled ? "ligado" : "bypass"} · {('resource' in node ? node.resource.path : 'DSP interno').split(/[\\\\/]/).pop()}</li>
                     )}</ol>
                   </>
                 ) : <p className="audio-device-warning" role="status">{livePlan.error}</p>}

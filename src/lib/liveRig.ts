@@ -1,14 +1,17 @@
 import { validateChain, type PedalInstance, type PedalKind } from "./pedals";
 
-const NATIVE_KINDS = new Set<PedalKind>(["amp", "drive", "cabinet"]);
+const RESOURCE_KINDS = new Set<PedalKind>(["amp", "drive", "cabinet"]);
+const NATIVE_KINDS = new Set<PedalKind>(["gate", "amp", "drive", "cabinet"]);
 export type RigResources = Record<string, string>;
-export type NativeRigNode = {
-  id: string;
-  kind: "amp" | "drive" | "cabinet";
-  enabled: boolean;
-  parameters: Record<string, number>;
-  resource: { path: string };
-};
+export type NativeRigNode =
+  | { id: string; kind: "gate"; enabled: boolean; parameters: Record<string, number> }
+  | {
+    id: string;
+    kind: "amp" | "drive" | "cabinet";
+    enabled: boolean;
+    parameters: Record<string, number>;
+    resource: { path: string };
+  };
 export type LiveBoardSnapshot = {
   schemaVersion: 1;
   nodes: NativeRigNode[];
@@ -30,14 +33,14 @@ export function validateRigResources(value: unknown, chain: readonly PedalInstan
   const source = value as Record<string, unknown>;
   const result: RigResources = {};
   for (const effect of chain) {
-    if (!NATIVE_KINDS.has(effect.kind)) continue;
+    if (!RESOURCE_KINDS.has(effect.kind)) continue;
     const path = Object.prototype.hasOwnProperty.call(source, effect.id) ? source[effect.id] : undefined;
     if (validNativePath(path, effect.kind)) result[effect.id] = path;
   }
   return result;
 }
 
-/** Only native NAM/IR stages execute. Unsupported visual pedals are reported explicitly. */
+/** Gate, NAM and IR execute in the EXACT user order. Other visual pedals are reported. */
 export function buildLiveBoardSnapshot(
   chain: readonly PedalInstance[],
   paths: Readonly<RigResources>,
@@ -52,6 +55,13 @@ export function buildLiveBoardSnapshot(
       if (effect.enabled) ignored.push({ id: effect.id, kind: effect.kind });
       continue;
     }
+    if (effect.kind === "gate") {
+      nodes.push({
+        id: effect.id, kind: "gate", enabled: effect.enabled,
+        parameters: { ...effect.values },
+      });
+      continue;
+    }
     const path = Object.prototype.hasOwnProperty.call(paths, effect.id) ? paths[effect.id] : undefined;
     const enabled = effect.enabled && (effect.kind !== "amp" || ampPowered);
     if (!validNativePath(path, effect.kind)) {
@@ -61,12 +71,12 @@ export function buildLiveBoardSnapshot(
     }
     nodes.push({
       id: effect.id,
-      kind: effect.kind as NativeRigNode["kind"],
+      kind: effect.kind as "amp" | "drive" | "cabinet",
       enabled,
       parameters: { ...effect.values },
       resource: { path },
     });
   }
-  if (!nodes.length) throw new Error("Adicione um NAM ou IR à pedalboard e selecione o arquivo.");
+  if (!nodes.length) throw new Error("Adicione um Noise Gate, NAM ou IR à pedalboard.");
   return { schemaVersion: 1, nodes, ignored };
 }

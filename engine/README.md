@@ -1,5 +1,38 @@
 # VTTRIG native NAM / IR JACK engine
 
+## VTTGATE: open-source audio effect (TONE3000 NoiseGate)
+
+**Real native DSP, not merely a visual pedal.** The VTTRIG pedal chassis is
+a presentation component; the audio is computed by a C++20 algorithm
+adapted from TONE3000's MIT-licensed
+[`NoiseGate.h`](https://github.com/tone-3000/tone3000-plugin/blob/main/plugin/include/NoiseGate.h).
+JUCE types were removed; the algorithm runs in the shared `MonoChain` on
+Windows and Linux. License and attribution: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The native manifest accepts `kind: "gate"` with **no** `resource` and
+the optional `parameters` below:
+
+| Parameter | Range | Default | Meaning |
+|---|---:|---:|---|
+| `threshold` | -100..0 dB | -80 dB | Open threshold; close threshold is 5 dB lower |
+| `release` | 5..500 ms | 50 ms | Smooth gain closing |
+| `hold` | 0..200 ms | 20 ms | How long to remain open below the close threshold |
+| `range` | 20..80 dB | 80 dB | Closed attenuation / expander floor |
+
+The gate uses a band-passed sidechain, fast envelope follower, 5 dB
+hysteresis, configurable hold and a smooth cubic downward expander. It does
+not introduce lookahead latency. There can be multiple gate instances
+anywhere in the user-controlled chain, and each can be bypassed. As in PR #15,
+parameters/order/bypass are applied at **Start**; live changes still require
+**Stop / Start**. Other NAM and IR knobs remain visually configured but not
+mapped to audio DSP.
+
+CTest `noise_gate_envelope_hold_and_bypass` checks audible-path signal,
+attenuation, hold, independent instances and bypass. Manifest and UI tests
+cover malformed values, missing resources and exact source order. As always,
+passing CI is not the same as a quality/latency test with a real guitar.
+
+
 **Experimental standalone CLI for Fedora/PipeWire-JACK.** This is not the Tauri UI.
 The engine is based on the MIT-licensed NeuralAmpModelerCore used by Gateway,
 pinned at commit `0b3d3c97b0859a3a8c92a8628c4dd89a25eb5842` (v0.6.0).
