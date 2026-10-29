@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: PR #15 integrado à `main`.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **Hardware, estabilidade e latência ainda não estão homologados.**
+> **Status: PR #15 integrado à `main`.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **O Noise Gate já possui DSP; esta branch acrescenta o Compressor Smooth, ambos nativos. Hardware, estabilidade e latência ainda não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
