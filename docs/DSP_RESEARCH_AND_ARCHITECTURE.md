@@ -53,7 +53,7 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 | **VTTDELAY / Multi-tap** | [CHOW Matrix](https://github.com/Chowdhury-DSP/ChowMatrix) | BSD-3-Clause | **Candidato a modo avançado**, múltiplas linhas/feedback | Reuso do DSP precisa checar dependências de JUCE/terceiros; não transportar o plugin inteiro sem auditoria |
 | **VTTDELAY / Clean** | delay line próprio, usando [DaisySP](https://github.com/electro-smith/DaisySP) como referência de utilitários | MIT no DaisySP principal | **Implementação curta e testável** de delay digital, tap tempo, feedback | Essencial para presets previsíveis; algoritmos de caráter vão em modos específicos |
 | **VTTCHORUS / Stereo** | [Airwindows StereoChorus](https://github.com/airwindows/airwindows) | MIT | **Candidato A/B de chorus estéreo** | Comparar com DaisySP para robustez, mono compatibility e ruído |
-| **VTTCHORUS / Classic** | [DaisySP Chorus](https://github.com/electro-smith/DaisySP) | MIT na árvore principal | **Primeira implementação do chorus clássico** | Código modular, controles LFO/depth/delay/feedback e fácil portar em DSP nativo |
+| **VTTCHORUS / Classic mono** | [DaisySP Chorus](https://github.com/daisyaudio/DaisySP/blob/master/Source/Effects/chorus.cpp) | MIT | **Duas vozes com delay modulado e LFO triangular adaptadas em C++20** (PR Chorus), 48 kHz mono | Rate, Depth e Mix reais; feedback fixo 20%; versão estéreo e teste auditivo ainda pendentes |
 | **VTTCOMP / Smooth** | [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) | MIT | **DSP implementado em C++ nativo (PR Compressor)** | Parâmetros reais **Compress, Output, Dry/Wet**. Mono/48 kHz, sem VST/JUCE; A/B físico pendente |
 | **VTTCOMP / Character** | [Airwindows Pressure5](https://github.com/airwindows/airwindows) | MIT | **Modo punch/character**, opcional | A/B contra clean para não hipercomprimir o transiente |
 | **VTTCOMP / Transparent** | [LSP Compressor](https://github.com/lsp-plugins/) | LGPLv3 | **Referência técnica de dinâmica**, possível integração isolada conforme licença | Compressor com envelope, knee, attack/release, sidechain; auditar obrigações de distribuição antes de importar |
@@ -75,7 +75,7 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 
 **VTTREVERB:** modos Cloud, Hall/Room/Plate quando comprovados; parâmetros Decay, Size, Predelay, Tone/High-cut, Mix, Modulation; impedir tail infinita por erro e permitir preservar tails no bypass; avaliar carga da CloudSeed separadamente.
 
-**VTTCHORUS:** modos Classic e Stereo; Rate, Depth, Mix, Delay, Width, Feedback; testes de cancelamento mono, ranges estáveis e transientes sem pops; padrão sonoro de baixo ruído.
+**VTTCHORUS:** modo Classic mono já adaptado do DaisySP com controles Rate, Depth, Mix, delay base fixo ~6 ms e feedback fixo 20%; modo Stereo, Width e controles avançados permanecem pendentes até o motor ter áudio multicanal. Medir CPU, transientes, estabilidade e comparar timbre com DaisySP.
 
 **VTTCOMP:** um modo Smooth guitarra e outro Transparent/Punch após escuta; controles devem corresponder à implementação real, com gain reduction meter genuíno quando DSP existir; entrada, limiar, attack/release, makeup, ratio/knee somente se suportados.
 

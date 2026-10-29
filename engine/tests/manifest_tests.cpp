@@ -96,8 +96,28 @@ int main() {
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{"mix":101}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"s","kind":"sustain","enabled":true,"parameters":{},"resource":{"path":"test.nam"}}]})"));
 
+  // DaisySP-inspired mono chorus: file-free, ordered, repeated, bypassed.
+  std::istringstream chorus_stream(R"({"schemaVersion":1,"nodes":[
+    {"id":"ch-a","kind":"chorus","enabled":true,
+     "parameters":{"rate":1.2,"depth":48,"mix":30}},
+    {"id":"ch-b","kind":"chorus","enabled":false,"parameters":{}},
+    {"id":"su","kind":"sustain","enabled":true,"parameters":{}}
+  ]})");
+  const auto chorus_nodes = vttrig::parse_chain_manifest(chorus_stream);
+  assert(chorus_nodes.size() == 3);
+  assert(chorus_nodes[0].kind == "chorus");
+  assert(chorus_nodes[0].parameters.at("rate") == 1.2);
+  assert(chorus_nodes[0].path.empty());
+  assert(chorus_nodes[1].kind == "chorus" && !chorus_nodes[1].enabled);
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{"rate":0}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{"rate":8.1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{"depth":101}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{"mix":-1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{"feedback":50}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"c","kind":"chorus","enabled":true,"parameters":{},"resource":{"path":"invalid.nam"}}]})"));
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
-  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"chorus","kind":"chorus","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"flanger","kind":"flanger","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.wav"}}]})"));

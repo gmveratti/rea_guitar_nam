@@ -116,11 +116,11 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
   },
   chorus: {
     kind: "chorus",
-    title: "Stereo Chorus",
-    caption: "MODULATION",
+    title: "VTT Chorus",
+    caption: "MODULATION / CH-01",
     category: "MODULAÇÃO",
     accent: "#ee9e37",
-    description: "Chorus inspirado nos algoritmos abertos do Airwindows StereoChorus.",
+    description: "Chorus mono nativo adaptado do DaisySP (MIT), com duas vozes moduladas; Rate, Depth e Mix atuam no áudio.",
     parameters: [
       { key: "rate", label: "Rate", min: 0.1, max: 8, step: 0.1, unit: "Hz", defaultValue: 1.2 },
       { key: "depth", label: "Depth", min: 0, max: 100, step: 1, unit: "%", defaultValue: 48 },

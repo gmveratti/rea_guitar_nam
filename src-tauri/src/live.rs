@@ -161,6 +161,29 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "chorus" {
+            if node.get("resource").is_some() {
+                return Err("VTTCHORUS não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTCHORUS inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTCHORUS deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "rate" => (0.1..=8.0).contains(&number),
+                    "depth" | "mix" => (0.0..=100.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTCHORUS: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
@@ -547,6 +570,26 @@ mod tests {
             r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"mix":101}}]}"#,
             r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"attack":12}}]}"#,
             r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{},"resource":{"path":"test.nam"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
+    fn accepts_file_free_chorus_and_rejects_invalid_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"ch-1","kind":"chorus","enabled":true,
+             "parameters":{"rate":1.2,"depth":48,"mix":30}},
+            {"id":"ch-2","kind":"chorus","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"rate":0}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"rate":9}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"depth":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"mix":101}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"feedback":20}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{},"resource":{"path":"bad.wav"}}]}"#,
         ] {
             assert!(validate_manifest(bad).is_err());
         }

@@ -1,5 +1,23 @@
 # VTTRIG native NAM / IR JACK engine
 
+## VTTCHORUS Classic: DaisySP ChorusEngine em mono
+
+`kind: "chorus"` é um nó nativo sem `resource`, com três parâmetros
+validados: `rate` (0.1–8 Hz, padrão 1.2), `depth` (0–100%, padrão 48)
+e `mix` (0–100%, padrão 30). O algoritmo C++20 `daisy_chorus.hpp`
+adapta as linhas de delay, interpolação linear, LFO triangular e feedback
+(20%) do DaisySP ChorusEngine (MIT), em duas vozes com fases diferentes.
+A saída do VTTRIG permanece **mono 48 kHz**; os dois canais e pan da
+interface estéreo do DaisySP original não são utilizados. `mix: 0`
+preserva o sinal de entrada exatamente.
+
+Não há alocação nem bloqueio no callback. A memória dos delays está
+prealocada em cada instância, o bypass preserva o sinal e a ordem pode
+ser modificada apenas antes de iniciar o processamento ao vivo.
+Testes do efeito e parâmetros no CTest/TypeScript/Rust. Ainda não
+avaliado em interface física, nem homologado para estéreo ou múltiplas
+frequências de amostragem.
+
 ## VTTSUSTAIN: Pressure5 dynamics (Airwindows MIT)
 
 `kind: "sustain"` is a file-free `schemaVersion: 1` native DSP node
@@ -165,7 +183,7 @@ Use *real local* paths to a mono `.nam` or `.wav` for each instance:
 **Rules and present limits:** array order is the exact DSP sequence;
 IDs must be unique; up to 24 stages; repeat `amp`, `drive` or `cabinet`
 freely, each with independent bypass. Unknown/unsupported effects
-(`chorus`, `delay`, `reverb`) are
+(`delay`, `reverb`) are
 **rejected explicitly** even if disabled; the engine does not silently
 pretend to apply them. Version and malformed parameters are rejected.
 Parameters are currently **validated only, not applied** to NAM/IR audio:
@@ -295,7 +313,7 @@ Begin with monitor volume low to avoid feedback or high gain.
 - Currently supports mono-input/mono-output `.nam` or mono `.wav` IR
   nodes, max 24 blocks, 48 kHz JACK, prewarmed DSP outside realtime.
 - Stereo IR, arbitrary sample rates for NAM, MIDI, amp-skin DSP mapping,
-  chorus, delay and reverb are **pending**.
+  delay and reverb are **pending**.
 - Each node has its own bypass/identity. Model loads, sample-rate conversions
   of IRs and other expensive operations must occur off the audio callback.
 - Output is safety-clamped to [-1, 1]. No claims about final timbre,

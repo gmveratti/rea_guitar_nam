@@ -76,6 +76,25 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
     expect(buildLiveBoardSnapshot([sustain], {}).nodes.map(n => n.kind)).toEqual(["sustain"]);
   });
 
+  it("serializes multiple file-free native Chorus pedals with real controls", () => {
+    const ch = createPedal("chorus"), gate = createPedal("gate");
+    const ch2 = createPedal("chorus");
+    ch.values.rate = 5.2;
+    ch.values.depth = 77;
+    ch.values.mix = 62;
+    ch2.enabled = false;
+    const manifest = buildLiveBoardSnapshot([ch2, gate, ch], {});
+    expect(manifest.nodes.map(n => n.kind)).toEqual(["chorus", "gate", "chorus"]);
+    expect(manifest.nodes.map(n => n.enabled)).toEqual([false, true, true]);
+    expect(manifest.nodes[2]).toEqual({
+      id: ch.id, kind: "chorus", enabled: true,
+      parameters: { rate: 5.2, depth: 77, mix: 62 },
+    });
+    expect(manifest.ignored).toEqual([]);
+    expect(buildLiveBoardSnapshot([createPedal("chorus")], {}).nodes[0].kind).toBe("chorus");
+    expect(validateRigResources({ [ch.id]: "/wrong.nam" }, [ch])).toEqual({});
+  });
+
   it("does not claim other unsupported visual pedals are running in DSP", () => {
     const gate = createPedal("gate"), amp = createPedal("amp"), delay = createPedal("delay");
     const result = buildLiveBoardSnapshot([gate, amp, delay], { [amp.id]: "/amp.nam" });
@@ -103,7 +122,7 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
   it("permits a gate-only native chain without a model", () => {
     const gate = createPedal("gate");
     expect(buildLiveBoardSnapshot([gate], {}).nodes.map(n => n.kind)).toEqual(["gate"]);
-    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*Compressor.*Sustain.*NAM.*IR/);
+    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*Compressor.*Sustain.*Chorus.*NAM.*IR/);
   });
 
   it("validates and filters stale/corrupt resource mappings by node identity", () => {

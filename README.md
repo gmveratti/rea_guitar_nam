@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: motor NAM/IR experimental, VTTGATE e VTT Compressor Smooth na `main`; esta branch adiciona VTTSUSTAIN.** Os três pedais de dinâmica têm DSP nativo. Para aplicar alterações de parâmetros, ainda é necessário **Parar/Iniciar**. Chorus, Delay e Reverb seguem visuais. **Hardware, estabilidade e latência ainda não estão homologados.**
+> **Status: VTTGATE, VTTCOMP e VTTSUSTAIN integrados à `main`; esta branch adiciona VTTCHORUS mono.** Os efeitos nativos seguem a ordem visual da pedalboard e exigem **Parar/Iniciar** para aplicar alterações. Delay e Reverb ainda são visuais. **Hardware, latência e estabilidade não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -33,6 +33,13 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 - Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
   sem alterar a regra da CI.
 
+## VTTCHORUS Classic: DaisySP em áudio mono
+
+- **DSP nativo C++20**, adaptado do [DaisySP ChorusEngine](https://github.com/daisyaudio/DaisySP/blob/master/Source/Effects/chorus.cpp) (MIT). Usa duas vozes independentes de delay com leitura fracionária e LFO triangular, defasadas entre si. Possui realimentação interna fixa de 20% e atraso base de aproximadamente 6 ms.
+- **Knobs reais**: Rate (0,1 a 8 Hz), Depth (0 a 100%) e Mix (0 a 100%). **Mix=0 é sinal original exato**; o algoritmo executa com buffers previamente alocados e sem carregar modelos NAM.
+- **Por enquanto a saída é mono, não estéreo**. A versão estéreo dependerá da evolução da cadeia nativa e do roteamento de canais. O chassis/pedal segue sendo original VTTRIG, sem copiar aparência de terceiros.
+- Respeita reordenação, bypass, presets e instâncias repetidas. Alterações na sessão em execução ainda exigem **Parar/Iniciar**. Testes automatizados não substituem audição com guitarra, interface e medição de CPU/latência.
+
 ## VTTSUSTAIN: Pressure5 dynamics (Airwindows MIT)
 
 - **DSP C++20 mono** adaptado do núcleo dinâmico do [Airwindows Pressure5](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/Pressure5/Pressure5Proc.cpp). Preserva o detector e a compressão `mu` alternada A/B, com a Mewiness original fixa em 1, PawClaw em 0,5, sem dependência do plugin VST2.
@@ -57,7 +64,7 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
 6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
 
-Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth e Sustain possuem DSP real; Chorus, Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth, Sustain e Chorus mono possuem DSP real; Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 
