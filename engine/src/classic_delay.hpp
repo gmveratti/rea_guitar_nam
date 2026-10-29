@@ -54,6 +54,8 @@ class ClassicDelayMonoProcessor final : public MonoProcessor {
       // Low-pass the feedback only, preserving the attack of first repeat.
       // Soft saturation keeps large regeneration values bounded.
       tone_state_ = pole_ * tone_state_ + (1.0 - pole_) * echo;
+      // Kill near-silent filter state before it enters the denormal range.
+      if (std::abs(tone_state_) < 1.0e-20) tone_state_ = 0.0;
       const double regenerated =
           std::tanh(tone_state_ * 1.2) / 1.2;
       buffer_[head_] = dry + feedback_ * regenerated;
