@@ -6,6 +6,8 @@ on:
     branches:
       - main
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -77,13 +79,40 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build VTTRIG installer for Windows x64
+        if: github.event_name == 'release'
         run: npx tauri build --bundles nsis
       - name: Validate NSIS installer and desktop executable
+        if: github.event_name == 'release'
         run: python scripts/check_windows_bundle.py --postbuild
       - name: Publish Windows installer download
+        if: github.event_name == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: VTTRIG-Windows-x64
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    name: Attach NSIS installer to GitHub Release
+    if: github.event_name == 'release'
+    needs: windows-installer
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: VTTRIG-Windows-x64
+          path: release-assets
+      - name: Attach Windows installer to the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          installers=(release-assets/*-setup.exe)
+          test "${#installers[@]}" -eq 1
+          gh release upload "$RELEASE_TAG" "${installers[@]}" --clobber
