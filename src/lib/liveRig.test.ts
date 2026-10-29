@@ -12,7 +12,7 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
     expect(result.nodes.map(n => n.id)).toEqual([ir.id, amp1.id, amp2.id]);
     expect(result.nodes.map(n => n.kind)).toEqual(["cabinet", "amp", "amp"]);
     expect(result.nodes.map(n => n.enabled)).toEqual([true, true, false]);
-    expect(result.nodes.map(n => n.resource.path)).toEqual(["/irs/front.WAV", "/models/a.NAM", "/models/b.nam"]);
+    expect(result.nodes.map(n => 'resource' in n ? n.resource.path : undefined)).toEqual(["/irs/front.WAV", "/models/a.NAM", "/models/b.nam"]);
   });
 
   it("master amp power disables amps without modifying pedal instances", () => {
