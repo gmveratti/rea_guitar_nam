@@ -1,7 +1,7 @@
 #pragma once
 
 // VTTCHORUS: mono guitar adaptation of DaisySP ChorusEngine.
-// Original: https://github.com/electro-smith/DaisySP/blob/master/Source/Effects/chorus.cpp
+// Original: https://github.com/daisyaudio/DaisySP/blob/master/Source/Effects/chorus.cpp
 // Copyright (c) 2020 Electrosmith, Corp. MIT, see THIRD_PARTY_NOTICES.md.
 //
 // Two independent modulated delay lines with linear fractional reads,
