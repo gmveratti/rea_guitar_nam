@@ -81,6 +81,10 @@ if(BUILD_TESTING)
   target_compile_features(vttrig-sustain-tests PRIVATE cxx_std_20)
   vttrig_warnings(vttrig-sustain-tests)
 
+  add_executable(vttrig-chorus-tests tests/daisy_chorus_tests.cpp)
+  target_compile_features(vttrig-chorus-tests PRIVATE cxx_std_20)
+  vttrig_warnings(vttrig-chorus-tests)
+
   add_executable(vttrig-manifest-tests tests/manifest_tests.cpp)
   target_compile_features(vttrig-manifest-tests PRIVATE cxx_std_20)
   target_include_directories(vttrig-manifest-tests SYSTEM PRIVATE
@@ -95,6 +99,7 @@ if(BUILD_TESTING)
   add_test(NAME noise_gate_envelope_hold_and_bypass COMMAND vttrig-noise-gate-tests)
   add_test(NAME compressor_airwindows_smooth_and_bypass COMMAND vttrig-compressor-tests)
   add_test(NAME sustain_airwindows_pressure_envelope_and_bypass COMMAND vttrig-sustain-tests)
+  add_test(NAME chorus_daisysp_modulation_delay_and_bypass COMMAND vttrig-chorus-tests)
   add_test(NAME ordered_manifest_validation COMMAND vttrig-manifest-tests)
   add_test(NAME portable_wav_read_write_render COMMAND vttrig-wav-tests)
   add_test(NAME portable_renderer_help COMMAND vttrig-nam-offline --help)
