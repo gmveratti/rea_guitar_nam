@@ -57,12 +57,11 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
     caption: "DYNAMICS / CP-01",
     category: "DINÂMICA",
     accent: "#3db5df",
-    description: "Compressão consistente com controle de threshold, ratio e attack. DSP ainda pendente.",
+    description: "Compressor Smooth com DSP Airwindows ButterComp2 (MIT): Compress, Output e Mix reais.",
     parameters: [
-      { key: "threshold", label: "Threshold", min: -50, max: 0, step: 1, unit: "dB", defaultValue: -18 },
-      { key: "ratio", label: "Ratio", min: 1, max: 12, step: 0.5, unit: ":1", defaultValue: 4 },
-      { key: "attack", label: "Attack", min: 1, max: 100, step: 1, unit: "ms", defaultValue: 15 },
-      { key: "release", label: "Release", min: 20, max: 500, step: 5, unit: "ms", defaultValue: 120 },
+      { key: "compress", label: "Compress", min: 0, max: 100, step: 1, unit: "%", defaultValue: 35 },
+      { key: "output", label: "Output", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
+      { key: "mix", label: "Dry/Wet", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
     ],
   },
   sustain: {

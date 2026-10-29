@@ -114,6 +114,30 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "compressor" {
+            if node.get("resource").is_some() {
+                return Err("VTT Compressor não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTT Compressor inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do compressor deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "compress" => (0.0..=100.0).contains(&number),
+                    "output" => (0.0..=200.0).contains(&number),
+                    "mix" => (0.0..=100.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTT Compressor: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
@@ -456,9 +480,32 @@ mod tests {
         ).is_err());
         assert!(validate_manifest(
             r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"hold":300}}]}"#
-        ).is_err());
+        )
+        .is_err());
         assert!(validate_manifest(
             r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"attack":10}}]}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn accepts_file_free_airwindows_compressor_with_real_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+          {"id":"c1","kind":"compressor","enabled":true,
+           "parameters":{"compress":65,"output":100,"mix":80}},
+          {"id":"c2","kind":"compressor","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"compress":101}}]}"#
+        )
+        .is_err());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"attack":10}}]}"#
+        )
+        .is_err());
+        assert!(validate_manifest(
+          r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{},"resource":{"path":"bad.nam"}}]}"#
         ).is_err());
     }
 

@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: PR #15 integrado à `main`.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **Hardware, estabilidade e latência ainda não estão homologados.**
+> **Status: motor NAM/IR experimental com VTTGATE nativo na `main`; esta branch acrescenta VTT Compressor Smooth.** Ambos os pedais dinâmicos têm DSP real, mas a sessão ainda exige **Parar/Iniciar** para aplicar mudanças. Sustain, Chorus, Delay e Reverb seguem visuais. **Hardware, estabilidade e latência ainda não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -33,6 +33,14 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 - Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
   sem alterar a regra da CI.
 
+## VTT Compressor Smooth (Airwindows ButterComp2)
+
+- **DSP C++ nativo**, adaptado do [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) (MIT), não apenas um pedal visual.
+- Controles sonoros reais: **Compress 0–100%**, **Output 0–200%**, **Dry/Wet 0–100%**. O algoritmo é um compressor suave/bipolar, não oferece Threshold/Ratio/Attack/Release independentes; esses knobs históricos eram somente visuais.
+- Mesmo contrato do VTTGATE: várias instâncias, bypass por pedal, ordem exata da cadeia, **sem arquivo `.nam`**. O motor aplica as configurações na inicialização, portanto é necessário **Parar/Iniciar** após editar.
+- Presets antigos continuam legíveis, mas os quatro parâmetros visuais antigos do compressor não são equivalentes aos controles ButterComp2 e são substituídos pelos defaults do modo Smooth.
+- Testes offline automatizados incluídos; **timbre, estabilidade e latência com interface USB ainda não homologados**.
+
 ## PR #15: integração inicial da pedalboard ao áudio NAM/IR
 
 1. No **aplicativo desktop**, adicione VTTAMP, VTTDRIVE ou VTTCAB à pedalboard. O botão (+) do amplificador abre o seletor nativo de arquivos `.nam`.
@@ -42,7 +50,7 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
 6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
 
-Limitações: suporte nativo só para **NAM/Drive NAM e IR mono 48 kHz**. Gate, compressor, sustain, chorus, delay e reverb são **ignorados explicitamente no áudio**, não processados silenciosamente como efeitos. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+Limitações atuais: o motor permanece **mono/48 kHz**. Gate e Compressor Smooth possuem DSP real; Sustain, Chorus, Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 

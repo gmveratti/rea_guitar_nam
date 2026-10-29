@@ -39,6 +39,23 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
       .toEqual({ [amp.id]: "/amp.nam" });
   });
 
+  it("includes file-free Airwindows compressor with real controls and bypass", () => {
+    const comp = createPedal("compressor"), gate = createPedal("gate");
+    const comp2 = createPedal("compressor");
+    comp.values.compress = 75;
+    comp.values.output = 125;
+    comp2.enabled = false;
+    const result = buildLiveBoardSnapshot([comp, gate, comp2], {});
+    expect(result.nodes.map(n => n.kind)).toEqual(["compressor", "gate", "compressor"]);
+    expect(result.nodes[0]).toEqual({
+      id: comp.id, kind: "compressor", enabled: true,
+      parameters: { compress: 75, output: 125, mix: 100 },
+    });
+    expect(result.nodes[2].enabled).toBe(false);
+    expect(result.ignored).toEqual([]);
+    expect(validateRigResources({ [comp.id]: "/wrong.nam" }, [comp])).toEqual({});
+  });
+
   it("does not claim other unsupported visual pedals are running in DSP", () => {
     const gate = createPedal("gate"), amp = createPedal("amp"), delay = createPedal("delay");
     const result = buildLiveBoardSnapshot([gate, amp, delay], { [amp.id]: "/amp.nam" });
@@ -66,7 +83,7 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
   it("permits a gate-only native chain without a model", () => {
     const gate = createPedal("gate");
     expect(buildLiveBoardSnapshot([gate], {}).nodes.map(n => n.kind)).toEqual(["gate"]);
-    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*NAM.*IR/);
+    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*Compressor.*NAM.*IR/);
   });
 
   it("validates and filters stale/corrupt resource mappings by node identity", () => {

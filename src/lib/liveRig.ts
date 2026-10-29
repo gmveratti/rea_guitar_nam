@@ -1,10 +1,10 @@
 import { validateChain, type PedalInstance, type PedalKind } from "./pedals";
 
 const RESOURCE_KINDS = new Set<PedalKind>(["amp", "drive", "cabinet"]);
-const NATIVE_KINDS = new Set<PedalKind>(["gate", "amp", "drive", "cabinet"]);
+const NATIVE_KINDS = new Set<PedalKind>(["gate", "compressor", "amp", "drive", "cabinet"]);
 export type RigResources = Record<string, string>;
 export type NativeRigNode =
-  | { id: string; kind: "gate"; enabled: boolean; parameters: Record<string, number> }
+  | { id: string; kind: "gate" | "compressor"; enabled: boolean; parameters: Record<string, number> }
   | {
     id: string;
     kind: "amp" | "drive" | "cabinet";
@@ -40,7 +40,7 @@ export function validateRigResources(value: unknown, chain: readonly PedalInstan
   return result;
 }
 
-/** Gate, NAM and IR execute in the EXACT user order. Other visual pedals are reported. */
+/** Native dynamics, NAM and IR execute in the exact user order. Other pedals are reported. */
 export function buildLiveBoardSnapshot(
   chain: readonly PedalInstance[],
   paths: Readonly<RigResources>,
@@ -55,9 +55,9 @@ export function buildLiveBoardSnapshot(
       if (effect.enabled) ignored.push({ id: effect.id, kind: effect.kind });
       continue;
     }
-    if (effect.kind === "gate") {
+    if (effect.kind === "gate" || effect.kind === "compressor") {
       nodes.push({
-        id: effect.id, kind: "gate", enabled: effect.enabled,
+        id: effect.id, kind: effect.kind, enabled: effect.enabled,
         parameters: { ...effect.values },
       });
       continue;
@@ -77,6 +77,6 @@ export function buildLiveBoardSnapshot(
       resource: { path },
     });
   }
-  if (!nodes.length) throw new Error("Adicione um Noise Gate, NAM ou IR à pedalboard.");
+  if (!nodes.length) throw new Error("Adicione um Noise Gate, Compressor, NAM ou IR à pedalboard.");
   return { schemaVersion: 1, nodes, ignored };
 }

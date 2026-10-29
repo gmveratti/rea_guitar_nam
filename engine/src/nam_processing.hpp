@@ -3,6 +3,7 @@
 #include "chain_manifest.hpp"
 #include "effect_chain.hpp"
 #include "noise_gate.hpp"
+#include "butter_comp2.hpp"
 
 #include <NAM/dsp.h>
 #include <NAM/get_dsp.h>
@@ -54,7 +55,7 @@ inline std::vector<ManifestEffect> load_chain_file(
 
 // No host-specific types or thread operations here. The stages remain in the
 // exact source order, including duplicate kinds and bypassed instances.
-// Gate parameters are applied during graph preparation. NAM/IR gain and EQ
+// Gate/compressor parameters are applied during graph preparation. NAM/IR gain and EQ
 // controls remain visual-only; do not present them as mapped DSP controls.
 inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
                                double sample_rate = 48000.0) {
@@ -76,6 +77,18 @@ inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
       chain.append(Stage{
           spec.id, spec.kind, spec.enabled,
           std::make_unique<NoiseGateMonoProcessor>(p, sample_rate)});
+      continue;
+    }
+    if (spec.kind == "compressor") {
+      ButterComp2Params p;
+      if (const auto it = spec.parameters.find("compress"); it != spec.parameters.end())
+        p.compress = it->second;
+      if (const auto it = spec.parameters.find("output"); it != spec.parameters.end())
+        p.output = it->second;
+      if (const auto it = spec.parameters.find("mix"); it != spec.parameters.end())
+        p.mix = it->second;
+      chain.append(Stage{spec.id, spec.kind, spec.enabled,
+                         std::make_unique<ButterComp2MonoProcessor>(p, sample_rate)});
       continue;
     }
     auto model = nam::get_dsp(spec.path);

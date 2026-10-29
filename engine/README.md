@@ -1,5 +1,36 @@
 # VTTRIG native NAM / IR JACK engine
 
+## VTT Compressor Smooth: Airwindows ButterComp2
+
+The VTTRIG stompbox is only the UI. The sound uses a native C++20
+[Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp)
+adaptation (MIT). It is **not** a generic threshold/ratio compressor:
+the original DSP has **Compress** (0–100%), **Output** (0–200%) and
+**Dry/Wet** (0–100%), with defaults 35%, 100%, 100%, respectively.
+These three controls are real and saved per instance.
+
+The `schemaVersion: 1` native chain supports `kind: "compressor"` with
+no `resource` and a `parameters` map with those three keys. Compressor,
+Gate, NAM and IR can be freely repeated/reordered and independently bypassed.
+The A/B bipolar detector and its signal-dependent recovery are retained from
+the original algorithm; there is no additional lookahead or VST/JUCE dependency.
+The algorithm is implemented for the current **mono, 48 kHz** audio path.
+
+Before this integration, Compressor's *Threshold, Ratio, Attack, Release*
+controls were **visual-only**. They do not exist in the original ButterComp2
+core and were intentionally replaced by actual source controls. Old presets
+remain loadable, but historic visual-only compressor controls fall back
+to the new Smooth defaults rather than misleadingly driving an unrelated
+algorithm. A future **Transparent/VCA** mode can offer real threshold, ratio,
+attack and release as a separate algorithm.
+
+Effects and bypass changes still take effect only after **Stop / Start**,
+as in the current audio pipeline. CTest
+`compressor_airwindows_smooth_and_bypass` checks transparency at Compress=0,
+real change at Compress>0, output/mix, silence and block independence.
+A/B listening and CPU profiling with a real guitar/interface remain pending.
+License: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## VTTGATE: open-source audio effect (TONE3000 NoiseGate)
 
 **Real native DSP, not merely a visual pedal.** The VTTRIG pedal chassis is
@@ -114,7 +145,7 @@ Use *real local* paths to a mono `.nam` or `.wav` for each instance:
 **Rules and present limits:** array order is the exact DSP sequence;
 IDs must be unique; up to 24 stages; repeat `amp`, `drive` or `cabinet`
 freely, each with independent bypass. Unknown/unsupported effects
-(`chorus`, `delay`, `reverb`, `compressor`, `sustain`, `gate`) are
+(`chorus`, `delay`, `reverb`, `sustain`) are
 **rejected explicitly** even if disabled; the engine does not silently
 pretend to apply them. Version and malformed parameters are rejected.
 Parameters are currently **validated only, not applied** to NAM/IR audio:
@@ -244,7 +275,7 @@ Begin with monitor volume low to avoid feedback or high gain.
 - Currently supports mono-input/mono-output `.nam` or mono `.wav` IR
   nodes, max 24 blocks, 48 kHz JACK, prewarmed DSP outside realtime.
 - Stereo IR, arbitrary sample rates for NAM, MIDI, amp-skin DSP mapping,
-  chorus, delay, reverb, compressor, sustain and Tauri control are **pending**.
+  chorus, delay, reverb and sustain are **pending**.
 - Each node has its own bypass/identity. Model loads, sample-rate conversions
   of IRs and other expensive operations must occur off the audio callback.
 - Output is safety-clamped to [-1, 1]. No claims about final timbre,
