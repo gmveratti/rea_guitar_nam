@@ -99,4 +99,4 @@ jobs:
           test -f release-assets/linux/vttrig-nam-offline
           gh release upload "$RELEASE_TAG" \
             release-assets/windows/vttrig-nam-offline.exe \
-            release-assets/linux/vttrig-nam-offline --clobber
+            release-assets/linux/vttrig-nam-offline --clobber --repo "$GITHUB_REPOSITORY"

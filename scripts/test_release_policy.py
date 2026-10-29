@@ -68,6 +68,15 @@ class ReleaseDistributionPolicy(unittest.TestCase):
                 self.assertRegex(published[0], r"(?m)^permissions:\n  contents: read$")
                 self.assertRegex(published[1], r"(?m)^    permissions:\n      contents: write$")
                 self.assertIn("actions/download-artifact@v4", published[1])
+                # Publisher jobs do not checkout the repository; gh needs an explicit target.
+                self.assertIn('--repo "$GITHUB_REPOSITORY"', published[1])
+
+    def test_linux_release_uses_the_artifact_subdirectory_for_appimage(self):
+        content = WORKFLOWS["linux"].read_text(encoding="utf-8")
+        self.assertIn(
+            "images=(release-assets/bundle/appimage/*.AppImage)", content
+        )
+        self.assertNotIn("images=(release-assets/*.AppImage)", content)
 
 
 if __name__ == "__main__":
