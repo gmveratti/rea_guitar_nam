@@ -486,6 +486,25 @@ mod tests {
     }
 
     #[test]
+    fn accepts_file_free_airwindows_compressor_with_real_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+          {"id":"c1","kind":"compressor","enabled":true,
+           "parameters":{"compress":65,"output":100,"mix":80}},
+          {"id":"c2","kind":"compressor","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        assert!(validate_manifest(
+          r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"compress":101}}]}"#
+        ).is_err());
+        assert!(validate_manifest(
+          r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{"attack":10}}]}"#
+        ).is_err());
+        assert!(validate_manifest(
+          r#"{"schemaVersion":1,"nodes":[{"kind":"compressor","parameters":{},"resource":{"path":"bad.nam"}}]}"#
+        ).is_err());
+    }
+
+    #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
