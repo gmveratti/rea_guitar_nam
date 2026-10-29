@@ -576,6 +576,26 @@ mod tests {
     }
 
     #[test]
+    fn accepts_file_free_chorus_and_rejects_invalid_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"ch-1","kind":"chorus","enabled":true,
+             "parameters":{"rate":1.2,"depth":48,"mix":30}},
+            {"id":"ch-2","kind":"chorus","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"rate":0}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"rate":9}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"depth":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"mix":101}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{"feedback":20}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"chorus","parameters":{},"resource":{"path":"bad.wav"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
