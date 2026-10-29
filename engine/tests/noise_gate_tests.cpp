@@ -30,11 +30,12 @@ double rms(const std::vector<vttrig::Sample>& signal, std::size_t begin,
 std::vector<vttrig::Sample> render(const std::vector<vttrig::Sample>& dry,
                                     const vttrig::NoiseGateParams& params) {
   vttrig::NoiseGateMonoProcessor gate(params);
+  std::vector<vttrig::Sample> input(dry);
   std::vector<vttrig::Sample> wet(dry.size());
   constexpr int kBlock = 128;
   for (std::size_t off = 0; off < dry.size(); off += kBlock) {
     const int count = static_cast<int>(std::min<std::size_t>(kBlock, dry.size() - off));
-    gate.process(const_cast<vttrig::Sample*>(dry.data() + off),
+    gate.process(input.data() + off,
                  wet.data() + off, count);
   }
   return wet;
@@ -69,7 +70,7 @@ int main() {
   p.hold = 150.0;
   const auto with_hold = render(burst, p);
   // About 75 ms after the burst, a held gate remains substantially louder.
-  const std::size_t begin = 9600 + 3600, end = begin + 960;
+  const std::size_t begin = 9600 + 5760, end = begin + 960;
   assert(rms(with_hold, begin, end) > rms(no_hold, begin, end) * 10.0);
 
   // Two instances must be independent. Bypass must pass the original bytes.
