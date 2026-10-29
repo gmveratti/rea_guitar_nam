@@ -444,6 +444,25 @@ mod tests {
     }
 
     #[test]
+    fn accepts_file_free_gate_and_rejects_invalid_parameters() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"gate-a","kind":"gate","enabled":true,
+             "parameters":{"threshold":-50,"release":50,"hold":20,"range":80}},
+            {"id":"gate-b","kind":"gate","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"gate","resource":{"path":"wrong.nam"},"parameters":{}}]}"#
+        ).is_err());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"hold":300}}]}"#
+        ).is_err());
+        assert!(validate_manifest(
+            r#"{"schemaVersion":1,"nodes":[{"kind":"gate","parameters":{"attack":10}}]}"#
+        ).is_err());
+    }
+
+    #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
