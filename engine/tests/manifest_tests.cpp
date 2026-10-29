@@ -40,6 +40,26 @@ int main() {
   assert(uppercase_nodes[0].kind == "amp");
   assert(uppercase_nodes[1].kind == "cabinet");
 
+  // A native Noise Gate has no file and carries validated real DSP controls.
+  std::istringstream gate_stream(R"({"schemaVersion":1,"nodes":[
+    {"id":"gate-before","kind":"gate","enabled":true,
+      "parameters":{"threshold":-45,"release":50,"hold":20,"range":80}},
+    {"id":"amp","kind":"amp","enabled":true,"parameters":{},
+      "resource":{"path":"/tmp/some.nam"}},
+    {"id":"gate-after","kind":"gate","enabled":false,"parameters":{}}
+  ]})");
+  const auto gated = vttrig::parse_chain_manifest(gate_stream);
+  assert(gated.size() == 3);
+  assert(gated[0].kind == "gate" && gated[1].kind == "amp" && gated[2].kind == "gate");
+  assert(gated[0].path.empty());
+  assert(gated[0].parameters.at("threshold") == -45.0);
+  assert(gated[2].parameters.empty());
+  assert(!gated[2].enabled);
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"g","kind":"gate","enabled":true,"parameters":{"threshold":1}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"g","kind":"gate","enabled":true,"parameters":{"release":2}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"g","kind":"gate","enabled":true,"parameters":{"attack":10}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"g","kind":"gate","enabled":true,"parameters":{},"resource":{"path":"a.nam"}}]})"));
+
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"chorus","kind":"chorus","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
