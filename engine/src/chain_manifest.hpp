@@ -19,8 +19,8 @@ namespace vttrig {
 // the JACK engine. An array's order is the user's signal order.
 struct ManifestEffect {
   std::string id;
-  std::string kind; // "amp", "drive", "cabinet" or "gate"
-  std::filesystem::path path; // empty for a file-free gate
+  std::string kind; // "amp", "drive", "cabinet", "gate" or "compressor"
+  std::filesystem::path path; // empty for a file-free effect
   bool enabled = true;
   std::map<std::string, double> parameters; // evaluated during graph preparation
 };
@@ -60,14 +60,14 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
       throw std::invalid_argument(prefix + "duplicate, empty or oversized effect id");
     }
 
-    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate") {
+    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor") {
       throw std::invalid_argument(prefix + "DSP not implemented for effect kind: " + kind);
     }
     std::filesystem::path path;
-    if (kind == "gate") {
-      // The VTTGATE is a portable DSP effect: it never loads .nam/.wav files.
+    if (kind == "gate" || kind == "compressor") {
+      // Native dynamics effects never load .nam/.wav files.
       if (node.contains("resource")) {
-        throw std::invalid_argument(prefix + "gate must not have a resource");
+        throw std::invalid_argument(prefix + "native dynamics effect must not have a resource");
       }
     } else {
       if (!node.contains("resource") || !node["resource"].is_object() ||
@@ -107,6 +107,15 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
             (name == "range" && number >= 20.0 && number <= 80.0);
         if (!valid) {
           throw std::invalid_argument(prefix + "unknown or out-of-range gate parameter: " + name);
+        }
+      }
+      if (kind == "compressor") {
+        const bool valid =
+            (name == "compress" && number >= 0.0 && number <= 100.0) ||
+            (name == "output" && number >= 0.0 && number <= 200.0) ||
+            (name == "mix" && number >= 0.0 && number <= 100.0);
+        if (!valid) {
+          throw std::invalid_argument(prefix + "unknown or out-of-range compressor parameter: " + name);
         }
       }
       parameters.emplace(name, number);
