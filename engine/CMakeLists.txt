@@ -69,6 +69,10 @@ if(BUILD_TESTING)
   target_compile_features(vttrig-chain-tests PRIVATE cxx_std_20)
   vttrig_warnings(vttrig-chain-tests)
 
+  add_executable(vttrig-noise-gate-tests tests/noise_gate_tests.cpp)
+  target_compile_features(vttrig-noise-gate-tests PRIVATE cxx_std_20)
+  vttrig_warnings(vttrig-noise-gate-tests)
+
   add_executable(vttrig-manifest-tests tests/manifest_tests.cpp)
   target_compile_features(vttrig-manifest-tests PRIVATE cxx_std_20)
   target_include_directories(vttrig-manifest-tests SYSTEM PRIVATE
@@ -80,6 +84,7 @@ if(BUILD_TESTING)
   vttrig_warnings(vttrig-wav-tests)
 
   add_test(NAME effect_chain_reorder_and_bypass COMMAND vttrig-chain-tests)
+  add_test(NAME noise_gate_envelope_hold_and_bypass COMMAND vttrig-noise-gate-tests)
   add_test(NAME ordered_manifest_validation COMMAND vttrig-manifest-tests)
   add_test(NAME portable_wav_read_write_render COMMAND vttrig-wav-tests)
   add_test(NAME portable_renderer_help COMMAND vttrig-nam-offline --help)
