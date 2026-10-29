@@ -49,6 +49,22 @@ describe("pedal chain", () => {
     expect(validateChain([fresh])?.[0].values).toEqual(fresh.values);
   });
 
+  it("migrates the old visual sustain attack to Pressure5 Speed default safely", () => {
+    const old = [{
+      id: "sustain-old", kind: "sustain", enabled: false,
+      values: { sustain: 78, attack: 12, level: -2 },
+    }];
+    const migrated = validateChain(old);
+    expect(migrated?.[0]).toEqual({
+      id: "sustain-old", kind: "sustain", enabled: false,
+      values: { sustain: 78, speed: 25, level: -2, mix: 100 },
+    });
+    const sustain = createPedal("sustain");
+    sustain.values.speed = 80;
+    sustain.values.mix = 40;
+    expect(validateChain([sustain])?.[0].values).toEqual(sustain.values);
+  });
+
   it("restores valid parameters from a saved chain", () => {
     const raw = [{ id: "amp-1", kind: "amp", enabled: true, values: { input: 45, output: -4 } }];
     const parsed = validateChain(raw);

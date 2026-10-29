@@ -57,7 +57,7 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 | **VTTCOMP / Smooth** | [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) | MIT | **DSP implementado em C++ nativo (PR Compressor)** | Parâmetros reais **Compress, Output, Dry/Wet**. Mono/48 kHz, sem VST/JUCE; A/B físico pendente |
 | **VTTCOMP / Character** | [Airwindows Pressure5](https://github.com/airwindows/airwindows) | MIT | **Modo punch/character**, opcional | A/B contra clean para não hipercomprimir o transiente |
 | **VTTCOMP / Transparent** | [LSP Compressor](https://github.com/lsp-plugins/) | LGPLv3 | **Referência técnica de dinâmica**, possível integração isolada conforme licença | Compressor com envelope, knee, attack/release, sidechain; auditar obrigações de distribuição antes de importar |
-| **VTTSUSTAIN** | envelope/detector/ganho do **VTTCOMP** reaproveitados, sem duplicar DSP | VTTRIG próprio / licenças das partes reutilizadas | **Voz sonora separada**, baseada em compressão paralela/tempo de release musical | Sustain não deve ser apenas knob sem efeito; calibrar ruído e makeup |
+| **VTTSUSTAIN / Pressure** | [Airwindows Pressure5](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/Pressure5/Pressure5Proc.cpp) | MIT | **Núcleo `mu` adaptado em C++20** (PR VTTSUSTAIN), sem clip/delay original; teto de pico próprio | Sustain, Speed não linear, Level em dB e Mix reais; medir sustain audível, ruído, CPU e A/B no hardware |
 | **VTTAMP / VTTDRIVE (capturas NAM A2)** | [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) | MIT (motor) | Executar arquivos `.nam` A2 baixados do TONE3000 | **Motor escolhido**; ainda testar A2-Lite/Full reais e calibração no hardware |
 | **VTTCAB (IR de gabinete)** | Convolutor de IR já presente no motor experimental | Código do motor e dependências a auditar; licença das IRs depende do autor | Aplicar `.wav` de gabinetes baixados do TONE3000 | **Formato e origem definidos**; auditar o convolutor, medir latência/qualidade e testar arquivos reais, sem procurar novo modelo de gabinete |
 
@@ -79,7 +79,7 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 
 **VTTCOMP:** um modo Smooth guitarra e outro Transparent/Punch após escuta; controles devem corresponder à implementação real, com gain reduction meter genuíno quando DSP existir; entrada, limiar, attack/release, makeup, ratio/knee somente se suportados.
 
-**VTTSUSTAIN:** algoritmo baseado em compressão calibrada + envelope/release; controles Sustain, Attack, Level e talvez Blend; evitar amplificação extrema do ruído. Mesmo motor de dinâmica, preset e UI distintos.
+**VTTSUSTAIN:** implementação baseada em Airwindows Pressure5 com envelope mu A/B, controles Sustain, Speed (não Attack em ms), Level e Dry/Wet. Em 48 kHz dispensa os filtros ultrassônicos do original; sem ClipOnly2, usa teto de pico suave sem atraso. Testar nível de ruído amplificado, transientes, release percebido e A/B com o original; o som ainda não está homologado em guitarra real.
 
 **Gate** acompanha ruído da cadeia e deve ter histerese/release musical; **Cab IR** aceita WAV, conversão de sample rate fora do callback, processamento particionado quando necessário; **NAM** com input trim e calibração real por modelo.
 

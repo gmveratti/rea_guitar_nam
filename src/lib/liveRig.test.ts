@@ -56,6 +56,26 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
     expect(validateRigResources({ [comp.id]: "/wrong.nam" }, [comp])).toEqual({});
   });
 
+  it("sends VTTSUSTAIN with real Pressure5 controls, ordered instances and bypass", () => {
+    const sustain = createPedal("sustain");
+    sustain.values.sustain = 80;
+    sustain.values.speed = 75;
+    sustain.values.level = -6;
+    sustain.values.mix = 40;
+    const gate = createPedal("gate"), second = createPedal("sustain");
+    second.enabled = false;
+    const plan = buildLiveBoardSnapshot([second, gate, sustain], {});
+    expect(plan.nodes.map(n => n.kind)).toEqual(["sustain", "gate", "sustain"]);
+    expect(plan.nodes.map(n => n.enabled)).toEqual([false, true, true]);
+    expect(plan.nodes[2]).toEqual({
+      id: sustain.id, kind: "sustain", enabled: true,
+      parameters: { sustain: 80, speed: 75, level: -6, mix: 40 },
+    });
+    expect(plan.ignored).toEqual([]);
+    expect(validateRigResources({ [sustain.id]: "/not-applicable.nam" }, [sustain])).toEqual({});
+    expect(buildLiveBoardSnapshot([sustain], {}).nodes.map(n => n.kind)).toEqual(["sustain"]);
+  });
+
   it("does not claim other unsupported visual pedals are running in DSP", () => {
     const gate = createPedal("gate"), amp = createPedal("amp"), delay = createPedal("delay");
     const result = buildLiveBoardSnapshot([gate, amp, delay], { [amp.id]: "/amp.nam" });
@@ -83,7 +103,7 @@ describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
   it("permits a gate-only native chain without a model", () => {
     const gate = createPedal("gate");
     expect(buildLiveBoardSnapshot([gate], {}).nodes.map(n => n.kind)).toEqual(["gate"]);
-    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*Compressor.*NAM.*IR/);
+    expect(() => buildLiveBoardSnapshot([createPedal("delay")], {})).toThrow(/Noise Gate.*Compressor.*Sustain.*NAM.*IR/);
   });
 
   it("validates and filters stale/corrupt resource mappings by node identity", () => {
