@@ -47,6 +47,12 @@ class PressureSustainMonoProcessor final : public MonoProcessor {
   }
 
   void process(Sample* input, Sample* output, int frames) noexcept override {
+    // An explicitly dry setting is an exact passthrough, including transients
+    // above unity; no dynamics or safety limiter should touch that signal.
+    if (wet_ == 0.0) {
+      std::copy_n(input, frames, output);
+      return;
+    }
     for (int i = 0; i < frames; ++i) {
       const double dry = input[i];
       const double driven = dry * makeup_gain_;
