@@ -115,4 +115,4 @@ jobs:
           shopt -s nullglob
           installers=(release-assets/*-setup.exe)
           test "${#installers[@]}" -eq 1
-          gh release upload "$RELEASE_TAG" "${installers[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${installers[@]}" --clobber --repo "$GITHUB_REPOSITORY"
