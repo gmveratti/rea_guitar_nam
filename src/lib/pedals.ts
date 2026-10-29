@@ -142,11 +142,11 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
   },
   reverb: {
     kind: "reverb",
-    title: "Cloud Reverb",
-    caption: "SPACE / TAIL",
+    title: "VTT Reverb Room",
+    caption: "SPACE / ROOM",
     category: "AMBIÊNCIA",
     accent: "#ba6ad3",
-    description: "Reverb espacial inspirado no motor MIT do CloudSeedCore.",
+    description: "Reverb Room mono nativo com reflexões difusas e cauda; Size, Decay e Mix atuam no áudio. Modo CloudSeed fica para etapa própria.",
     parameters: [
       { key: "size", label: "Size", min: 0, max: 100, step: 1, unit: "%", defaultValue: 67 },
       { key: "decay", label: "Decay", min: 0.2, max: 15, step: 0.1, unit: "s", defaultValue: 4.2 },
