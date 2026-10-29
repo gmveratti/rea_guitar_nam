@@ -1,10 +1,10 @@
 import { validateChain, type PedalInstance, type PedalKind } from "./pedals";
 
 const RESOURCE_KINDS = new Set<PedalKind>(["amp", "drive", "cabinet"]);
-const NATIVE_KINDS = new Set<PedalKind>(["gate", "compressor", "sustain", "chorus", "delay", "amp", "drive", "cabinet"]);
+const NATIVE_KINDS = new Set<PedalKind>(["gate", "compressor", "sustain", "chorus", "delay", "reverb", "amp", "drive", "cabinet"]);
 export type RigResources = Record<string, string>;
 export type NativeRigNode =
-  | { id: string; kind: "gate" | "compressor" | "sustain" | "chorus" | "delay"; enabled: boolean; parameters: Record<string, number> }
+  | { id: string; kind: "gate" | "compressor" | "sustain" | "chorus" | "delay" | "reverb"; enabled: boolean; parameters: Record<string, number> }
   | {
     id: string;
     kind: "amp" | "drive" | "cabinet";
@@ -55,7 +55,7 @@ export function buildLiveBoardSnapshot(
       if (effect.enabled) ignored.push({ id: effect.id, kind: effect.kind });
       continue;
     }
-    if (effect.kind === "gate" || effect.kind === "compressor" || effect.kind === "sustain" || effect.kind === "chorus" || effect.kind === "delay") {
+    if (effect.kind === "gate" || effect.kind === "compressor" || effect.kind === "sustain" || effect.kind === "chorus" || effect.kind === "delay" || effect.kind === "reverb") {
       nodes.push({
         id: effect.id, kind: effect.kind, enabled: effect.enabled,
         parameters: { ...effect.values },
@@ -77,6 +77,6 @@ export function buildLiveBoardSnapshot(
       resource: { path },
     });
   }
-  if (!nodes.length) throw new Error("Adicione um Noise Gate, Compressor, Sustain, Chorus, Delay, NAM ou IR à pedalboard.");
+  if (!nodes.length) throw new Error("Adicione um Noise Gate, Compressor, Sustain, Chorus, Delay, Reverb, NAM ou IR à pedalboard.");
   return { schemaVersion: 1, nodes, ignored };
 }

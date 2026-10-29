@@ -178,7 +178,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
       <AudioLines size={23}/>
       <div>
         <h2>Áudio e dispositivos</h2>
-        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe VTTGATE, VTT Compressor, VTT Sustain, VTT Chorus, VTT Delay, NAM e IR da pedalboard na ordem visual. Reverb ainda não possui DSP e são ignorados explicitamente.</p>
+        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe VTTGATE, VTT Compressor, VTT Sustain, VTT Chorus, VTT Delay, VTT Reverb, NAM e IR da pedalboard na ordem visual. Os efeitos nativos possuem DSP funcional na cadeia mono.</p>
         {!native ? (
           <p role="status">Abra o aplicativo desktop para listar drivers e interfaces de áudio. Esta visualização web não acessa seus dispositivos.</p>
         ) : (

@@ -1,5 +1,23 @@
 # VTTRIG native NAM / IR JACK engine
 
+## VTTREVERB Room: quatro combs e dois allpasses mono
+
+`kind: "reverb"` é um nó nativo sem recurso externo, com parâmetros
+`size` (0–100%, padrão 67), `decay` (0,2–15 s, padrão 4,2)
+e `mix` (0–100%, padrão 24). Em `engine/src/room_reverb.hpp`,
+um algoritmo original baseado em reverberação Schroeder usa quatro
+filtros comb amortecidos em paralelo e dois filtros allpass em série.
+Os comprimentos dependem de Size, enquanto o feedback dos combs é
+calculado com base no Decay para um RT60 aproximado. A saída
+permanece mono 48 kHz, sem dados de IR e sem CloudSeedCore.
+
+As linhas e buffers são alocados na preparação do grafo, nunca no
+callback. Presets existentes com Size/Decay/Mix continuam compatíveis;
+Mix=0 copia o dry exatamente. Múltiplas instâncias e bypass são
+independentes. Parar/Iniciar reinicializa a cauda. Testes de impulso,
+tamanho, cauda, estabilidade, blocos e bypass em CTest.
+Ainda faltam teste com guitarra/interface e profiling de CPU/latência.
+
 ## VTTDELAY Classic: tempo exato e cauda em feedback
 
 `kind: "delay"` é processado diretamente pelo motor C++20,
@@ -205,7 +223,7 @@ Use *real local* paths to a mono `.nam` or `.wav` for each instance:
 **Rules and present limits:** array order is the exact DSP sequence;
 IDs must be unique; up to 24 stages; repeat `amp`, `drive` or `cabinet`
 freely, each with independent bypass. Unknown/unsupported effects
-(`reverb`) are
+(outros efeitos não implementados) are
 **rejected explicitly** even if disabled; the engine does not silently
 pretend to apply them. Version and malformed parameters are rejected.
 Parameters are currently **validated only, not applied** to NAM/IR audio:
@@ -335,7 +353,7 @@ Begin with monitor volume low to avoid feedback or high gain.
 - Currently supports mono-input/mono-output `.nam` or mono `.wav` IR
   nodes, max 24 blocks, 48 kHz JACK, prewarmed DSP outside realtime.
 - Stereo IR, arbitrary sample rates for NAM, MIDI, amp-skin DSP mapping,
-  reverb is **pending**.
+  advanced Cloud/Plate/Hall reverbs are **pending**.
 - Each node has its own bypass/identity. Model loads, sample-rate conversions
   of IRs and other expensive operations must occur off the audio callback.
 - Output is safety-clamped to [-1, 1]. No claims about final timbre,

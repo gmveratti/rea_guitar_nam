@@ -208,6 +208,29 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "reverb" {
+            if node.get("resource").is_some() {
+                return Err("VTTREVERB não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTREVERB inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTREVERB deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "size" | "mix" => (0.0..=100.0).contains(&number),
+                    "decay" => (0.2..=15.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTREVERB: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
@@ -634,6 +657,26 @@ mod tests {
             r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"mix":-1}}]}"#,
             r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"tone":20}}]}"#,
             r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{},"resource":{"path":"fake.nam"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
+    fn accepts_file_free_reverb_and_rejects_invalid_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"rv-a","kind":"reverb","enabled":true,
+             "parameters":{"size":67,"decay":4.2,"mix":24}},
+            {"id":"rv-b","kind":"reverb","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"size":101}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"decay":0.1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"decay":15.1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"mix":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"predelay":20}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{},"resource":{"path":"fake.wav"}}]}"#,
         ] {
             assert!(validate_manifest(bad).is_err());
         }
