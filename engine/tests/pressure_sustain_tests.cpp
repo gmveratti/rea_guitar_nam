@@ -75,6 +75,9 @@ int main() {
   const auto dry = render(moderate, p);
   for (std::size_t i = 0; i < moderate.size(); ++i)
     assert(dry[i] == moderate[i]);
+  const std::vector<vttrig::Sample> peaks{1.15, -1.25, 0.0, 0.6};
+  assert(render(peaks, p) == peaks);
+
 
   // Split processing at arbitrary block boundaries must equal single-sample
   // processing; the 48k host currently uses 128 frames.
