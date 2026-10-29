@@ -620,6 +620,26 @@ mod tests {
     }
 
     #[test]
+    fn accepts_file_free_delay_and_rejects_invalid_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"dly-a","kind":"delay","enabled":true,
+             "parameters":{"time":420,"feedback":38,"mix":28}},
+            {"id":"dly-b","kind":"delay","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"time":39}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"time":1201}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"feedback":91}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"mix":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{"tone":20}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"delay","parameters":{},"resource":{"path":"fake.nam"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
