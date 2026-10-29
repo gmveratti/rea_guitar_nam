@@ -39,14 +39,16 @@ export type PedalInstance = {
 export const PEDALS: Record<PedalKind, PedalDefinition> = {
   gate: {
     kind: "gate",
-    title: "Noise Gate",
-    caption: "SILENCE",
+    title: "VTT Noise Gate",
+    caption: "SILENCE / NG-01",
     category: "UTILITÁRIO",
     accent: "#b2bcc6",
-    description: "Portão de ruído para controlar hiss e silêncio entre notas.",
+    description: "Noise Gate nativo adaptado do TONE3000: detector filtrado, histerese de 5 dB e fechamento suave.",
     parameters: [
-      { key: "threshold", label: "Threshold", min: -80, max: 0, step: 1, unit: "dB", defaultValue: -48 },
-      { key: "release", label: "Release", min: 10, max: 500, step: 5, unit: "ms", defaultValue: 120 },
+      { key: "threshold", label: "Threshold", min: -100, max: 0, step: 1, unit: "dB", defaultValue: -80 },
+      { key: "release", label: "Release", min: 5, max: 500, step: 5, unit: "ms", defaultValue: 50 },
+      { key: "hold", label: "Hold", min: 0, max: 200, step: 5, unit: "ms", defaultValue: 20 },
+      { key: "range", label: "Range", min: 20, max: 80, step: 5, unit: "dB", defaultValue: 80 },
     ],
   },
   compressor: {
