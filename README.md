@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: VTTGATE, VTTCOMP e VTTSUSTAIN integrados à `main`; esta branch adiciona VTTCHORUS mono.** Os efeitos nativos seguem a ordem visual da pedalboard e exigem **Parar/Iniciar** para aplicar alterações. Delay e Reverb ainda são visuais. **Hardware, latência e estabilidade não estão homologados.**
+> **Status: Gate, Compressor, Sustain e Chorus mono integrados à `main`; esta branch adiciona VTT Delay Classic mono.** Os efeitos nativos seguem a ordem visual da pedalboard e exigem **Parar/Iniciar** para aplicar alterações. Reverb ainda é visual. **Hardware, latência e estabilidade não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -32,6 +32,13 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
   fazer merge ou criar somente uma tag não dispara a distribuição.
 - Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
   sem alterar a regra da CI.
+
+## VTT Delay Classic: tempo real em milissegundos
+
+- **DSP original em C++20**, com linha de atraso circular e memória alocada na preparação do grafo. Opera em **mono 48 kHz** e faz um eco cujo **Time é exato em amostras**: 40 a 1200 ms, incluindo o tempo de espera para a primeira repetição.
+- Controles já existentes passam a funcionar de verdade: **Time 40–1200 ms**, **Feedback 0–90%**, **Mix 0–100%**. Os presets antigos preservam os valores; Mix 0% transmite o áudio original sem alterações, e Feedback 0% gera uma única repetição.
+- As repetições seguintes são suavizadas por filtro de 4 kHz e saturação leve dentro da realimentação. **Não é uma implementação do Airwindows TapeDelay2**; para oferecer uma emulação Tape fiel, os controles de velocidade, filtros, ressonância e flutter exigirão um modo próprio.
+- Várias instâncias, bypass por pedal e ordem da cadeia preservados. Alterar a cadeia durante a execução exige **Parar/Iniciar** e reinicia a cauda do efeito. A medição em interface física e a avaliação sonora ainda estão pendentes.
 
 ## VTTCHORUS Classic: DaisySP em áudio mono
 
@@ -64,7 +71,7 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
 6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
 
-Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth, Sustain e Chorus mono possuem DSP real; Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth, Sustain, Chorus mono e Delay Classic possuem DSP real; Reverb segue visual e é **ignorado explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 
