@@ -92,6 +92,19 @@ describe("pedal chain", () => {
     expect(validateChain([current])?.[0].values).toEqual(current.values);
   });
 
+  it("preserves old visual Reverb presets with native Size, Decay and Mix", () => {
+    const legacy = [{
+      id: "reverb-old", kind: "reverb", enabled: false,
+      values: { size: 72, decay: 7.3, mix: 21 },
+    }];
+    expect(validateChain(legacy)?.[0]).toEqual({
+      id: "reverb-old", kind: "reverb", enabled: false,
+      values: { size: 72, decay: 7.3, mix: 21 },
+    });
+    const current = createPedal("reverb");
+    expect(validateChain([current])?.[0].values).toEqual(current.values);
+  });
+
   it("restores valid parameters from a saved chain", () => {
     const raw = [{ id: "amp-1", kind: "amp", enabled: true, values: { input: 45, output: -4 } }];
     const parsed = validateChain(raw);
