@@ -7,6 +7,7 @@
 #include "pressure_sustain.hpp"
 #include "daisy_chorus.hpp"
 #include "classic_delay.hpp"
+#include "room_reverb.hpp"
 
 #include <NAM/dsp.h>
 #include <NAM/get_dsp.h>
@@ -130,6 +131,18 @@ inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
         p.mix = it->second;
       chain.append(Stage{spec.id, spec.kind, spec.enabled,
                          std::make_unique<ClassicDelayMonoProcessor>(p, sample_rate)});
+      continue;
+    }
+    if (spec.kind == "reverb") {
+      RoomReverbParams p;
+      if (const auto it = spec.parameters.find("size"); it != spec.parameters.end())
+        p.size = it->second;
+      if (const auto it = spec.parameters.find("decay"); it != spec.parameters.end())
+        p.decay = it->second;
+      if (const auto it = spec.parameters.find("mix"); it != spec.parameters.end())
+        p.mix = it->second;
+      chain.append(Stage{spec.id, spec.kind, spec.enabled,
+                         std::make_unique<RoomReverbMonoProcessor>(p, sample_rate)});
       continue;
     }
     auto model = nam::get_dsp(spec.path);
