@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: Gate, Compressor, Sustain e Chorus mono integrados à `main`; esta branch adiciona VTT Delay Classic mono.** Os efeitos nativos seguem a ordem visual da pedalboard e exigem **Parar/Iniciar** para aplicar alterações. Reverb ainda é visual. **Hardware, latência e estabilidade não estão homologados.**
+> **Status: Gate, Compressor, Sustain, Chorus e Delay Classic integrados à `main`; esta branch acrescenta VTT Reverb Room mono.** Os efeitos nativos seguem a ordem visual da pedalboard e exigem **Parar/Iniciar** para aplicar alterações. **Hardware, latência e estabilidade ainda não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -32,6 +32,13 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
   fazer merge ou criar somente uma tag não dispara a distribuição.
 - Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
   sem alterar a regra da CI.
+
+## VTT Reverb Room: ambiente mono com DSP nativo
+
+- **DSP original C++20**, com quatro linhas de reflexões em paralelo (combs) e duas etapas de difusão (allpass), inspirado no desenho clássico de reverberadores do tipo Schroeder. **Não é o CloudSeedCore** e não reutiliza DSP de Dragonfly ou outro reverb.
+- Controles reais: **Size 0–100%**, **Decay 0,2–15 segundos** (tempo aproximado de decaimento RT60) e **Mix 0–100%**. Os três parâmetros existentes são mantidos para preservar presets antigos.
+- Memória de delay alocada antes de iniciar o motor. Várias instâncias, bypass e ordem visual respeitados, sem carregamento de arquivo externo e sem alocação/bloqueios no callback.
+- Com **Mix 0%**, o dry é exato. Ao parar e iniciar o motor, as caudas são reiniciadas. O processamento atual é **mono 48 kHz**; modos Cloud, Plate e estéreo são futuros. Testes físicos de timbre, CPU e latência ainda pendentes.
 
 ## VTT Delay Classic: tempo real em milissegundos
 
@@ -71,7 +78,7 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
 6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
 
-Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth, Sustain, Chorus mono e Delay Classic possuem DSP real; Reverb segue visual e é **ignorado explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth, Sustain, Chorus, Delay Classic e Reverb Room mono possuem DSP real. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 
