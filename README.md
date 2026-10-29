@@ -16,6 +16,23 @@
 
 Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHITECTURE.md) e [guia oficial NAM × IR](https://www.tone3000.com/guides/neural-amp-modeler).
 
+## Política de CI e distribuição: binários somente em Releases
+
+- **Pull requests e merges em `main`:** validar interface, Vitest/Playwright,
+  Rust, C++/CTest e compatibilidade do motor. Compilações de testes e do sidecar
+  podem ocorrer nos runners, mas **não geram instaladores distribuíveis**.
+- **Release publicada no GitHub:** os workflows Windows, Linux e NAM portátil
+  repetem as validações; somente nessa execução fazem o empacotamento de
+  **NSIS `.exe`**, **AppImage** e binários NAM standalone. Os arquivos são
+  anexados à [Release](https://github.com/gmveratti/rea_guitar_nam/releases)
+  e ficam como artefatos no workflow.
+- **`workflow_dispatch` manual:** executa somente verificações, sem produzir
+  instaladores. Para publicar uma versão, crie a tag/versão desejada e
+  publique a **GitHub Release** referente àquela tag. Criar apenas o commit,
+  fazer merge ou criar somente uma tag não dispara a distribuição.
+- Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
+  sem alterar a regra da CI.
+
 ## PR #15: integração inicial da pedalboard ao áudio NAM/IR
 
 1. No **aplicativo desktop**, adicione VTTAMP, VTTDRIVE ou VTTCAB à pedalboard. O botão (+) do amplificador abre o seletor nativo de arquivos `.nam`.
@@ -198,14 +215,13 @@ npm run dev
 
 Abra http://127.0.0.1:5173.
 
-## Baixar aplicativo Linux pelo GitHub Actions
+## Baixar aplicativo Linux pela GitHub Release
 
-O workflow [VTTRIG Tauri Linux](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-linux.yml) cria o pacote portátil **AppImage x86_64** e o binário de preview `vttrig`.
-Ele é publicado como artefato **VTTRIG-Linux-x86_64** na aba **Summary → Artifacts** de cada execução bem-sucedida (retenção: 14 dias).
+O workflow [VTTRIG Tauri Linux](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-linux.yml) roda verificações em PRs e merges, mas **só gera AppImage x86_64 quando uma Release é publicada**.
+Acesse [Releases](https://github.com/gmveratti/rea_guitar_nam/releases), abra a versão publicada e baixe o **AppImage** anexado.
+A mesma execução também mantém o artefato `VTTRIG-Linux-x86_64` no Actions (retenção: 14 dias).
 
-1. Entre na [execução do PR de empacotamento](https://github.com/gmveratti/rea_guitar_nam/pull/3/checks) e abra o job **VTTRIG Tauri Linux**.
-2. Na página da execução, baixe **VTTRIG-Linux-x86_64** em **Artifacts** e extraia o ZIP.
-3. No Fedora, na pasta extraída:
+No Fedora, na pasta do download:
 
 ```bash
 chmod +x *.AppImage
@@ -235,12 +251,12 @@ O AppImage resultante fica em `src-tauri/target/release/bundle/appimage/`.
 ## Versão Windows x64 (PR #8)
 
 O [workflow VTTRIG Tauri Windows](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-windows.yml)
-usa um runner Windows 2022, compila o projeto com Rust/MSVC e empacota o
-instalador **NSIS `.exe`**. Em cada execução aprovada, aparece o artefato
-`VTTRIG-Windows-x64` na seção **Actions → execução → Artifacts**
-(disponível por 14 dias).
+usa Windows 2022/MSVC para validar cada PR e merge, mas **só empacota o
+instalador NSIS `.exe` quando uma Release é publicada**. Baixe o
+`*-setup.exe` nos anexos da [Release](https://github.com/gmveratti/rea_guitar_nam/releases).
+O artefato `VTTRIG-Windows-x64` também fica disponível no Actions por 14 dias.
 
-Para testar, baixe o ZIP, extraia o `*-setup.exe` e execute o instalador
+Para testar, baixe o `*-setup.exe` e execute o instalador
 no Windows 10/11 x64. **O instalador gerado pelo CI não é assinado
 digitalmente**: o Windows SmartScreen poderá mostrar um aviso de editor
 desconhecido. Verifique a procedência do arquivo pelo workflow do GitHub
