@@ -184,6 +184,30 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "delay" {
+            if node.get("resource").is_some() {
+                return Err("VTTDELAY não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTDELAY inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTDELAY deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "time" => (40.0..=1200.0).contains(&number),
+                    "feedback" => (0.0..=90.0).contains(&number),
+                    "mix" => (0.0..=100.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTDELAY: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
