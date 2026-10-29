@@ -663,6 +663,26 @@ mod tests {
     }
 
     #[test]
+    fn accepts_file_free_reverb_and_rejects_invalid_controls() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"rv-a","kind":"reverb","enabled":true,
+             "parameters":{"size":67,"decay":4.2,"mix":24}},
+            {"id":"rv-b","kind":"reverb","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"size":101}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"decay":0.1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"decay":15.1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"mix":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{"predelay":20}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"reverb","parameters":{},"resource":{"path":"fake.wav"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
