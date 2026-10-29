@@ -65,6 +65,19 @@ describe("pedal chain", () => {
     expect(validateChain([sustain])?.[0].values).toEqual(sustain.values);
   });
 
+  it("preserves legacy Chorus Rate, Depth and Mix without false migration", () => {
+    const old = [{
+      id: "chorus-old", kind: "chorus", enabled: false,
+      values: { rate: 2.4, depth: 85, mix: 30 },
+    }];
+    const migrated = validateChain(old);
+    expect(migrated?.[0].id).toBe("chorus-old");
+    expect(migrated?.[0].enabled).toBe(false);
+    expect(migrated?.[0].values).toEqual({ rate: 2.4, depth: 85, mix: 30 });
+    const pedal = createPedal("chorus");
+    expect(validateChain([pedal])?.[0].values).toEqual(pedal.values);
+  });
+
   it("restores valid parameters from a saved chain", () => {
     const raw = [{ id: "amp-1", kind: "amp", enabled: true, values: { input: 45, output: -4 } }];
     const parsed = validateChain(raw);
