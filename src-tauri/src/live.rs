@@ -533,6 +533,26 @@ mod tests {
     }
 
     #[test]
+    fn accepts_file_free_pressure_sustain_and_checks_bounds() {
+        let valid = r#"{"schemaVersion":1,"nodes":[
+            {"id":"su-1","kind":"sustain","enabled":true,
+             "parameters":{"sustain":65,"speed":25,"level":-3,"mix":90}},
+            {"id":"su-2","kind":"sustain","enabled":false,"parameters":{}}
+        ]}"#;
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"sustain":101}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"speed":-1}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"level":19}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"mix":101}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{"attack":12}}]}"#,
+            r#"{"schemaVersion":1,"nodes":[{"kind":"sustain","parameters":{},"resource":{"path":"test.nam"}}]}"#,
+        ] {
+            assert!(validate_manifest(bad).is_err());
+        }
+    }
+
+    #[test]
     fn rejects_empty_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
