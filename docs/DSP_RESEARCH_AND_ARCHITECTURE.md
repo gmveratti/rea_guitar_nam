@@ -46,7 +46,7 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 
 | Pedal / implementação | Motor aberto candidato | Licença do projeto | Papel no VTTRIG | Nota de adoção |
 |---|---|---|---|---|
-| **VTTREVERB / Cloud** | [Ghost Note CloudSeedCore](https://github.com/GhostNoteAudio/CloudSeedCore) | MIT | **Primeira opção para caudas densas / modulação / ambient** | Core do Cloud Seed separado da GUI fechada; requer integração C++ e testes de CPU |
+| **VTTREVERB / Room mono** | **DSP original VTTRIG**, reverberação tipo Schroeder com quatro combs e dois allpasses | Código próprio VTTRIG | **Implementado na etapa Room**: Size, Decay RT60 aproximado, Mix; mono 48 kHz | Caudas, densidade e bypass testados em CTest; falta audição e profiling físico |\n| **VTTREVERB / Cloud futuro** | [Ghost Note CloudSeedCore](https://github.com/GhostNoteAudio/CloudSeedCore) | MIT | **Candidato futuro** para caudas densas e efeitos ambient, não integrado nesta etapa | Analisar consumo de CPU, modulação, licença e mudanças de parâmetros com segurança |
 | **VTTREVERB / Plate/Room** | [Dragonfly Reverb](https://github.com/michaelwillis/dragonfly-reverb) | GPLv3 | **Referência de timbre e A/B**, não copiar direto para uma base MIT | Muito recomendado nos fóruns Linux; compartilhar código exige análise da GPL do produto derivado |
 | **VTTREVERB / alternative** | [Airwindows Verbity / Galactic / kPlate](https://github.com/airwindows/airwindows) | MIT | **Experimentos A/B** para plate/hall/efeitos especiais | Caracteres distintos, possível combinar em modos separados |
 | **VTTDELAY / Tape futuro** | [Airwindows TapeDelay2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/TapeDelay2/TapeDelay2Proc.cpp) | MIT | **Modo futuro, não implementado nesta etapa** | Tempo baseado em velocidade do buffer, regeneração filtrada, ressonância e flutter: não equivale diretamente ao Time em ms |
@@ -75,7 +75,7 @@ Não existe um único “melhor” universal. As escolhas abaixo conciliam **rec
 
 **VTTDELAY:** modo Classic mono com Time em ms, Feedback e Mix reais e atraso exato em amostras. O filtro e saturação da regeneração suavizam as repetições; sem alegar equivalência ao Airwindows TapeDelay2. Modos Tape fiel, tap tempo sincronizado ao host, estéreo e A/B continuam pendentes.
 
-**VTTREVERB:** modos Cloud, Hall/Room/Plate quando comprovados; parâmetros Decay, Size, Predelay, Tone/High-cut, Mix, Modulation; impedir tail infinita por erro e permitir preservar tails no bypass; avaliar carga da CloudSeed separadamente.
+**VTTREVERB:** modo Room mono com Size, Decay e Mix implementados via combs/allpasses em C++20; o RT60 é aproximado e deve ser aferido por resposta ao impulso. CloudSeed, Plate/Hall, Predelay, Tone, estéreo e preservação de caudas no bypass continuam pendentes. Medir CPU e estabilidade com interface física.
 
 **VTTCHORUS:** modo Classic mono já adaptado do DaisySP com controles Rate, Depth, Mix, delay base fixo ~6 ms e feedback fixo 20%; modo Stereo, Width e controles avançados permanecem pendentes até o motor ter áudio multicanal. Medir CPU, transientes, estabilidade e comparar timbre com DaisySP.
 
