@@ -88,6 +88,32 @@ fn validate_manifest(json: &str) -> Result<(), String> {
     }
     for node in nodes {
         let kind = node["kind"].as_str().unwrap_or("");
+        if kind == "gate" {
+            // File-free TONE3000-derived DSP. Parameters must agree with C++ preflight.
+            if node.get("resource").is_some() {
+                return Err("VTTGATE não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTGATE inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTGATE deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "threshold" => (-100.0..=0.0).contains(&number),
+                    "release" => (5.0..=500.0).contains(&number),
+                    "hold" => (0.0..=200.0).contains(&number),
+                    "range" => (20.0..=80.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTGATE: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
