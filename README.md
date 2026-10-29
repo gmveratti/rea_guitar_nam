@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: motor NAM/IR experimental com VTTGATE nativo na `main`; esta branch acrescenta VTT Compressor Smooth.** Ambos os pedais dinâmicos têm DSP real, mas a sessão ainda exige **Parar/Iniciar** para aplicar mudanças. Sustain, Chorus, Delay e Reverb seguem visuais. **Hardware, estabilidade e latência ainda não estão homologados.**
+> **Status: motor NAM/IR experimental, VTTGATE e VTT Compressor Smooth na `main`; esta branch adiciona VTTSUSTAIN.** Os três pedais de dinâmica têm DSP nativo. Para aplicar alterações de parâmetros, ainda é necessário **Parar/Iniciar**. Chorus, Delay e Reverb seguem visuais. **Hardware, estabilidade e latência ainda não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -33,6 +33,13 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 - Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
   sem alterar a regra da CI.
 
+## VTTSUSTAIN: Pressure5 dynamics (Airwindows MIT)
+
+- **DSP C++20 mono** adaptado do núcleo dinâmico do [Airwindows Pressure5](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/Pressure5/Pressure5Proc.cpp). Preserva o detector e a compressão `mu` alternada A/B, com a Mewiness original fixa em 1, PawClaw em 0,5, sem dependência do plugin VST2.
+- **Controles reais:** Sustain (0–100%), Speed (0–100%, escala musical não linear do Pressure5), Level (-18 a +18 dB), Dry/Wet (0–100%). Speed **não corresponde a um Attack em milissegundos**; os presets legados migram esse controle para o padrão conservador (Speed 25%).
+- No VTTRIG, a saída usa teto de pico suave sem latência adicional, em vez do `ClipOnly2` com buffer/atraso do plugin original. A implementação é uma **adaptação**, não cópia bit a bit do Pressure5 completo. Controles e modelos são preparados antes do áudio.
+- Aceita várias instâncias, bypass e ordem livre com Gate, Compressor, NAM e IR, sem arquivo externo. As alterações só chegam ao áudio após **Parar/Iniciar**; ainda faltam medição de latência real, benchmark de CPU, comparação A/B e teste com guitarra/interface.
+
 ## VTT Compressor Smooth (Airwindows ButterComp2)
 
 - **DSP C++ nativo**, adaptado do [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) (MIT), não apenas um pedal visual.
@@ -50,7 +57,7 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
 6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
 
-Limitações atuais: o motor permanece **mono/48 kHz**. Gate e Compressor Smooth possuem DSP real; Sustain, Chorus, Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth e Sustain possuem DSP real; Chorus, Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 
