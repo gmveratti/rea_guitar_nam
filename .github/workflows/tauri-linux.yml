@@ -103,6 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          images=(release-assets/*.AppImage)
+          # Multiple artifact paths preserve bundle/appimage/ under release-assets.
+          images=(release-assets/bundle/appimage/*.AppImage)
           test "${#images[@]}" -eq 1
-          gh release upload "$RELEASE_TAG" "${images[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${images[@]}" --clobber --repo "$GITHUB_REPOSITORY"
