@@ -1,5 +1,27 @@
 # VTTRIG native NAM / IR JACK engine
 
+## VTTDELAY Classic: tempo exato e cauda em feedback
+
+`kind: "delay"` é processado diretamente pelo motor C++20,
+sem arquivo `.nam`/`.wav`. Aceita `parameters.time` de 40 a 1200
+milissegundos (padrão 420), `feedback` de 0 a 90% (padrão 38),
+e `mix` de 0 a 100% (padrão 28). Com taxa fixa de 48 kHz, o
+atraso é convertido em número inteiro de amostras na preparação,
+não na callback. Assim, 420 ms = 20.160 amostras, e o primeiro
+eco aparece exatamente naquele índice. `feedback: 0` cria só
+um eco, e `mix: 0` preserva o sinal dry bit a bit.
+
+O circuito de regeneração é original VTTRIG, com low-pass em
+4 kHz e saturação suave das repetições, inspirados na categoria de
+eco de fita. **Não é um port de Airwindows TapeDelay2**, cujos
+controles, tempo efetivo, ressonância e flutter são diferentes.
+O processamento é mono, usa memória de delay pré-alocada na
+construção do grafo e não aloca nem faz I/O na callback.
+Cada instância tem buffer independente. O bypass evita o processamento,
+e a cauda é reiniciada ao parar/iniciar o rig. Testes automatizados
+cobrem tempo amostra-exato, feedback, mix, silêncio, blocos e bypass.
+A/B físico, desempenho e estabilidade ainda precisam ser testados.
+
 ## VTTCHORUS Classic: DaisySP ChorusEngine em mono
 
 `kind: "chorus"` é um nó nativo sem `resource`, com três parâmetros
@@ -183,7 +205,7 @@ Use *real local* paths to a mono `.nam` or `.wav` for each instance:
 **Rules and present limits:** array order is the exact DSP sequence;
 IDs must be unique; up to 24 stages; repeat `amp`, `drive` or `cabinet`
 freely, each with independent bypass. Unknown/unsupported effects
-(`delay`, `reverb`) are
+(`reverb`) are
 **rejected explicitly** even if disabled; the engine does not silently
 pretend to apply them. Version and malformed parameters are rejected.
 Parameters are currently **validated only, not applied** to NAM/IR audio:
@@ -313,7 +335,7 @@ Begin with monitor volume low to avoid feedback or high gain.
 - Currently supports mono-input/mono-output `.nam` or mono `.wav` IR
   nodes, max 24 blocks, 48 kHz JACK, prewarmed DSP outside realtime.
 - Stereo IR, arbitrary sample rates for NAM, MIDI, amp-skin DSP mapping,
-  delay and reverb are **pending**.
+  reverb is **pending**.
 - Each node has its own bypass/identity. Model loads, sample-rate conversions
   of IRs and other expensive operations must occur off the audio callback.
 - Output is safety-clamped to [-1, 1]. No claims about final timbre,
