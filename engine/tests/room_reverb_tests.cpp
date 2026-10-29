@@ -91,6 +91,17 @@ int main() {
   assert(render(dry, p, 1) == render(dry, p, 128));
   assert(render(dry, p, 512) == render(dry, p, 128));
 
+  // Very long decay on sustained input must not produce hazardous wet peaks.
+  p.decay = 15.0;
+  p.mix = 100.0;
+  const std::vector<Sample> sustained_input(48000, 0.8);
+  for (double sample : render(sustained_input, p)) {
+    assert(std::isfinite(sample));
+    assert(std::abs(sample) <= 1.0);
+  }
+  p.decay = 4.2;
+  p.mix = 35.0;
+
   // Silence stays silent. No artificial hiss / denormal injection.
   const std::vector<Sample> silence(24000, 0.0);
   for (double sample : render(silence, p)) assert(sample == 0.0);
