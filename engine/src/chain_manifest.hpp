@@ -19,7 +19,7 @@ namespace vttrig {
 // the JACK engine. An array's order is the user's signal order.
 struct ManifestEffect {
   std::string id;
-  std::string kind; // "amp", "drive", "cabinet", "gate", "compressor" or "sustain"
+  std::string kind; // "amp", "drive", "cabinet", "gate", "compressor", "sustain" or "chorus"
   std::filesystem::path path; // empty for a file-free effect
   bool enabled = true;
   std::map<std::string, double> parameters; // evaluated during graph preparation
@@ -60,14 +60,14 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
       throw std::invalid_argument(prefix + "duplicate, empty or oversized effect id");
     }
 
-    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor" && kind != "sustain") {
+    if (kind != "amp" && kind != "drive" && kind != "cabinet" && kind != "gate" && kind != "compressor" && kind != "sustain" && kind != "chorus") {
       throw std::invalid_argument(prefix + "DSP not implemented for effect kind: " + kind);
     }
     std::filesystem::path path;
-    if (kind == "gate" || kind == "compressor" || kind == "sustain") {
-      // Native dynamics effects never load .nam/.wav files.
+    if (kind == "gate" || kind == "compressor" || kind == "sustain" || kind == "chorus") {
+      // Native file-free effects never load .nam/.wav files.
       if (node.contains("resource")) {
-        throw std::invalid_argument(prefix + "native dynamics effect must not have a resource");
+        throw std::invalid_argument(prefix + "native effect must not have a resource");
       }
     } else {
       if (!node.contains("resource") || !node["resource"].is_object() ||
@@ -126,6 +126,15 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
             (name == "mix" && number >= 0.0 && number <= 100.0);
         if (!valid) {
           throw std::invalid_argument(prefix + "unknown or out-of-range sustain parameter: " + name);
+        }
+      }
+      if (kind == "chorus") {
+        const bool valid =
+            (name == "rate" && number >= 0.1 && number <= 8.0) ||
+            (name == "depth" && number >= 0.0 && number <= 100.0) ||
+            (name == "mix" && number >= 0.0 && number <= 100.0);
+        if (!valid) {
+          throw std::invalid_argument(prefix + "unknown or out-of-range chorus parameter: " + name);
         }
       }
       parameters.emplace(name, number);
