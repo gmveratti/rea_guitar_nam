@@ -208,6 +208,29 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "reverb" {
+            if node.get("resource").is_some() {
+                return Err("VTTREVERB não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTTREVERB inválidos")?;
+            for (name, value) in params {
+                let number = value
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do VTTREVERB deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "size" | "mix" => (0.0..=100.0).contains(&number),
+                    "decay" => (0.2..=15.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTTREVERB: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
