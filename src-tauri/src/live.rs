@@ -114,6 +114,29 @@ fn validate_manifest(json: &str) -> Result<(), String> {
             }
             continue;
         }
+        if kind == "compressor" {
+            if node.get("resource").is_some() {
+                return Err("VTT Compressor não deve ter arquivo NAM/IR.".into());
+            }
+            let params = node["parameters"]
+                .as_object()
+                .ok_or("Parâmetros do VTT Compressor inválidos")?;
+            for (name, value) in params {
+                let number = value.as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or("Parâmetro do compressor deve ser numérico e finito")?;
+                let valid = match name.as_str() {
+                    "compress" => (0.0..=100.0).contains(&number),
+                    "output" => (0.0..=200.0).contains(&number),
+                    "mix" => (0.0..=100.0).contains(&number),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(format!("Parâmetro inválido do VTT Compressor: {name}"));
+                }
+            }
+            continue;
+        }
         let path = node["resource"]["path"].as_str().unwrap_or("");
         let allowed_extension = match kind {
             "amp" | "drive" => "nam",
