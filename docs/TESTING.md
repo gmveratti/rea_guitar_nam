@@ -59,6 +59,27 @@ ctest --test-dir engine/build --output-on-failure
 ```
 
 
+## CI de qualidade versus empacotamento de Releases
+
+| Evento | UI/Vitest/Playwright | Rust/C++/CTest | Instaladores e downloads binários |
+|---|---|---|---|
+| Pull request | Sim | Sim | **Não** |
+| Push/merge em `main` | Sim | Sim | **Não** |
+| `workflow_dispatch` dos jobs nativos | Validações do workflow | Sim | **Não** |
+| `release.published` | Validações no tag de release | Sim | **NSIS, AppImage, NAM standalone** |
+
+- Os processos de compilação usados para `cargo check`, CTest e integração
+  do sidecar ainda são necessários para verificar o código, mas **não geram
+  instaladores para distribuição nem publicam executáveis como artefatos**.
+- Ao **publicar uma GitHub Release**, os workflows verificam o código da tag,
+  montam os instaladores, validam os arquivos gerados e os anexam na Release.
+  Falha de qualquer etapa impede a publicação automática daquele asset.
+- Criar somente uma **tag**, abrir um PR ou fazer merge **não** publica binaries;
+  uma Release publicada é o evento intencional de distribuição.
+- Uma release publicada pode aparecer inicialmente sem anexos até os jobs
+  terminarem; confira os resultados no Actions antes de anunciar a versão
+  como validada. Os instaladores não são assinados digitalmente.
+
 ## Windows x64: distribuição e validação
 
 O PR #8 adiciona a suíte independente `VTTRIG Tauri Windows` no GitHub
@@ -72,9 +93,9 @@ Critérios automatizados antes de aprovar o PR:
 - `python -m unittest discover -s scripts -p "test_windows_bundle.py"`;
 - `python scripts/check_windows_bundle.py --preflight`, incluindo layers
   ICO 32px e 256px e override `tauri.windows.conf.json`;
-- `npx tauri build --bundles nsis` e verificação posterior do instalador
-  `*-setup.exe` e do executável `vttrig.exe`;
-- artefato `VTTRIG-Windows-x64` efetivamente publicado no Actions.
+- **somente em `release.published`:** `npx tauri build --bundles nsis`,
+  verificação posterior do instalador `*-setup.exe` e do executável
+  `vttrig.exe`, upload do artefato `VTTRIG-Windows-x64` e anexo à Release.
 
 **Validação manual obrigatória após o CI:** instalar o `.exe` num Windows
 10/11 x64 de teste; abrir, navegar pelas três abas, carregar o visual de um
@@ -98,7 +119,8 @@ O workflow `VTTRIG NAM cross-platform DSP` agora usa matriz C++
 - Regressões offline PCM16 e IEEE float32, 48 kHz mono,
   input inválido, amostras não finitas, tail de bloco de 1 frame,
   passthrough com cadeia vazia e pedal em bypass;
-- Publicar binários de linha de comando separados do AppImage Tauri.
+- **Somente durante uma Release publicada:** distribuir os binários de linha
+  de comando, separados do AppImage Tauri.
 
 Esta etapa permite processamento offline sem placa de áudio; **não prova
 realtime**, USB audio interface, WASAPI/ASIO, A2 Full/Lite de modelos reais,

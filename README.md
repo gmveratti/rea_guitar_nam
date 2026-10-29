@@ -2,7 +2,7 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: PR #15 integrado à `main`.** O Tauri oferece áudio NAM/IR experimental, com modelo/IR associados a cada instância da pedalboard e cadeia ordenada enviada ao motor **ao iniciar**. A alteração em tempo real ainda requer parar/reiniciar a sessão e os demais pedais não possuem DSP. **O Noise Gate já possui DSP; esta branch acrescenta o Compressor Smooth, ambos nativos. Hardware, estabilidade e latência ainda não estão homologados.**
+> **Status: motor NAM/IR experimental com VTTGATE nativo na `main`; esta branch acrescenta VTT Compressor Smooth.** Ambos os pedais dinâmicos têm DSP real, mas a sessão ainda exige **Parar/Iniciar** para aplicar mudanças. Sustain, Chorus, Delay e Reverb seguem visuais. **Hardware, estabilidade e latência ainda não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -15,6 +15,23 @@
 **Atenção ao tipo de captura:** um *Amp Head* normalmente é combinado com uma IR de gabinete; uma captura *Amp + Cab* já inclui o gabinete e não exige outra IR. O usuário segue livre para organizar e habilitar os módulos. O motor atual é experimental, mono/48 kHz, e a compatibilidade precisa ser validada em testes reais.
 
 Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHITECTURE.md) e [guia oficial NAM × IR](https://www.tone3000.com/guides/neural-amp-modeler).
+
+## Política de CI e distribuição: binários somente em Releases
+
+- **Pull requests e merges em `main`:** validar interface, Vitest/Playwright,
+  Rust, C++/CTest e compatibilidade do motor. Compilações de testes e do sidecar
+  podem ocorrer nos runners, mas **não geram instaladores distribuíveis**.
+- **Release publicada no GitHub:** os workflows Windows, Linux e NAM portátil
+  repetem as validações; somente nessa execução fazem o empacotamento de
+  **NSIS `.exe`**, **AppImage** e binários NAM standalone. Os arquivos são
+  anexados à [Release](https://github.com/gmveratti/rea_guitar_nam/releases)
+  e ficam como artefatos no workflow.
+- **`workflow_dispatch` manual:** executa somente verificações, sem produzir
+  instaladores. Para publicar uma versão, crie a tag/versão desejada e
+  publique a **GitHub Release** referente àquela tag. Criar apenas o commit,
+  fazer merge ou criar somente uma tag não dispara a distribuição.
+- Builds locais de desenvolvimento continuam possíveis com `npx tauri build`,
+  sem alterar a regra da CI.
 
 ## VTT Compressor Smooth (Airwindows ButterComp2)
 
@@ -33,7 +50,7 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
 6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
 
-Limitações: suporte nativo só para **NAM/Drive NAM e IR mono 48 kHz**. Gate, compressor, sustain, chorus, delay e reverb são **ignorados explicitamente no áudio**, não processados silenciosamente como efeitos. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+Limitações atuais: o motor permanece **mono/48 kHz**. Gate e Compressor Smooth possuem DSP real; Sustain, Chorus, Delay e Reverb seguem visuais e são **ignorados explicitamente no áudio**. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 
@@ -206,14 +223,13 @@ npm run dev
 
 Abra http://127.0.0.1:5173.
 
-## Baixar aplicativo Linux pelo GitHub Actions
+## Baixar aplicativo Linux pela GitHub Release
 
-O workflow [VTTRIG Tauri Linux](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-linux.yml) cria o pacote portátil **AppImage x86_64** e o binário de preview `vttrig`.
-Ele é publicado como artefato **VTTRIG-Linux-x86_64** na aba **Summary → Artifacts** de cada execução bem-sucedida (retenção: 14 dias).
+O workflow [VTTRIG Tauri Linux](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-linux.yml) roda verificações em PRs e merges, mas **só gera AppImage x86_64 quando uma Release é publicada**.
+Acesse [Releases](https://github.com/gmveratti/rea_guitar_nam/releases), abra a versão publicada e baixe o **AppImage** anexado.
+A mesma execução também mantém o artefato `VTTRIG-Linux-x86_64` no Actions (retenção: 14 dias).
 
-1. Entre na [execução do PR de empacotamento](https://github.com/gmveratti/rea_guitar_nam/pull/3/checks) e abra o job **VTTRIG Tauri Linux**.
-2. Na página da execução, baixe **VTTRIG-Linux-x86_64** em **Artifacts** e extraia o ZIP.
-3. No Fedora, na pasta extraída:
+No Fedora, na pasta do download:
 
 ```bash
 chmod +x *.AppImage
@@ -226,8 +242,10 @@ Se houver problema com FUSE no host, experimente executar o AppImage com `APPIMA
 APPIMAGE_EXTRACT_AND_RUN=1 ./VTTRIG*.AppImage
 ```
 
-Este build **só executa a interface visual**. A captura NAM A2, áudio JACK,
-IR e controles dos pedais ainda não estão conectados ao aplicativo Tauri.
+**Estado atual dos instaladores:** o Tauri inclui o sidecar experimental
+NAM/IR e aceita modelos locais, mas drivers, estabilidade, latência e áudio
+com interface física ainda exigem homologação. Pedais sem DSP continuam
+apenas visuais; confira a situação mais recente no início deste README.
 
 ### Gerar binário local no Fedora (alternativa)
 
@@ -243,12 +261,12 @@ O AppImage resultante fica em `src-tauri/target/release/bundle/appimage/`.
 ## Versão Windows x64 (PR #8)
 
 O [workflow VTTRIG Tauri Windows](https://github.com/gmveratti/rea_guitar_nam/actions/workflows/tauri-windows.yml)
-usa um runner Windows 2022, compila o projeto com Rust/MSVC e empacota o
-instalador **NSIS `.exe`**. Em cada execução aprovada, aparece o artefato
-`VTTRIG-Windows-x64` na seção **Actions → execução → Artifacts**
-(disponível por 14 dias).
+usa Windows 2022/MSVC para validar cada PR e merge, mas **só empacota o
+instalador NSIS `.exe` quando uma Release é publicada**. Baixe o
+`*-setup.exe` nos anexos da [Release](https://github.com/gmveratti/rea_guitar_nam/releases).
+O artefato `VTTRIG-Windows-x64` também fica disponível no Actions por 14 dias.
 
-Para testar, baixe o ZIP, extraia o `*-setup.exe` e execute o instalador
+Para testar, baixe o `*-setup.exe` e execute o instalador
 no Windows 10/11 x64. **O instalador gerado pelo CI não é assinado
 digitalmente**: o Windows SmartScreen poderá mostrar um aviso de editor
 desconhecido. Verifique a procedência do arquivo pelo workflow do GitHub
@@ -280,10 +298,11 @@ as opções exclusivas do Windows (`nsis` e `icons/icon.ico`). A configuração
 Linux e seu AppImage não são alterados. O `.ico` é gerado a partir do PNG
 VTTRIG existente pelo Tauri CLI, antes de compilar.
 
-**Limite:** esta build testa **somente a interface desktop**. Os módulos NAM,
-IR, pedais e os controles visuais ainda não processam áudio dentro do app.
-O motor experimental atual usa JACK e não roda no Windows. A futura engine
-multiplataforma precisará de backend de áudio Windows e testes próprios.
+**Limite:** o instalador do Windows inclui o sidecar NAM/IR experimental e
+usa os backends nativos disponíveis (por padrão, WASAPI). Ele não garante
+ASIO nem baixa latência: testes físicos com interface, guitarra e modelos
+reais ainda são necessários. Os pedais sem DSP implementado permanecem
+visuais.
 
 ## Rodar desktop com Tauri
 

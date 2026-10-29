@@ -24,6 +24,11 @@ Seções condicionais não introduzem novas tecnologias no projeto.
   envia o manifesto ordenado somente ao iniciar/reiniciar uma sessão (PR #15).
   Nunca relatar latência, estabilidade ou compatibilidade física como testados
   quando houver apenas testes e builds de CI, sem interface de áudio real.
+- **CI sem empacotamento por commit:** PRs e pushes na `main` executam
+  builds técnicos/testes (UI, Rust, C++/CTest), **sem gerar ou distribuir
+  NSIS, AppImage ou executáveis NAM standalone**. Apenas o evento
+  `release.published` pode empacotar e anexar binários à GitHub Release.
+  `workflow_dispatch` é diagnóstico, não uma forma de publicar instaladores.
 - **Quality gate:** `make check`, além das verificações de interface e de
   hardware aplicáveis. Ver [docs/TESTING.md](docs/TESTING.md) e
   [docs/DSP_RESEARCH_AND_ARCHITECTURE.md](docs/DSP_RESEARCH_AND_ARCHITECTURE.md).
