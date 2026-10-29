@@ -34,6 +34,21 @@ describe("pedal chain", () => {
     expect(validateChain([{ id: "y", kind: "__proto__", enabled: true, values: {} }])).toBeNull();
   });
 
+  it("migrates visual-only legacy compressor knobs to real ButterComp2 defaults", () => {
+    const legacy = [{
+      id: "compressor-old", kind: "compressor", enabled: false,
+      values: { threshold: -25, ratio: 8, attack: 15, release: 90 },
+    }];
+    const migrated = validateChain(legacy);
+    expect(migrated?.[0].id).toBe("compressor-old");
+    expect(migrated?.[0].enabled).toBe(false);
+    expect(migrated?.[0].values).toEqual({ compress: 35, output: 100, mix: 100 });
+    const fresh = createPedal("compressor");
+    fresh.values.compress = 75;
+    fresh.values.mix = 45;
+    expect(validateChain([fresh])?.[0].values).toEqual(fresh.values);
+  });
+
   it("restores valid parameters from a saved chain", () => {
     const raw = [{ id: "amp-1", kind: "amp", enabled: true, values: { input: 45, output: -4 } }];
     const parsed = validateChain(raw);
