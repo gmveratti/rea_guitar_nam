@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -58,8 +60,10 @@ jobs:
       - name: Run Rust regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Build VTTRIG AppImage (x86_64)
+        if: github.event_name == 'release'
         run: npx tauri build --bundles appimage
       - name: Validate Linux executables
+        if: github.event_name == 'release'
         shell: bash
         run: |
           set -euo pipefail
@@ -69,6 +73,7 @@ jobs:
           test -f src-tauri/target/release/vttrig
           ls -lh "${images[@]}" src-tauri/target/release/vttrig
       - name: Publish downloadable Fedora/Linux test build
+        if: github.event_name == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: VTTRIG-Linux-x86_64
@@ -77,3 +82,27 @@ jobs:
             src-tauri/target/release/vttrig
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    name: Attach AppImage to GitHub Release
+    if: github.event_name == 'release'
+    needs: tauri-check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: VTTRIG-Linux-x86_64
+          path: release-assets
+      - name: Attach Linux AppImage to the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(release-assets/*.AppImage)
+          test "${#images[@]}" -eq 1
+          gh release upload "$RELEASE_TAG" "${images[@]}" --clobber
