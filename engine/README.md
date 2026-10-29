@@ -1,5 +1,25 @@
 # VTTRIG native NAM / IR JACK engine
 
+## VTTSUSTAIN: Pressure5 dynamics (Airwindows MIT)
+
+`kind: "sustain"` is a file-free `schemaVersion: 1` native DSP node
+with optional parameters `sustain` 0–100%, `speed` 0–100%,
+`level` -18/+18 dB and `mix` 0–100%. Defaults are 65/25/0/100.
+The Pressure5-inspired mu envelope uses the original interleaved A/B
+compressor and program-dependent speed. Its original 24 kHz anti-ultrasonic
+biquads are bypassed at the current 48 kHz rate, as upstream does.
+VST, dithering and the ClipOnly2 sample delay were deliberately omitted;
+a smooth, zero-latency peak ceiling protects the wet signal. At 0% Mix,
+the pedal is a true dry passthrough.
+
+The `Pressure5` name is used only for source attribution, not the visual
+pedal's brand. This is an adapted dynamics core, not the complete plugin.
+The prior visual-only `attack` knob has no equivalent Pressure5 control:
+old presets retain Sustain and Level but default Speed to 25%.
+Tests: `ctest --test-dir engine/build --output-on-failure` includes
+`sustain_airwindows_pressure_envelope_and_bypass`. Hardware A/B,
+noise amplification and latency still require verification.
+
 ## VTT Compressor Smooth: Airwindows ButterComp2
 
 The VTTRIG stompbox is only the UI. The sound uses a native C++20
@@ -145,7 +165,7 @@ Use *real local* paths to a mono `.nam` or `.wav` for each instance:
 **Rules and present limits:** array order is the exact DSP sequence;
 IDs must be unique; up to 24 stages; repeat `amp`, `drive` or `cabinet`
 freely, each with independent bypass. Unknown/unsupported effects
-(`chorus`, `delay`, `reverb`, `sustain`) are
+(`chorus`, `delay`, `reverb`) are
 **rejected explicitly** even if disabled; the engine does not silently
 pretend to apply them. Version and malformed parameters are rejected.
 Parameters are currently **validated only, not applied** to NAM/IR audio:
@@ -275,7 +295,7 @@ Begin with monitor volume low to avoid feedback or high gain.
 - Currently supports mono-input/mono-output `.nam` or mono `.wav` IR
   nodes, max 24 blocks, 48 kHz JACK, prewarmed DSP outside realtime.
 - Stereo IR, arbitrary sample rates for NAM, MIDI, amp-skin DSP mapping,
-  chorus, delay, reverb and sustain are **pending**.
+  chorus, delay and reverb are **pending**.
 - Each node has its own bypass/identity. Model loads, sample-rate conversions
   of IRs and other expensive operations must occur off the audio callback.
 - Output is safety-clamped to [-1, 1]. No claims about final timbre,
