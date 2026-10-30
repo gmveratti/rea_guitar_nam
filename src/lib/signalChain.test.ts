@@ -4,14 +4,14 @@ import { createSignalChainSnapshot } from "./signalChain";
 
 describe("canonical ordered signal-chain contract", () => {
   it("processes in EXACT visual order rather than sorting by effect type", () => {
-    const amp = createPedal("amp");
-    const ir = createPedal("cabinet");
+    const gate = createPedal("gate");
+    const chorus = createPedal("chorus");
     const delay = createPedal("delay");
-    const chain = [delay, ir, amp];
+    const chain = [delay, chorus, gate];
     const snapshot = createSignalChainSnapshot(chain);
     expect(snapshot.schemaVersion).toBe(1);
-    expect(snapshot.nodes.map((node) => node.id)).toEqual([delay.id, ir.id, amp.id]);
-    expect(snapshot.nodes.map((node) => node.kind)).toEqual(["delay", "cabinet", "amp"]);
+    expect(snapshot.nodes.map((node) => node.id)).toEqual([delay.id, chorus.id, gate.id]);
+    expect(snapshot.nodes.map((node) => node.kind)).toEqual(["delay", "chorus", "gate"]);
   });
 
   it("preserves duplicate kinds but assigns each its own identity and bypass", () => {
@@ -28,8 +28,8 @@ describe("canonical ordered signal-chain contract", () => {
 
   it("captures a reorder without changing the source chain", () => {
     const a = createPedal("reverb");
-    const b = createPedal("amp");
-    const c = createPedal("drive");
+    const b = createPedal("chorus");
+    const c = createPedal("sustain");
     const original = [a, b, c];
     const reordered = movePedal(original, b.id, 0);
     expect(createSignalChainSnapshot(reordered).nodes.map((node) => node.id))
@@ -45,23 +45,10 @@ describe("canonical ordered signal-chain contract", () => {
     expect(() => createSignalChainSnapshot([a, a])).toThrow("Invalid pedal chain");
   });
 
-  it("includes native model/IR resources per instance without rearranging modules", () => {
-    const cabinet = createPedal("cabinet");
-    const firstAmp = createPedal("amp");
-    const secondAmp = createPedal("amp");
-    secondAmp.enabled = false;
-    const snapshot = createSignalChainSnapshot(
-      [cabinet, firstAmp, secondAmp],
-      {
-        [cabinet.id]: "/models/front.wav",
-        [firstAmp.id]: "/models/crunch.nam",
-        [secondAmp.id]: "/models/clean.nam",
-      },
-    );
-    expect(snapshot.nodes.map((node) => node.kind)).toEqual(["cabinet", "amp", "amp"]);
-    expect(snapshot.nodes.map((node) => node.resource?.path))
-      .toEqual(["/models/front.wav", "/models/crunch.nam", "/models/clean.nam"]);
-    expect(snapshot.nodes[2].enabled).toBe(false);
+  it("retired amp, drive and IR slots are absent from the pedal snapshot", () => {
+    const chorus = createPedal("chorus");
+    const snapshot = createSignalChainSnapshot([createPedal("amp"), chorus, createPedal("cabinet"), createPedal("drive")]);
+    expect(snapshot.nodes.map(node => node.kind)).toEqual(["chorus"]);
   });
 
   it("does not require resources for visual-only preview chains", () => {
@@ -70,8 +57,8 @@ describe("canonical ordered signal-chain contract", () => {
   });
 
   it("rejects invalid explicit resource paths instead of silently dropping them", () => {
-    const amp = createPedal("amp");
-    expect(() => createSignalChainSnapshot([amp], { [amp.id]: "  " }))
+    const delay = createPedal("delay");
+    expect(() => createSignalChainSnapshot([delay], { [delay.id]: "  " }))
       .toThrow("Invalid resource path");
   });
 
