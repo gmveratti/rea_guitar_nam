@@ -236,7 +236,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
             {running && activeMode === "wet" &&
               (appliedManifest === null || liveManifest !== appliedManifest) &&
               <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM/IR e depois Iniciar NAM/IR.</p>}
-            <p className="audio-device-note">48.000 Hz · canal de entrada selecionado enviado em mono para as saídas. Buffer pode ser recusado pelo driver. WASAPI/ALSA são padrão; ASIO/JACK exigem suporte opcional e drivers instalados.</p>
+            <p className="audio-device-note">48.000 Hz · guitarra enviada em mono para as saídas. No Linux, prefira JACK/PipeWire-JACK e confira as portas no qpwgraph. O buffer do JACK é definido no servidor (a opção de samples acima se aplica ao ALSA/WASAPI). JACK usa portas virtuais e pode aparecer como cpal_client_in/out, não como o nome da interface USB. No Windows, WASAPI é padrão e ASIO continua opcional.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
             {running && activeMode === "dry" && dryStatus?.failed && (
               <p className="audio-device-warning" role="alert">Falha na {audioFaultReason(dryStatus)}. Pare o monitor, confira a interface e atualize os dispositivos antes de tentar novamente.</p>
