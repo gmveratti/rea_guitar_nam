@@ -20,6 +20,11 @@ rtrb = "0.3"
 serde_json = "1"
 tauri-plugin-dialog = "2"
 
+# Linux desktop always includes the JACK backend so PipeWire-JACK can be
+# selected in Settings. Windows keeps WASAPI as its only default backend.
+[target.'cfg(target_os = "linux")'.dependencies]
+cpal = { version = "0.17", features = ["jack"] }
+
 # CPAL backends are intentionally selectable only when compiled and present.
 # ASIO requires Steinberg SDK/toolchain setup and is NOT enabled in default CI.
 [features]
