@@ -103,7 +103,7 @@ test("left navigation floats separately from header and keeps all three destinat
   const tabs = rail.getByRole("button");
 
   await expect(tabs).toHaveCount(3);
-  await expect(rail).toHaveCSS("position", "sticky");
+  await expect(rail).toHaveCSS("position", "fixed");
 
   for (const width of [1440, 1000]) {
     await page.setViewportSize({ width, height: 900 });
@@ -113,13 +113,26 @@ test("left navigation floats separately from header and keeps all three destinat
     expect(railBox).not.toBeNull();
     if (!headerBox || !railBox) continue;
 
-    // Regression: a full-height left column must not touch the topbar.
+    // The floating rail is vertically centered without shifting the stage.
+    expect(Math.abs(railBox.y + railBox.height / 2 - 450)).toBeLessThanOrEqual(2);
     expect(railBox.y - (headerBox.y + headerBox.height)).toBeGreaterThanOrEqual(12);
     expect(railBox.x).toBeGreaterThan(0);
     expect(railBox.height).toBeLessThan(450);
     expect(railBox.x + railBox.width).toBeLessThan(width / 5);
     await expect(rail).not.toHaveCSS("border-top-left-radius", "0px");
   }
+
+  // In low-height windows, use a scrollable rail beneath the header.
+  await page.setViewportSize({ width: 1000, height: 450 });
+  const headerBox = await header.boundingBox();
+  const compactBox = await rail.boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(compactBox).not.toBeNull();
+  if (headerBox && compactBox) {
+    expect(compactBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height + 8);
+    expect(compactBox.y + compactBox.height).toBeLessThanOrEqual(450);
+  }
+  await expect(rail).toHaveCSS("overflow-y", "auto");
 
   await tabs.nth(1).click();
   await expect(tabs.nth(1)).toHaveAttribute("aria-current", "page");
