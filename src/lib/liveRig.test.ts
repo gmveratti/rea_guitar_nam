@@ -1,175 +1,89 @@
 import { describe, expect, it } from "vitest";
 import { createPedal, movePedal } from "./pedals";
-import { buildLiveBoardSnapshot, validateRigResources } from "./liveRig";
+import { buildLiveBoardSnapshot, validMainAmpPath, validateRigResources } from "./liveRig";
 
-describe("PR15: canonical pedalboard -> live NAM/IR manifest", () => {
-  it("retains EXACT user order, duplicate kinds and independent bypass", () => {
-    const amp1 = createPedal("amp"), ir = createPedal("cabinet"), amp2 = createPedal("amp");
-    amp2.enabled = false;
-    const chain = movePedal([amp1, ir, amp2], ir.id, 0);
-    const paths = { [amp1.id]: "/models/a.NAM", [amp2.id]: "/models/b.nam", [ir.id]: "/irs/front.WAV" };
-    const result = buildLiveBoardSnapshot(chain, paths);
-    expect(result.nodes.map(n => n.id)).toEqual([ir.id, amp1.id, amp2.id]);
-    expect(result.nodes.map(n => n.kind)).toEqual(["cabinet", "amp", "amp"]);
-    expect(result.nodes.map(n => n.enabled)).toEqual([true, true, false]);
-    expect(result.nodes.map(n => 'resource' in n ? n.resource.path : undefined)).toEqual(["/irs/front.WAV", "/models/a.NAM", "/models/b.nam"]);
-  });
-
-  it("master amp power disables amps without modifying pedal instances", () => {
-    const amp = createPedal("amp"), ir = createPedal("cabinet");
-    const snapshot = buildLiveBoardSnapshot([amp, ir], { [amp.id]: "/amp.nam", [ir.id]: "/ir.wav" }, false);
-    expect(snapshot.nodes.map(n => n.enabled)).toEqual([false, true]);
-    expect(amp.enabled).toBe(true);
-  });
-
-  it("includes a file-free VTTGATE with the real DSP controls in precise order", () => {
-    const gate = createPedal("gate"), amp = createPedal("amp"), gate2 = createPedal("gate");
-    gate.values.threshold = -43;
-    gate.values.hold = 35;
-    gate2.enabled = false;
-    const result = buildLiveBoardSnapshot([gate, amp, gate2], { [amp.id]: "/amp.nam" });
-    expect(result.nodes.map(n => n.kind)).toEqual(["gate", "amp", "gate"]);
-    expect(result.nodes[0]).toEqual({
-      id: gate.id, kind: "gate", enabled: true,
-      parameters: { threshold: -43, release: 50, hold: 35, range: 80 },
-    });
-    expect(result.nodes[2].enabled).toBe(false);
-    expect(result.ignored).toEqual([]);
-    expect(validateRigResources({ [gate.id]: "/wrong.nam", [amp.id]: "/amp.nam" }, [gate, amp]))
-      .toEqual({ [amp.id]: "/amp.nam" });
-  });
-
-  it("includes file-free Airwindows compressor with real controls and bypass", () => {
-    const comp = createPedal("compressor"), gate = createPedal("gate");
-    const comp2 = createPedal("compressor");
-    comp.values.compress = 75;
-    comp.values.output = 125;
-    comp2.enabled = false;
-    const result = buildLiveBoardSnapshot([comp, gate, comp2], {});
-    expect(result.nodes.map(n => n.kind)).toEqual(["compressor", "gate", "compressor"]);
-    expect(result.nodes[0]).toEqual({
-      id: comp.id, kind: "compressor", enabled: true,
-      parameters: { compress: 75, output: 125, mix: 100 },
-    });
-    expect(result.nodes[2].enabled).toBe(false);
-    expect(result.ignored).toEqual([]);
-    expect(validateRigResources({ [comp.id]: "/wrong.nam" }, [comp])).toEqual({});
-  });
-
-  it("sends VTTSUSTAIN with real Pressure5 controls, ordered instances and bypass", () => {
-    const sustain = createPedal("sustain");
-    sustain.values.sustain = 80;
-    sustain.values.speed = 75;
-    sustain.values.level = -6;
-    sustain.values.mix = 40;
-    const gate = createPedal("gate"), second = createPedal("sustain");
-    second.enabled = false;
-    const plan = buildLiveBoardSnapshot([second, gate, sustain], {});
-    expect(plan.nodes.map(n => n.kind)).toEqual(["sustain", "gate", "sustain"]);
-    expect(plan.nodes.map(n => n.enabled)).toEqual([false, true, true]);
-    expect(plan.nodes[2]).toEqual({
-      id: sustain.id, kind: "sustain", enabled: true,
-      parameters: { sustain: 80, speed: 75, level: -6, mix: 40 },
+describe("pedalboard and standalone amplifier -> native DSP manifest", () => {
+  it("routes only the six effects in visual order, then the standalone main amp", () => {
+    const gate = createPedal("gate"), chorus = createPedal("chorus"), delay = createPedal("delay");
+    chorus.values.depth = 70;
+    delay.enabled = false;
+    const chain = movePedal([gate, chorus, delay], chorus.id, 0);
+    const plan = buildLiveBoardSnapshot(chain, "/models/Hiwatt_A2.NAM");
+    expect(plan.nodes.map(n => n.kind)).toEqual(["chorus", "gate", "delay", "amp"]);
+    expect(plan.nodes.map(n => n.enabled)).toEqual([true, true, false, true]);
+    expect(plan.nodes[0].parameters.depth).toBe(70);
+    expect(plan.nodes[3]).toEqual({
+      id: "main-amp", kind: "amp", enabled: true,
+      parameters: { input: 0, output: -3 },
+      resource: { path: "/models/Hiwatt_A2.NAM" },
     });
     expect(plan.ignored).toEqual([]);
-    expect(validateRigResources({ [sustain.id]: "/not-applicable.nam" }, [sustain])).toEqual({});
-    expect(buildLiveBoardSnapshot([sustain], {}).nodes.map(n => n.kind)).toEqual(["sustain"]);
   });
 
-  it("serializes multiple file-free native Chorus pedals with real controls", () => {
-    const ch = createPedal("chorus"), gate = createPedal("gate");
-    const ch2 = createPedal("chorus");
-    ch.values.rate = 5.2;
-    ch.values.depth = 77;
-    ch.values.mix = 62;
-    ch2.enabled = false;
-    const manifest = buildLiveBoardSnapshot([ch2, gate, ch], {});
-    expect(manifest.nodes.map(n => n.kind)).toEqual(["chorus", "gate", "chorus"]);
-    expect(manifest.nodes.map(n => n.enabled)).toEqual([false, true, true]);
-    expect(manifest.nodes[2]).toEqual({
-      id: ch.id, kind: "chorus", enabled: true,
-      parameters: { rate: 5.2, depth: 77, mix: 62 },
-    });
-    expect(manifest.ignored).toEqual([]);
-    expect(buildLiveBoardSnapshot([createPedal("chorus")], {}).nodes[0].kind).toBe("chorus");
-    expect(validateRigResources({ [ch.id]: "/wrong.nam" }, [ch])).toEqual({});
+  it("accepts amp-only rigs without adding any virtual pedal", () => {
+    const plan = buildLiveBoardSnapshot([], "/models/a.nam");
+    expect(plan.nodes).toHaveLength(1);
+    expect(plan.nodes[0].kind).toBe("amp");
+    expect(plan.nodes[0].id).toBe("main-amp");
   });
 
-  it("maps native Delay time/feedback/mix, repeated instances and bypass", () => {
-    const delay = createPedal("delay"), chorus = createPedal("chorus");
-    const second = createPedal("delay");
-    delay.values.time = 650;
-    delay.values.feedback = 55;
-    delay.values.mix = 42;
-    second.enabled = false;
-    const board = buildLiveBoardSnapshot([second, chorus, delay], {});
-    expect(board.nodes.map(n => n.kind)).toEqual(["delay", "chorus", "delay"]);
-    expect(board.nodes.map(n => n.enabled)).toEqual([false, true, true]);
-    expect(board.nodes[2]).toEqual({
-      id: delay.id, kind: "delay", enabled: true,
-      parameters: { time: 650, feedback: 55, mix: 42 },
-    });
-    expect(board.ignored).toEqual([]);
-    expect(buildLiveBoardSnapshot([createPedal("delay")], {}).nodes[0].kind).toBe("delay");
-    expect(validateRigResources({ [delay.id]: "/not-delay.nam" }, [delay])).toEqual({});
-  });
-
-  it("includes file-free Reverb with real Size, Decay, Mix, order and bypass", () => {
-    const reverb = createPedal("reverb"), delay = createPedal("delay");
-    const second = createPedal("reverb");
-    reverb.values.size = 90;
-    reverb.values.decay = 8.5;
-    reverb.values.mix = 45;
-    second.enabled = false;
-    const board = buildLiveBoardSnapshot([second, delay, reverb], {});
-    expect(board.nodes.map(n => n.kind)).toEqual(["reverb", "delay", "reverb"]);
-    expect(board.nodes.map(n => n.enabled)).toEqual([false, true, true]);
-    expect(board.nodes[2]).toEqual({
-      id: reverb.id, kind: "reverb", enabled: true,
-      parameters: { size: 90, decay: 8.5, mix: 45 },
-    });
-    expect(board.ignored).toEqual([]);
-    expect(buildLiveBoardSnapshot([createPedal("reverb")], {}).nodes[0].kind).toBe("reverb");
-    expect(validateRigResources({ [reverb.id]: "/wrong.wav" }, [reverb])).toEqual({});
-  });
-
-  it("does not claim other unsupported visual pedals are running in DSP", () => {
-    const gate = createPedal("gate"), amp = createPedal("amp"); const disabled = createPedal("reverb"); disabled.enabled = false;
-    const result = buildLiveBoardSnapshot([gate, amp, disabled], { [amp.id]: "/amp.nam" });
-    expect(result.nodes.map(n => n.kind)).toEqual(["gate", "amp", "reverb"]);
-    expect(result.ignored).toEqual([]);
-  });
-
-  it("refuses missing active resources and unsupported extensions", () => {
-    const amp = createPedal("amp"), cabinet = createPedal("cabinet");
-    expect(() => buildLiveBoardSnapshot([amp], {})).toThrow(/NAM.*arquivo/i);
-    expect(() => buildLiveBoardSnapshot([cabinet], { [cabinet.id]: "C:/bad.exe" }))
-      .toThrow(/IR.*arquivo/i);
-    expect(() => buildLiveBoardSnapshot([amp], { [amp.id]: "/a.nam\u0000" })).toThrow();
-  });
-
-  it("omits disabled model without a resource but keeps a prepared bypassed model", () => {
-    const amp = createPedal("amp"), cab = createPedal("cabinet");
-    amp.enabled = false;
-    const result = buildLiveBoardSnapshot([amp, cab], { [cab.id]: "/cab.wav" });
-    expect(result.nodes.map(n => n.id)).toEqual([cab.id]);
-    const withResource = buildLiveBoardSnapshot([amp, cab], { [amp.id]: "/amp.nam", [cab.id]: "/cab.wav" });
-    expect(withResource.nodes.map(n => n.enabled)).toEqual([false, true]);
-  });
-
-  it("permits a gate-only native chain without a model", () => {
+  it("master power bypasses only main amp without affecting pedals or presets", () => {
     const gate = createPedal("gate");
-    expect(buildLiveBoardSnapshot([gate], {}).nodes.map(n => n.kind)).toEqual(["gate"]);
-    expect(() => buildLiveBoardSnapshot([], {})).toThrow(/Noise Gate.*Compressor.*Sustain.*Chorus.*Delay.*Reverb.*NAM.*IR/);
+    const plan = buildLiveBoardSnapshot([gate], "/models/a.nam", false);
+    expect(plan.nodes.map(n => n.enabled)).toEqual([true, false]);
+    expect(gate.enabled).toBe(true);
+    expect(gate.values.threshold).toBe(-80);
   });
 
-  it("validates and filters stale/corrupt resource mappings by node identity", () => {
-    const amp = createPedal("amp"), ir = createPedal("cabinet");
-    const values = validateRigResources(
-      { [amp.id]: "/rig/model.NAM", [ir.id]: "/rig/file.wav", stale: "/ghost.nam", constructor: "/evil.nam" },
-      [amp, ir],
-    );
-    expect(values).toEqual({ [amp.id]: "/rig/model.NAM", [ir.id]: "/rig/file.wav" });
-    expect(validateRigResources({ [amp.id]: "/rig/incorrect.wav", [ir.id]: 55 }, [amp, ir])).toEqual({});
+  it("supports repeated effects, independent bypass and real controls", () => {
+    const a = createPedal("compressor"), b = createPedal("compressor");
+    b.enabled = false;
+    a.values.compress = 72;
+    a.values.mix = 46;
+    const plan = buildLiveBoardSnapshot([a,b], "");
+    expect(plan.nodes.map(n => n.kind)).toEqual(["compressor","compressor"]);
+    expect(plan.nodes.map(n => n.enabled)).toEqual([true,false]);
+    expect(plan.nodes[0].parameters).toEqual({ compress: 72, output: 100, mix: 46 });
+  });
+
+  it("keeps Gate, Sustain, Chorus, Delay and Reverb parameters from the UI", () => {
+    const effects = ["gate","sustain","chorus","delay","reverb"].map(k => createPedal(k as "gate" | "sustain" | "chorus" | "delay" | "reverb"));
+    effects[0].values.threshold = -48;
+    effects[1].values.speed = 65;
+    effects[2].values.rate = 3.2;
+    effects[3].values.time = 780;
+    effects[4].values.decay = 8.8;
+    const plan = buildLiveBoardSnapshot(effects, "");
+    expect(plan.nodes.map(n => n.kind)).toEqual(["gate", "sustain", "chorus", "delay", "reverb"]);
+    expect(plan.nodes.map(n => n.parameters)).toEqual(effects.map(p => p.values));
+  });
+
+  it("does not turn retired VTTAMP/Drive/IR pedal slots into audio processors", () => {
+    const amp = createPedal("amp"), drive = createPedal("drive"), cab = createPedal("cabinet");
+    const gate = createPedal("gate");
+    const plan = buildLiveBoardSnapshot([amp,drive,gate,cab], "");
+    expect(plan.nodes.map(n => n.kind)).toEqual(["gate"]);
+    const withMain = buildLiveBoardSnapshot([amp,gate], "/real/amp.nam");
+    expect(withMain.nodes.map(n => n.kind)).toEqual(["gate","amp"]);
+  });
+
+  it("validates a real model path and never interprets a visual demo as audio", () => {
+    expect(validMainAmpPath("/models/Hiwatt.A2.NAM")).toBe(true);
+    expect(validMainAmpPath("")).toBe(false);
+    expect(validMainAmpPath("/models/invalid.wav")).toBe(false);
+    expect(validMainAmpPath("/models/evil.nam\u0000")).toBe(false);
+    expect(() => buildLiveBoardSnapshot([], "")).toThrow(/amplificador principal/);
+    expect(() => buildLiveBoardSnapshot([], "/wrong.wav")).toThrow(/arquivo .nam/);
+    expect(() => buildLiveBoardSnapshot([], "/evil.nam\u0000")).toThrow();
+  });
+
+  it("legacy file mappings remain available only to the migration layer", () => {
+    const amp = createPedal("amp"), cab = createPedal("cabinet"), drive = createPedal("drive");
+    const resources = validateRigResources({
+      [amp.id]: "/a.nam", [cab.id]: "/ir.wav", [drive.id]: "/d.nam",
+      stale: "/ignored.nam",
+    }, [amp, cab, drive]);
+    expect(resources).toEqual({ [amp.id]: "/a.nam", [cab.id]: "/ir.wav", [drive.id]: "/d.nam" });
+    expect(validateRigResources({ [amp.id]: "/bad.exe" }, [amp])).toEqual({});
   });
 });

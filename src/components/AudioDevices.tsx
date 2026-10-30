@@ -4,7 +4,7 @@ import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 import { audioFaultReason } from "../lib/audioFaults";
 import { loadAudioSettings, saveAudioSettings } from "../lib/audioSettings";
 import { type PedalInstance } from "../lib/pedals";
-import { buildLiveBoardSnapshot, type RigResources } from "../lib/liveRig";
+import { buildLiveBoardSnapshot } from "../lib/liveRig";
 
 type DeviceInfo = { index: number; name: string; channels: number; supportsMonitor: boolean };
 type HostInfo = { id: string; inputs: DeviceInfo[]; outputs: DeviceInfo[] };
@@ -16,14 +16,14 @@ const BUFFER_OPTIONS = [64, 128, 256, 512, 1024];
 const RATE = 48000;
 type Props = {
   chain: readonly PedalInstance[];
-  resources: Readonly<RigResources>;
+  ampPath: string;
   ampPowered: boolean;
   compact?: boolean;
 };
 
-export default function AudioDevices({ chain, resources, ampPowered, compact = false }: Props) {
+export default function AudioDevices({ chain, ampPath, ampPowered, compact = false }: Props) {
   const native = isTauri();
-  // Preserve model/IR selections when navigating away or restarting the WebView.
+  // Preserve model selection when navigating away or restarting the WebView.
   // Device indices remain session-only: enumeration order can change after USB reconnect.
   const [saved] = useState(loadAudioSettings);
   const [hosts, setHosts] = useState<HostInfo[]>([]);
@@ -57,9 +57,9 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
   const outputs = selected?.outputs.filter((d) => d.supportsMonitor) ?? [];
   const channelCount = inputs.find((d) => String(d.index) === inputIndex)?.channels ?? 0;
   const livePlan = useMemo(() => {
-    try { return { preview: buildLiveBoardSnapshot(chain, resources, ampPowered), error: "" }; }
+    try { return { preview: buildLiveBoardSnapshot(chain, ampPath, ampPowered), error: "" }; }
     catch (error) { return { preview: null, error: String(error).replace(/^Error: /, "") }; }
-  }, [chain, resources, ampPowered]);
+  }, [chain, ampPath, ampPowered]);
   const livePreview = livePlan.preview;
   const liveManifest = livePreview ? JSON.stringify({ schemaVersion: 1, nodes: livePreview.nodes }) : null;
 
@@ -123,7 +123,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
     let ignoredCount = 0;
     if (mode === "wet") {
       try {
-        const plan = buildLiveBoardSnapshot(chain, resources, ampPowered);
+        const plan = buildLiveBoardSnapshot(chain, ampPath, ampPowered);
         nextManifest = JSON.stringify({ schemaVersion: 1, nodes: plan.nodes });
         ignoredCount = plan.ignored.length;
       } catch (error) {
@@ -148,7 +148,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
       setLiveStats(null);
       setActiveMode(mode);
       setMessage(mode === "wet"
-        ? `NAM/IR da pedalboard iniciado. ${ignoredCount ? `${ignoredCount} efeito(s) visual(is) sem DSP foram ignorados. ` : ""}Alterações de ordem, bypass, power ou recursos exigem Parar e Iniciar.`
+        ? `Pedais e amplificador principal iniciados. ${ignoredCount ? `${ignoredCount} efeito(s) visual(is) sem DSP foram ignorados. ` : ""}Alterações de ordem, bypass, power ou recursos exigem Parar e Iniciar.`
         : "Monitor DRY ligado: sem amp NAM ou pedais DSP. Use volume baixo.");
     } catch (error) {
       setRunning(false);
@@ -178,7 +178,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
       <AudioLines size={23}/>
       <div>
         <h2>Áudio e dispositivos</h2>
-        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe VTTGATE, VTT Compressor, VTT Sustain, VTT Chorus, VTT Delay, VTT Reverb, NAM e IR da pedalboard na ordem visual. Os efeitos nativos possuem DSP funcional na cadeia mono.</p>
+        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe os efeitos da pedalboard na ordem visual, seguidos pelo amplificador NAM principal. Os efeitos possuem DSP funcional na cadeia mono.</p>
         {!native ? (
           <p role="status">Abra o aplicativo desktop para listar drivers e interfaces de áudio. Esta visualização web não acessa seus dispositivos.</p>
         ) : (
@@ -215,14 +215,14 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
               <label htmlFor="audio-mode">Modo de monitor
                 <select id="audio-mode" value={mode} disabled={busy || running} onChange={(event) => setMode(event.target.value as Mode)}>
                   <option value="dry">DRY · guitarra limpa</option>
-                  <option value="wet">NAM/IR · processamento ao vivo</option>
+                  <option value="wet">NAM · processamento ao vivo</option>
                 </select>
               </label>
             </div>
             {mode === "wet" && (
-              <section className="audio-live-models" aria-label="Cadeia NAM/IR da pedalboard">
+              <section className="audio-live-models" aria-label="Cadeia nativa: pedais + amplificador principal">
                 <h3>Cadeia nativa da pedalboard</h3>
-                <p>Arquivos reais são associados a cada VTTAMP, VTTDRIVE e VTTCAB diretamente na pedalboard. Power, bypass e ordem são aplicados ao iniciar. Ajustes feitos durante a sessão precisam de reinício manual.</p>
+                <p>O arquivo .nam é associado somente ao amplificador principal, fora dos pedais. Os pedais respeitam a ordem visual; o NAM é o estágio final. Power e bypass são aplicados ao iniciar. Ajustes durante a sessão precisam de reinício manual.</p>
                 {livePreview ? (
                   <>
                     <p role="status">{livePreview.nodes.length} módulo(s) nativo(s) preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
@@ -235,22 +235,22 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
             )}
             {running && activeMode === "wet" &&
               (appliedManifest === null || liveManifest !== appliedManifest) &&
-              <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM/IR e depois Iniciar NAM/IR.</p>}
+              <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM e depois Iniciar NAM.</p>}
             <p className="audio-device-note">48.000 Hz · guitarra enviada em mono para as saídas. No Linux, prefira JACK/PipeWire-JACK e confira as portas no qpwgraph. O buffer do JACK é definido no servidor (a opção de samples acima se aplica ao ALSA/WASAPI). JACK usa portas virtuais e pode aparecer como cpal_client_in/out, não como o nome da interface USB. No Windows, WASAPI é padrão e ASIO continua opcional.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
             {running && activeMode === "dry" && dryStatus?.failed && (
               <p className="audio-device-warning" role="alert">Falha na {audioFaultReason(dryStatus)}. Pare o monitor, confira a interface e atualize os dispositivos antes de tentar novamente.</p>
             )}
             {running && activeMode === "wet" && liveStats && (
-              <p className={liveStats.failed ? "audio-device-warning" : "audio-device-note"} role={liveStats.failed ? "alert" : "status"}>NAM/IR: {liveStats.failed ? `falha em ${audioFaultReason(liveStats)}; pare e revise a configuração` : "ativo"} · amostras em falta: {liveStats.underruns} · descartadas: {liveStats.overflows}. Estes contadores não equivalem à latência.</p>
+              <p className={liveStats.failed ? "audio-device-warning" : "audio-device-note"} role={liveStats.failed ? "alert" : "status"}>NAM: {liveStats.failed ? `falha em ${audioFaultReason(liveStats)}; pare e revise a configuração` : "ativo"} · amostras em falta: {liveStats.underruns} · descartadas: {liveStats.overflows}. Estes contadores não equivalem à latência.</p>
             )}
             <div className="audio-device-actions">
               <button className="secondary-button" type="button" disabled={busy || running} onClick={() => void refresh()}><RefreshCw size={15}/> Atualizar dispositivos</button>
               {running ? (
-                <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM/IR" : "DRY"}</button>
+                <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM" : "DRY"}</button>
               ) : (
                 <button type="button" className="primary-button" disabled={busy || !hostId || inputIndex === "" || outputIndex === "" || (mode === "wet" && !liveManifest)}
-                  onClick={() => void start()}><Volume2 size={15}/> Iniciar {mode === "wet" ? "NAM/IR" : "monitor DRY"}</button>
+                  onClick={() => void start()}><Volume2 size={15}/> Iniciar {mode === "wet" ? "NAM" : "monitor DRY"}</button>
               )}
             </div>
           </>

@@ -155,9 +155,13 @@ export const PEDALS: Record<PedalKind, PedalDefinition> = {
   },
 };
 
+// The amp head is a separate rig component. These six are the only effects
+// offered on the pedalboard; legacy amp/drive/cab definitions remain for
+// backwards-compatible preset migration, not for new instances.
 export const PEDAL_KINDS: PedalKind[] = [
-  "gate", "compressor", "sustain", "drive", "amp", "cabinet", "chorus", "delay", "reverb",
+  "gate", "compressor", "sustain", "chorus", "delay", "reverb",
 ];
+const LEGACY_MODEL_KINDS = new Set<PedalKind>(["drive", "amp", "cabinet"]);
 
 export function createPedal(kind: PedalKind): PedalInstance {
   const definition = PEDALS[kind];
@@ -198,6 +202,9 @@ export function validateChain(value: unknown): PedalInstance[] | null {
 
     const kind = item.kind as PedalKind;
     ids.add(item.id);
+    // Old rigs may contain model pedals; never rehydrate them into the UI.
+    // Their .nam path migrates separately to the main amplifier.
+    if (LEGACY_MODEL_KINDS.has(kind)) continue;
     const values: Record<string, number> = {};
     for (const p of PEDALS[kind].parameters) {
       const rawValue = (item.values as Record<string, unknown>)[p.key];
@@ -209,7 +216,5 @@ export function validateChain(value: unknown): PedalInstance[] | null {
 }
 
 export function factoryChain(): PedalInstance[] {
-  return ["gate", "compressor", "drive", "amp", "cabinet", "chorus", "delay", "reverb"].map((kind) =>
-    createPedal(kind as PedalKind)
-  );
+  return PEDAL_KINDS.map(createPedal);
 }

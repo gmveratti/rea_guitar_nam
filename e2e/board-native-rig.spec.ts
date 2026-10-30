@@ -1,25 +1,31 @@
 import { expect, test } from "@playwright/test";
 
-test("web preview shows native resource placeholders without pretending a browser plays NAM", async ({ page }) => {
+test("main amp NAM lives outside the pedalboard, even when previewed as A2", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Biblioteca" }).click();
-  await page.getByRole("button", { name: "Adicionar VTTAMP" }).first().click();
-  const resourceSection = page.getByRole("region", { name: "Modelos e IRs do rig" });
-  await expect(resourceSection).toBeVisible();
-  await expect(resourceSection.getByText("VTTAMP · NAM")).toBeVisible();
-  await expect(resourceSection.getByText("Arquivo não selecionado")).toBeVisible();
-  await expect(resourceSection).toContainText("aplicativo desktop");
+  await expect(page.getByRole("button", { name: "Adicionar amplificador NAM" })).toBeVisible();
+  await page.locator("#amp-example").selectOption("Marshall_JCM800_2203_A2.nam");
+  await expect(page.locator(".amp-case")).toBeVisible();
+  await expect(page.locator(".effects-grid .pedal-shell")).toHaveCount(0);
+
+  const main = page.getByRole("region", { name: "Amplificador principal" });
+  await expect(main).toBeVisible();
+  await expect(main).toContainText("Arquivo não selecionado");
+  await expect(main).toContainText("aplicativo desktop");
   await expect(page.getByRole("article", { name: "Áudio e dispositivos" })).toHaveCount(0);
 
-  await page.getByRole("group", { name: /VTTAMP/ })
-    .getByRole("button", { name: "Desligar VTTAMP" }).click();
-  await expect(page.getByRole("group", { name: /VTTAMP/ })
-    .getByRole("button", { name: "Ligar VTTAMP" })).toBeVisible();
-  await page.locator("#preset-name").fill("Minha cadeia NAM");
+  await page.getByRole("button", { name: "Biblioteca" }).click();
+  await expect(page.getByRole("button", { name: "Adicionar VTTAMP" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Adicionar VTTDRIVE" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Adicionar VTTCAB" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Adicionar VTTCHORUS" }).click();
+  await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toBeVisible();
+  await expect(page.getByRole("group", { name: /VTTAMP|VTTDRIVE|VTTCAB/ })).toHaveCount(0);
+
+  await page.locator("#preset-name").fill("A2 no cabeçote");
   await page.getByRole("button", { name: "Salvar" }).click();
-  await expect(page.getByRole("status")).toContainText("salvo localmente");
   await page.reload();
-  await page.locator("#preset-picker").selectOption({ label: "Minha cadeia NAM" });
-  await expect(page.getByRole("group", { name: /VTTAMP/ })
-    .getByRole("button", { name: "Ligar VTTAMP" })).toBeVisible();
+  await page.locator("#preset-picker").selectOption({ label: "A2 no cabeçote" });
+  await expect(page.locator(".amp-case")).toBeVisible();
+  await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toBeVisible();
+  await expect(page.getByRole("group", { name: /VTTAMP|VTTDRIVE|VTTCAB/ })).toHaveCount(0);
 });

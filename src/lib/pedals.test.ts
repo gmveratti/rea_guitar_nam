@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clampValue, createPedal, movePedal, validateChain, PEDALS } from "./pedals";
+import { clampValue, createPedal, movePedal, validateChain, PEDALS, PEDAL_KINDS, factoryChain } from "./pedals";
 
 describe("pedal chain", () => {
   it("reorders immutably and preserves pedal IDs", () => {
     const a = createPedal("gate");
-    const b = createPedal("amp");
+    const b = createPedal("chorus");
     const c = createPedal("delay");
     const chain = [a, b, c];
     const moved = movePedal(chain, a.id, 2);
@@ -13,7 +13,7 @@ describe("pedal chain", () => {
   });
 
   it("ignores an unknown source ID", () => {
-    const chain = [createPedal("amp")];
+    const chain = [createPedal("chorus")];
     expect(movePedal(chain, "unknown", 0)).toBe(chain);
   });
 
@@ -26,8 +26,8 @@ describe("pedal chain", () => {
 
   it("rejects malformed presets without running unsafe code", () => {
     expect(validateChain([{ id: "x", kind: "invalid", enabled: true, values: {} }])).toBeNull();
-    expect(validateChain([{ id: "x", kind: "amp", enabled: true, values: {} },
-                          { id: "x", kind: "amp", enabled: true, values: {} }])).toBeNull();
+    expect(validateChain([{ id: "x", kind: "chorus", enabled: true, values: {} },
+                          { id: "x", kind: "chorus", enabled: true, values: {} }])).toBeNull();
     expect(validateChain("not an array")).toBeNull();
     // Prototype properties must not masquerade as supported pedal kinds.
     expect(validateChain([{ id: "x", kind: "constructor", enabled: true, values: {} }])).toBeNull();
@@ -105,11 +105,18 @@ describe("pedal chain", () => {
     expect(validateChain([current])?.[0].values).toEqual(current.values);
   });
 
+  it("offers only stompbox effects and migrates old amp/drive/IR slots out", () => {
+    expect(PEDAL_KINDS).toEqual(["gate","compressor","sustain","chorus","delay","reverb"]);
+    expect(factoryChain().map(x => x.kind)).toEqual(PEDAL_KINDS);
+    const old = [createPedal("amp"),createPedal("drive"),createPedal("chorus"),createPedal("cabinet")];
+    expect(validateChain(old)?.map(x => x.kind)).toEqual(["chorus"]);
+  });
+
   it("restores valid parameters from a saved chain", () => {
-    const raw = [{ id: "amp-1", kind: "amp", enabled: true, values: { input: 45, output: -4 } }];
+    const raw = [{ id: "delay-1", kind: "delay", enabled: true, values: { time: 5000, mix: -4 } }];
     const parsed = validateChain(raw);
     expect(parsed).not.toBeNull();
-    expect(parsed![0].values.input).toBe(24);
-    expect(parsed![0].values.output).toBe(-4);
+    expect(parsed![0].values.time).toBe(1200);
+    expect(parsed![0].values.mix).toBe(0);
   });
 });
