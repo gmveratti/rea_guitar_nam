@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from "react";
 import {
   AudioLines, BookOpen, Guitar, LibraryBig, Plus, RotateCcw,
-  Save, Settings2, SlidersHorizontal, Trash2, Waves, Zap,
+  Save, Settings2, SlidersHorizontal, Trash2, Waves,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -9,14 +9,14 @@ import {
   PEDALS, PEDAL_KINDS, createPedal, factoryChain, movePedal,
   type PedalInstance, type PedalKind,
 } from "./lib/pedals";
-import { hasSavedDraftResources, loadDraft, loadDraftResources, loadDraftVisual, loadPresets, saveDraft, saveDraftResources, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
+import { loadDraft, loadDraftVisual, loadLegacyDraftAmpPath, loadPresets, saveDraft, saveDraftVisual, savePresets, type Preset } from "./lib/presets";
 import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
 import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
 import AudioDevices from "./components/AudioDevices";
 import RigResourceList from "./components/RigResourceList";
 import { loadAudioSettings } from "./lib/audioSettings";
-import { type RigResources } from "./lib/liveRig";
+import { validMainAmpPath } from "./lib/liveRig";
 import { AMP_FAMILIES, humanizeModelName, type AmpFamily } from "./lib/ampSkins";
 
 type View = "board" | "library" | "settings";
@@ -32,7 +32,7 @@ function readDrag(event: DragEvent<HTMLElement>): DragData | null {
   const value = event.dataTransfer.getData("text/plain");
   if (value.startsWith("library:")) {
     const kind = value.slice("library:".length) as PedalKind;
-    return Object.prototype.hasOwnProperty.call(PEDALS, kind) ? { source: "library", kind } : null;
+    return PEDAL_KINDS.includes(kind) ? { source: "library", kind } : null;
   }
   if (value.startsWith("chain:")) return { source: "chain", id: value.slice("chain:".length) };
   return null;
@@ -41,18 +41,12 @@ function readDrag(event: DragEvent<HTMLElement>): DragData | null {
 export default function App() {
   const [visualDraft] = useState(loadDraftVisual);
   const [chain, setChain] = useState<PedalInstance[]>(loadDraft);
-  const [resources, setResources] = useState<RigResources>(() => {
-    const restored = loadDraftResources(chain);
-    if (hasSavedDraftResources()) return restored;
-    // One-time migration of the standalone PR14 audio picker into the board.
-    const legacy = loadAudioSettings();
-    const next = { ...restored };
-    const amp = chain.find(p => p.kind === "amp");
-    const cab = chain.find(p => p.kind === "cabinet");
-    if (amp && !next[amp.id] && legacy.ampPath) next[amp.id] = legacy.ampPath;
-    if (cab && !next[cab.id] && legacy.cabPath) next[cab.id] = legacy.cabPath;
-    return next;
-  });
+  // The main amplifier has its own model, never a stompbox.
+  // Explicit ampPath="" stops legacy resources from returning after clear.
+  const [ampPath, setAmpPath] = useState(() =>
+    visualDraft.ampPath !== undefined ? visualDraft.ampPath
+      : loadLegacyDraftAmpPath() || loadAudioSettings().ampPath);
+
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activePresetId, setActivePresetId] = useState("");
@@ -66,8 +60,7 @@ export default function App() {
   const [ampPowered, setAmpPowered] = useState(visualDraft.ampPowered ?? true);
 
   useEffect(() => { saveDraft(chain); }, [chain]);
-  useEffect(() => { saveDraftResources(resources, chain); }, [resources, chain]);
-  useEffect(() => { saveDraftVisual({ modelName, ampFamily, ampPowered }); }, [modelName, ampFamily, ampPowered]);
+  useEffect(() => { saveDraftVisual({ modelName, ampFamily, ampPowered, ampPath }); }, [modelName, ampFamily, ampPowered, ampPath]);
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
@@ -83,6 +76,7 @@ export default function App() {
   ), [search]);
 
   function add(kind: PedalKind, atIndex = chain.length) {
+    if (!PEDAL_KINDS.includes(kind)) return;
     if (chain.length >= 24) { setNotice("Limite de 24 módulos atingido."); return; }
     const pedal = createPedal(kind);
     setChain((previous) => {
@@ -110,7 +104,6 @@ export default function App() {
 
   function remove(id: string) {
     setChain((previous) => previous.filter((effect) => effect.id !== id));
-    setResources((previous) => { const next = { ...previous }; delete next[id]; return next; });
     if (selectedId === id) setSelectedId(null);
   }
 
@@ -123,7 +116,7 @@ export default function App() {
     const name = presetName.trim();
     if (!name) { setNotice("Dê um nome ao preset antes de salvar."); return; }
     const id = activePresetId || crypto.randomUUID();
-    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily, ampPowered, resources: { ...resources } };
+    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily, ampPowered, ampPath };
     const updated = [...presets.filter((item) => item.id !== id), preset];
     if (!savePresets(updated)) { setNotice("Falha ao gravar preset no armazenamento local."); return; }
     setPresets(updated);
@@ -135,7 +128,7 @@ export default function App() {
     const preset = presets.find((item) => item.id === id);
     if (!preset) return;
     setChain(structuredClone(preset.chain));
-    setResources({ ...preset.resources });
+    setAmpPath(preset.ampPath ?? "");
     setAmpPowered(preset.ampPowered ?? true);
     setModelName(preset.modelName ?? "");
     setAmpFamily(preset.ampFamily ?? "auto");
@@ -157,7 +150,6 @@ export default function App() {
 
   function resetChain() {
     setChain(factoryChain());
-    setResources({});
     setView("board");
     setSelectedId(null);
     setActivePresetId("");
@@ -168,7 +160,6 @@ export default function App() {
 
   function clearChain() {
     setChain([]);
-    setResources({});
     setSelectedId(null);
     setView("board");
     setActivePresetId("");
@@ -204,59 +195,42 @@ export default function App() {
     return () => document.removeEventListener("pointerdown", closeWhenClickingAway);
   }, [selectedId, view]);
 
-  async function pickRigFile(id: string, kind: "amp" | "drive" | "cabinet") {
+  async function pickPrimaryAmp() {
     if (!isTauri()) {
-      setNotice("Importação real de NAM/IR requer o aplicativo desktop.");
+      setNotice("Seleção real de modelos .nam disponível no aplicativo desktop.");
       return;
     }
-    try {
-      const candidate = await open({
-        multiple: false, directory: false,
-        filters: [{ name: kind === "cabinet" ? "Cabinet IR" : "Neural Amp Model",
-          extensions: [kind === "cabinet" ? "wav" : "nam"] }],
-      });
-      if (typeof candidate !== "string") return;
-      setResources(previous => ({ ...previous, [id]: candidate }));
-      if (kind === "amp") {
-        setModelName(candidate.split(/[\\/]/).pop() ?? candidate);
-        setAmpFamily("auto");
-      }
-      setNotice("Arquivo associado ao rig. Reinicie NAM/IR se o áudio já estiver ativo.");
-    } catch (error) {
-      setNotice(`Falha ao selecionar arquivo: ${String(error)}`);
-    }
-  }
-
-  async function pickPrimaryAmp() {
-    if (!isTauri()) return;
     try {
       const candidate = await open({
         multiple: false, directory: false,
         filters: [{ name: "Neural Amp Model", extensions: ["nam"] }],
       });
       if (typeof candidate !== "string") return;
-      const existing = chain.find(effect => effect.kind === "amp");
-      const id = existing?.id ?? createPedal("amp").id;
-      if (!existing) {
-        // The new slot and its resource are committed together by instance ID.
-        setChain(previous => previous.length < 24
-          ? [...previous, { ...createPedal("amp"), id }] : previous);
-        if (chain.length >= 24) { setNotice("Limite de 24 pedais."); return; }
+      if (!validMainAmpPath(candidate)) {
+        setNotice("Escolha um arquivo .nam válido para o amplificador principal.");
+        return;
       }
-      setResources(previous => ({ ...previous, [id]: candidate }));
+      setAmpPath(candidate);
       setModelName(candidate.split(/[\\/]/).pop() ?? candidate);
       setAmpFamily("auto");
-      setNotice("Amplificador NAM vinculado à pedalboard. Inicie o áudio para ouvir.");
+      setNotice("NAM associado apenas ao amplificador principal. Reinicie o áudio para aplicar.");
     } catch (error) {
       setNotice(`Não foi possível carregar o NAM: ${String(error)}`);
     }
+  }
+
+  function clearPrimaryAmp() {
+    setAmpPath("");
+    setModelName("");
+    setAmpFamily("auto");
+    setNotice("Modelo do amplificador principal removido. Reinicie o áudio para aplicar.");
   }
 
   function chooseModel(filename: string) {
     setModelName(filename);
     setAmpFamily("auto");
     setNotice(filename
-      ? "Prévia visual selecionada; o modelo de demonstração não processa áudio. Para tocar, vincule um arquivo NAM real a um VTTAMP."
+      ? "Prévia visual selecionada; o modelo de demonstração não processa áudio. Para tocar, escolha um .nam real no amplificador principal."
       : "Amplificador removido. Clique no + para escolher um NAM.");
   }
 
@@ -318,7 +292,7 @@ export default function App() {
             <span className="rail-icon"><Plus size={27} /></span><span>Pedalboard</span>
           </button>
           <button type="button" className={`rail-tab ${view === "library" ? "active" : ""}`} aria-current={view === "library" ? "page" : undefined} onClick={() => openView("library")}>
-            <span className="rail-icon"><LibraryBig size={25} /></span><span>Biblioteca</span><small>NAMs / IRs / Pedais</small>
+            <span className="rail-icon"><LibraryBig size={25} /></span><span>Biblioteca</span><small>Pedais</small>
           </button>
           <button type="button" className={`rail-tab ${view === "settings" ? "active" : ""}`} aria-current={view === "settings" ? "page" : undefined} onClick={() => openView("settings")}>
             <span className="rail-icon"><Settings2 size={26} /></span><span>Configurações</span>
@@ -392,10 +366,10 @@ export default function App() {
                 </div>
                 <div className="route-label last"><span className="cable-line" /> OUTPUT <span className="in-out-marker" /></div>
               </section>
-              <RigResourceList chain={chain} resources={resources} native={isTauri()}
-                onPick={(id, kind) => { void pickRigFile(id, kind); }}
-                onClear={(id) => setResources(previous => { const next = { ...previous }; delete next[id]; return next; })} />
-              {isTauri() && <AudioDevices chain={chain} resources={resources} ampPowered={ampPowered} compact />}
+              <RigResourceList ampPath={ampPath} native={isTauri()}
+                onPick={() => { void pickPrimaryAmp(); }}
+                onClear={clearPrimaryAmp} />
+              {isTauri() && <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} compact />}
               <footer className="board-footer">
                 <span><span className="preview-dot" /> {isTauri() ? "NAM/IR EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
                 {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
@@ -412,21 +386,20 @@ export default function App() {
               </div>
               <div className="library-categories">
                 <article className="collection-card">
-                  <div className="collection-icon"><Guitar size={23}/></div><h2>NAMs</h2>
-                  <p>Adicione VTTAMP ou VTTDRIVE para vincular arquivos .nam reais pela pedalboard.</p>
-                  <label className="collection-upload">Selecionar .nam
-                    <input type="file" accept=".nam" onChange={(event) => {
-                      const file = event.target.files?.[0]; if (file) chooseModel(file.name);
-                      event.target.value = "";
-                    }} />
-                  </label>
-                  <button type="button" className="secondary-button" onClick={() => add("amp")}> <Plus size={15}/> Adicionar VTTAMP</button>
-                  <button type="button" className="secondary-button" onClick={() => add("drive")}> <Plus size={15}/> Adicionar VTTDRIVE</button>
-                </article>
-                <article className="collection-card">
-                  <div className="collection-icon"><Waves size={23}/></div><h2>IRs</h2>
-                  <p>Associe uma resposta de impulso .wav real ao VTTCAB na pedalboard.</p>
-                  <button type="button" className="secondary-button" onClick={() => add("cabinet")}><Plus size={15}/> Adicionar VTTCAB</button>
+                  <div className="collection-icon"><Guitar size={23}/></div><h2>Amplificador principal</h2>
+                  <p>O NAM .a2/.nam pertence ao cabeçote principal, não à cadeia de pedais. Adicione seus seis efeitos separadamente.</p>
+                  {isTauri() ? (
+                    <button type="button" className="secondary-button" onClick={() => { void pickPrimaryAmp(); }}>
+                      Selecionar NAM principal
+                    </button>
+                  ) : (
+                    <label className="collection-upload">Prévia visual .nam
+                      <input type="file" accept=".nam" onChange={(event) => {
+                        const file = event.target.files?.[0]; if (file) chooseModel(file.name);
+                        event.target.value = "";
+                      }} />
+                    </label>
+                  )}
                 </article>
               </div>
 
@@ -440,7 +413,7 @@ export default function App() {
                     draggable
                     onDragStart={(event) => event.dataTransfer.setData("text/plain", `library:${kind}`)}
                     style={{ "--pedal-accent": PEDALS[kind].accent } as CSSProperties}>
-                    <span className="library-icon">{kind === "amp" || kind === "drive" ? <Zap size={19} /> : <Waves size={19} />}</span>
+                    <span className="library-icon"><Waves size={19} /></span>
                     <div className="library-item-text"><strong>{VTT_PEDAL_NAMES[kind]}</strong><small>{PEDALS[kind].caption}</small></div>
                     <button type="button" aria-label={`Adicionar ${VTT_PEDAL_NAMES[kind]}`} onClick={() => add(kind)}><Plus size={18}/></button>
                   </div>
@@ -455,7 +428,7 @@ export default function App() {
             <section className="settings-view" aria-label="Configurações VTTRIG">
               <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
               <div className="settings-stack">
-                <AudioDevices chain={chain} resources={resources} ampPowered={ampPowered} />
+                <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} />
                 <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A ordem e o bypass da pedalboard são enviados ao motor NAM/IR ao iniciar. Controles de ganho/EQ continuam sem mapeamento DSP; mudanças durante o áudio exigem reinício.</p></div><span className="offline-pill">OFFLINE</span></div>
                 <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
                   <label htmlFor="skin-family">Família visual</label>
