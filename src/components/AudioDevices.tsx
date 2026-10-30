@@ -36,6 +36,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [startingLive, setStartingLive] = useState(false);
   const [message, setMessage] = useState("");
   const [appliedManifest, setAppliedManifest] = useState<string | null>(null);
   const [liveStats, setLiveStats] = useState<LiveStatus | null>(null);
@@ -132,6 +133,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       }
     }
     setBusy(true);
+    if (mode === "wet") setStartingLive(true);
     try {
       const selection = {
         hostId, inputIndex: Number(inputIndex),
@@ -154,7 +156,18 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       setRunning(false);
       setMessage(`Não foi possível iniciar o áudio: ${String(error)}`);
     } finally {
+      setStartingLive(false);
       setBusy(false);
+    }
+  }
+
+  async function cancelLiveStart() {
+    try {
+      // The native flag is set immediately; no need to wait for the gate.
+      await invoke("audio_cancel_live_start");
+      setMessage("Cancelando carregamento do NAM...");
+    } catch (error) {
+      setMessage(`Não foi possível cancelar o carregamento: ${String(error)}`);
     }
   }
 
@@ -246,7 +259,11 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
             )}
             <div className="audio-device-actions">
               <button className="secondary-button" type="button" disabled={busy || running} onClick={() => void refresh()}><RefreshCw size={15}/> Atualizar dispositivos</button>
-              {running ? (
+              {startingLive && !running ? (
+                <button type="button" className="secondary-button" onClick={() => void cancelLiveStart()}>
+                  <Square size={15}/> Cancelar carregamento NAM
+                </button>
+              ) : running ? (
                 <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM" : "DRY"}</button>
               ) : (
                 <button type="button" className="primary-button" disabled={busy || !hostId || inputIndex === "" || outputIndex === "" || (mode === "wet" && !liveManifest)}

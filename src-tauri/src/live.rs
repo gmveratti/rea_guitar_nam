@@ -7,13 +7,14 @@ use cpal::Stream;
 use rtrb::RingBuffer;
 use serde::Serialize;
 use std::io::{Read, Write};
+use std::sync::mpsc::{self, RecvTimeoutError, Receiver};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const FRAMES: usize = 128;
 const RING_SIZE: usize = 16_384;
@@ -281,7 +282,43 @@ fn sidecar_path() -> Result<PathBuf, String> {
     Err("Motor NAM ao vivo não foi incluído no pacote. Reinstale o VTTRIG.".into())
 }
 
-fn start_sidecar(json: &str) -> Result<Child, String> {
+// Poll a bounded handshake without stalling cancellation behind a blocking
+// recv_timeout. We never wait on this channel inside an audio callback.
+fn wait_for_handshake<T>(
+    receiver: &Receiver<T>,
+    cancel_sequence: &AtomicU64,
+    start_epoch: u64,
+    timeout: Duration,
+) -> Result<T, String> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if cancel_sequence.load(Ordering::Acquire) != start_epoch {
+            return Err("Carregamento do NAM cancelado.".into());
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err("Motor NAM não confirmou inicialização em 30 segundos.".into());
+        }
+        match receiver.recv_timeout(remaining.min(Duration::from_millis(50))) {
+            Ok(reply) => {
+                if cancel_sequence.load(Ordering::Acquire) != start_epoch {
+                    return Err("Carregamento do NAM cancelado.".into());
+                }
+                return Ok(reply);
+            }
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err("Motor NAM encerrou antes do handshake.".into());
+            }
+        }
+    }
+}
+
+fn start_sidecar(
+    json: &str,
+    cancel_sequence: &AtomicU64,
+    start_epoch: u64,
+) -> Result<Child, String> {
     let path = sidecar_path()?;
     let mut child = Command::new(path)
         .arg("--chain-json")
@@ -294,13 +331,18 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
     // The model is prepared before streaming. Bound the handshake so an
     // unresponsive child cannot stall a Tauri control command indefinitely.
     let mut stdout = child.stdout.take().ok_or("Pipe de saída indisponível")?;
-    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    let (sender, receiver) = mpsc::sync_channel(1);
     let reader = thread::spawn(move || {
         let mut ready = [0u8; 1];
         let reply = stdout.read_exact(&mut ready).map(|_| ready[0]);
         let _ = sender.send((reply, stdout));
     });
-    match receiver.recv_timeout(Duration::from_secs(30)) {
+    match wait_for_handshake(
+        &receiver,
+        cancel_sequence,
+        start_epoch,
+        Duration::from_secs(30),
+    ) {
         Ok((Ok(b'R'), stdout)) => {
             let _ = reader.join();
             child.stdout = Some(stdout);
@@ -323,12 +365,11 @@ fn start_sidecar(json: &str) -> Result<Child, String> {
             Err(format!("Falha ao carregar NAM/IR: {reason}"))
         }
         Err(error) => {
+            // Kill before joining: the pipe reader is otherwise blocked on read.
             let _ = child.kill();
             let _ = child.wait();
             let _ = reader.join();
-            Err(format!(
-                "Motor NAM não confirmou inicialização em 30 segundos: {error}"
-            ))
+            Err(error)
         }
     }
 }
@@ -347,6 +388,8 @@ pub fn start(
     dry: &AudioState,
     selection: MonitorSelection,
     chain_json: String,
+    cancel_sequence: &AtomicU64,
+    start_epoch: u64,
 ) -> Result<(), String> {
     if audio::status(dry)?.running {
         return Err("Desligue o monitor DRY antes de iniciar o NAM.".into());
@@ -374,7 +417,12 @@ pub fn start(
     if guard.is_some() {
         return Err("O áudio NAM já está ligado. Pare antes de trocar arquivos.".into());
     }
-    let mut child = start_sidecar(&chain_json)?;
+    let mut child = start_sidecar(&chain_json, cancel_sequence, start_epoch)?;
+    if cancel_sequence.load(Ordering::Acquire) != start_epoch {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Carregamento do NAM cancelado.".into());
+    }
     let mut in_pipe = child
         .stdin
         .take()
@@ -457,6 +505,11 @@ pub fn start(
             return Err(format!("Erro ao abrir saída: {e}"));
         }
     };
+    if cancel_sequence.load(Ordering::Acquire) != start_epoch {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Carregamento do NAM cancelado.".into());
+    }
     if let Err(e) = output_stream.play().and_then(|_| input_stream.play()) {
         let _ = child.kill();
         let _ = child.wait();
@@ -529,6 +582,43 @@ pub fn stop(state: &LiveState) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn handshake_cancellation_works_before_and_during_a_slow_reply() {
+        let (_sender, receiver) = mpsc::channel::<u8>();
+        let sequence = AtomicU64::new(1);
+        assert!(wait_for_handshake(&receiver, &sequence, 0, Duration::from_secs(1))
+            .unwrap_err()
+            .contains("cancelado"));
+
+        let epoch = sequence.load(Ordering::Acquire);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(30));
+                sequence.fetch_add(1, Ordering::AcqRel);
+            });
+            let start = Instant::now();
+            let result = wait_for_handshake(&receiver, &sequence, epoch, Duration::from_secs(1));
+            assert!(result.unwrap_err().contains("cancelado"));
+            assert!(start.elapsed() < Duration::from_millis(400));
+        });
+    }
+
+    #[test]
+    fn handshake_timeout_and_retry_are_bounded() {
+        let (sender, receiver) = mpsc::channel::<u8>();
+        let sequence = AtomicU64::new(0);
+        let start = Instant::now();
+        let result = wait_for_handshake(&receiver, &sequence, 0, Duration::from_millis(25));
+        assert!(result.unwrap_err().contains("não confirmou"));
+        assert!(start.elapsed() < Duration::from_millis(400));
+
+        sender.send(b'R').unwrap();
+        assert_eq!(
+            wait_for_handshake(&receiver, &sequence, 0, Duration::from_secs(1)).unwrap(),
+            b'R'
+        );
+    }
+
     #[test]
     fn starts_disabled_and_has_no_fictitious_dsp() {
         let s = status(&LiveState::default()).unwrap();
