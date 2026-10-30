@@ -120,6 +120,11 @@ test("left navigation floats separately from header and keeps all three destinat
     expect(railBox.x).toBeGreaterThan(0);
     expect(railBox.height).toBeLessThan(450);
     expect(railBox.x + railBox.width).toBeLessThan(width / 5);
+    // A position:fixed rail leaves the Grid's first column empty; the
+    // main stage must explicitly occupy column two.
+    const stageBox = await page.locator(".clean-stage").boundingBox();
+    expect(stageBox).not.toBeNull();
+    if (stageBox) expect(stageBox.x).toBeGreaterThanOrEqual(railBox.x + railBox.width);
     await expect(rail).not.toHaveCSS("border-top-left-radius", "0px");
   }
 
