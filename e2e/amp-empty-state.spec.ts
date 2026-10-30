@@ -6,14 +6,12 @@ test("initial amp slot shows + until user selects a NAM", async ({ page }) => {
   await expect(amp.getByRole("button", { name: "Adicionar amplificador NAM" })).toBeVisible();
   await expect(amp.locator(".amp-case")).toHaveCount(0);
   await expect(amp.locator(".amp-cable")).toHaveCount(0);
-  await page.screenshot({ path: "test-results/vttrig-empty-amp-slot.png", fullPage: true });
 
   // The header can load a preview, without touching the signal chain.
   await page.locator("#amp-example").selectOption("Marshall_JCM800_2203_A2.nam");
   await expect(amp.locator(".amp-case")).toBeVisible();
   await expect(amp.locator(".amp-art")).toHaveClass(/amp-british/);
   await expect(amp.locator(".amp-cable")).toBeVisible();
-  await page.screenshot({ path: "test-results/vttrig-selected-amp-cable.png", fullPage: true });
 
   // Returning to "no model" must bring back the plus, not a generic amplifier.
   await page.locator("#amp-example").selectOption("");
