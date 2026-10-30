@@ -30,9 +30,3 @@ jobs:
         run: python3 -m unittest discover -s scripts -p "test_release_policy.py" -v
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vttrig-ui-artifacts
-          path: test-results/
-          if-no-files-found: ignore
