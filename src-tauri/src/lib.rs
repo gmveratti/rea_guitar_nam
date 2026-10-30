@@ -1,7 +1,7 @@
 mod audio;
 mod live;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
@@ -11,7 +11,8 @@ use tauri::State;
 #[derive(Default)]
 struct AudioCommandGate {
     control: Mutex<()>,
-    cancel_live_start: AtomicBool,
+    // Monotonic generation avoids losing a cancellation before the worker starts.
+    cancel_live_start: AtomicU64,
 }
 
 fn worker_error(error: tauri::async_runtime::JoinError) -> String {
@@ -104,18 +105,19 @@ async fn audio_start_live(
     let state = Arc::clone(state.inner());
     let dry = Arc::clone(dry.inner());
     let gate = Arc::clone(gate.inner());
+    let start_epoch = gate.cancel_live_start.load(Ordering::Acquire);
     tauri::async_runtime::spawn_blocking(move || {
         let _lock = gate
             .control
             .lock()
             .map_err(|_| "Audio command gate unavailable")?;
-        gate.cancel_live_start.store(false, Ordering::Release);
         live::start(
             &state,
             &dry,
             selection,
             chain_json,
             &gate.cancel_live_start,
+            start_epoch,
         )
     })
     .await
@@ -125,7 +127,7 @@ async fn audio_start_live(
 #[tauri::command]
 fn audio_cancel_live_start(gate: State<'_, Arc<AudioCommandGate>>) {
     // Always immediate even if a model is still loading and owns the mutex.
-    gate.cancel_live_start.store(true, Ordering::Release);
+    gate.cancel_live_start.fetch_add(1, Ordering::AcqRel);
 }
 
 #[tauri::command]
@@ -136,7 +138,7 @@ async fn audio_stop_live(
     let state = Arc::clone(state.inner());
     let gate = Arc::clone(gate.inner());
     // Interrupt an in-flight handshake *before* waiting for the serial gate.
-    gate.cancel_live_start.store(true, Ordering::Release);
+    gate.cancel_live_start.fetch_add(1, Ordering::AcqRel);
     tauri::async_runtime::spawn_blocking(move || {
         let _lock = gate
             .control
@@ -164,7 +166,9 @@ mod tests {
         })
         .join()
         .unwrap();
-        assert!(gate.cancel_live_start.load(Ordering::Acquire));
+        assert_eq!(gate.cancel_live_start.load(Ordering::Acquire), 1);
+        // A later start reads generation 1, never a stale cancellation.
+        assert_eq!(gate.cancel_live_start.load(Ordering::Acquire), 1);
         assert!(start.elapsed() < Duration::from_secs(1));
         drop(locked);
     }
