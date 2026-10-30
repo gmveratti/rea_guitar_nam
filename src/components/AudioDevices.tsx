@@ -4,7 +4,7 @@ import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 import { audioFaultReason } from "../lib/audioFaults";
 import { loadAudioSettings, saveAudioSettings } from "../lib/audioSettings";
 import { type PedalInstance } from "../lib/pedals";
-import { buildLiveBoardSnapshot, type RigResources } from "../lib/liveRig";
+import { buildLiveBoardSnapshot } from "../lib/liveRig";
 
 type DeviceInfo = { index: number; name: string; channels: number; supportsMonitor: boolean };
 type HostInfo = { id: string; inputs: DeviceInfo[]; outputs: DeviceInfo[] };
@@ -16,12 +16,12 @@ const BUFFER_OPTIONS = [64, 128, 256, 512, 1024];
 const RATE = 48000;
 type Props = {
   chain: readonly PedalInstance[];
-  resources: Readonly<RigResources>;
+  ampPath: string;
   ampPowered: boolean;
   compact?: boolean;
 };
 
-export default function AudioDevices({ chain, resources, ampPowered, compact = false }: Props) {
+export default function AudioDevices({ chain, ampPath, ampPowered, compact = false }: Props) {
   const native = isTauri();
   // Preserve model/IR selections when navigating away or restarting the WebView.
   // Device indices remain session-only: enumeration order can change after USB reconnect.
@@ -57,9 +57,9 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
   const outputs = selected?.outputs.filter((d) => d.supportsMonitor) ?? [];
   const channelCount = inputs.find((d) => String(d.index) === inputIndex)?.channels ?? 0;
   const livePlan = useMemo(() => {
-    try { return { preview: buildLiveBoardSnapshot(chain, resources, ampPowered), error: "" }; }
+    try { return { preview: buildLiveBoardSnapshot(chain, ampPath, ampPowered), error: "" }; }
     catch (error) { return { preview: null, error: String(error).replace(/^Error: /, "") }; }
-  }, [chain, resources, ampPowered]);
+  }, [chain, ampPath, ampPowered]);
   const livePreview = livePlan.preview;
   const liveManifest = livePreview ? JSON.stringify({ schemaVersion: 1, nodes: livePreview.nodes }) : null;
 
@@ -123,7 +123,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
     let ignoredCount = 0;
     if (mode === "wet") {
       try {
-        const plan = buildLiveBoardSnapshot(chain, resources, ampPowered);
+        const plan = buildLiveBoardSnapshot(chain, ampPath, ampPowered);
         nextManifest = JSON.stringify({ schemaVersion: 1, nodes: plan.nodes });
         ignoredCount = plan.ignored.length;
       } catch (error) {
@@ -148,7 +148,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
       setLiveStats(null);
       setActiveMode(mode);
       setMessage(mode === "wet"
-        ? `NAM/IR da pedalboard iniciado. ${ignoredCount ? `${ignoredCount} efeito(s) visual(is) sem DSP foram ignorados. ` : ""}Alterações de ordem, bypass, power ou recursos exigem Parar e Iniciar.`
+        ? `Pedais e amplificador principal iniciados. ${ignoredCount ? `${ignoredCount} efeito(s) visual(is) sem DSP foram ignorados. ` : ""}Alterações de ordem, bypass, power ou recursos exigem Parar e Iniciar.`
         : "Monitor DRY ligado: sem amp NAM ou pedais DSP. Use volume baixo.");
     } catch (error) {
       setRunning(false);
@@ -178,7 +178,7 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
       <AudioLines size={23}/>
       <div>
         <h2>Áudio e dispositivos</h2>
-        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe VTTGATE, VTT Compressor, VTT Sustain, VTT Chorus, VTT Delay, VTT Reverb, NAM e IR da pedalboard na ordem visual. Os efeitos nativos possuem DSP funcional na cadeia mono.</p>
+        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe os efeitos da pedalboard na ordem visual, seguidos pelo amplificador NAM principal. Os efeitos possuem DSP funcional na cadeia mono.</p>
         {!native ? (
           <p role="status">Abra o aplicativo desktop para listar drivers e interfaces de áudio. Esta visualização web não acessa seus dispositivos.</p>
         ) : (
@@ -220,9 +220,9 @@ export default function AudioDevices({ chain, resources, ampPowered, compact = f
               </label>
             </div>
             {mode === "wet" && (
-              <section className="audio-live-models" aria-label="Cadeia NAM/IR da pedalboard">
+              <section className="audio-live-models" aria-label="Cadeia nativa: pedais + amplificador principal">
                 <h3>Cadeia nativa da pedalboard</h3>
-                <p>Arquivos reais são associados a cada VTTAMP, VTTDRIVE e VTTCAB diretamente na pedalboard. Power, bypass e ordem são aplicados ao iniciar. Ajustes feitos durante a sessão precisam de reinício manual.</p>
+                <p>O arquivo .nam é associado somente ao amplificador principal, fora dos pedais. Os pedais respeitam a ordem visual; o NAM é o estágio final. Power e bypass são aplicados ao iniciar. Ajustes durante a sessão precisam de reinício manual.</p>
                 {livePreview ? (
                   <>
                     <p role="status">{livePreview.nodes.length} módulo(s) nativo(s) preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
