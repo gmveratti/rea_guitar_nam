@@ -314,7 +314,11 @@ fn wait_for_handshake<T>(
     }
 }
 
-fn start_sidecar(json: &str, cancel_sequence: &AtomicU64, start_epoch: u64) -> Result<Child, String> {
+fn start_sidecar(
+    json: &str,
+    cancel_sequence: &AtomicU64,
+    start_epoch: u64,
+) -> Result<Child, String> {
     let path = sidecar_path()?;
     let mut child = Command::new(path)
         .arg("--chain-json")
@@ -333,7 +337,12 @@ fn start_sidecar(json: &str, cancel_sequence: &AtomicU64, start_epoch: u64) -> R
         let reply = stdout.read_exact(&mut ready).map(|_| ready[0]);
         let _ = sender.send((reply, stdout));
     });
-    match wait_for_handshake(&receiver, cancel_sequence, start_epoch, Duration::from_secs(30)) {
+    match wait_for_handshake(
+        &receiver,
+        cancel_sequence,
+        start_epoch,
+        Duration::from_secs(30),
+    ) {
         Ok((Ok(b'R'), stdout)) => {
             let _ = reader.join();
             child.stdout = Some(stdout);
