@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
-  use: { baseURL: "http://127.0.0.1:5173", ...devices["Desktop Chrome"] },
+  use: { baseURL: "http://127.0.0.1:5173", ...devices["Desktop Chrome"], screenshot: "off", video: "off", trace: "off" },
   webServer: {
     command: "npm run dev",
     url: "http://127.0.0.1:5173",
