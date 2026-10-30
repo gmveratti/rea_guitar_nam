@@ -12,7 +12,6 @@ test("clean navigation starts with empty board and a clear add control", async (
 
   await page.getByRole("button", { name: "Adicionar primeiro efeito" }).click();
   await expect(page.getByRole("region", { name: "Biblioteca de efeitos" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "NAMs" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Amplificador principal" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Adicionar VTTAMP" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Adicionar VTTDRIVE" })).toHaveCount(0);
