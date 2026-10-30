@@ -137,7 +137,6 @@ export function loadPresets(): Preset[] {
     const allowed = new Set(["auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic"]);
     const ampFamily = typeof data.ampFamily === "string" && allowed.has(data.ampFamily)
       ? data.ampFamily as AmpFamily | "auto" : undefined;
-    const resources = validateRigResources(data.resources, chain);
     const ampPowered = typeof data.ampPowered === "boolean" ? data.ampPowered : true;
     return [{ id: data.id, name: data.name, chain, modelName, ampFamily, resources: {}, ampPowered, ampPath }];
   }).slice(0, 100);
