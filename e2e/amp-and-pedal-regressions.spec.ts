@@ -22,11 +22,11 @@ test("amplifier power is a working visual switch and the cable stays connected",
   expect(head.x + head.width).toBeLessThanOrEqual(canvas.x + canvas.width + 2);
 
 
-  await powerOff.click();
+  await powerOff.click({ timeout: 5_000 });
   await expect(amp.locator(".amp-art")).toHaveClass(/amp-is-off/);
   const powerOn = amp.getByRole("button", { name: "Ligar amplificador" });
   await expect(powerOn).toHaveAttribute("aria-pressed", "false");
-  await powerOn.click();
+  await powerOn.click({ timeout: 5_000 });
   await expect(amp.locator(".amp-art")).toHaveClass(/amp-is-on/);
   await expect(amp.getByRole("button", { name: "Desligar amplificador" }))
     .toHaveAttribute("aria-pressed", "true");
