@@ -25,10 +25,8 @@ test("VTTRIG shows branded pedals, pedal LED and a family-specific amplifier", a
 
   // Keep the sticky header at the document origin when capturing full-page previews.
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: "test-results/vttrig-amp-view.png", fullPage: true });
   await page.locator(".effects-grid").evaluate((element) => { element.scrollLeft = element.scrollWidth; });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: "test-results/vttrig-effects-view.png", fullPage: true });
 });
 
 test("presets preserve the chain and LED bypass state across reload", async ({ page }) => {
