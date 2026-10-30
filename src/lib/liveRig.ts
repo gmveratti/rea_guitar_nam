@@ -1,82 +1,69 @@
-import { validateChain, type PedalInstance, type PedalKind } from "./pedals";
+import { validateChain, type PedalInstance } from "./pedals";
 
-const RESOURCE_KINDS = new Set<PedalKind>(["amp", "drive", "cabinet"]);
-const NATIVE_KINDS = new Set<PedalKind>(["gate", "compressor", "sustain", "chorus", "delay", "reverb", "amp", "drive", "cabinet"]);
-export type RigResources = Record<string, string>;
+export type RigResources = Record<string, string>; // legacy resource map for migration
 export type NativeRigNode =
   | { id: string; kind: "gate" | "compressor" | "sustain" | "chorus" | "delay" | "reverb"; enabled: boolean; parameters: Record<string, number> }
-  | {
-    id: string;
-    kind: "amp" | "drive" | "cabinet";
-    enabled: boolean;
-    parameters: Record<string, number>;
-    resource: { path: string };
-  };
+  | { id: string; kind: "amp"; enabled: boolean; parameters: Record<string, number>; resource: { path: string } };
+
 export type LiveBoardSnapshot = {
   schemaVersion: 1;
   nodes: NativeRigNode[];
-  ignored: { id: string; kind: PedalKind }[];
+  ignored: { id: string; kind: string }[];
 };
 
-const expectedExtension = (kind: PedalKind) => kind === "cabinet" ? ".wav" : ".nam";
-const displayType = (kind: PedalKind) => kind === "cabinet" ? "IR" : "NAM";
-
-export function validNativePath(path: unknown, kind: PedalKind): path is string {
+export function validMainAmpPath(path: unknown): path is string {
   return typeof path === "string" && path.trim().length > 0 &&
     path.length <= 4096 && !path.includes("\0") &&
-    path.toLowerCase().endsWith(expectedExtension(kind));
+    path.toLowerCase().endsWith(".nam");
 }
 
-/** Paths are local-only, keyed by instance ID, not by pedal kind or position. */
+/** Legacy model paths are only used while migrating old draft/preset storage. */
 export function validateRigResources(value: unknown, chain: readonly PedalInstance[]): RigResources {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const source = value as Record<string, unknown>;
   const result: RigResources = {};
   for (const effect of chain) {
-    if (!RESOURCE_KINDS.has(effect.kind)) continue;
+    if (effect.kind !== "amp" && effect.kind !== "drive" && effect.kind !== "cabinet") continue;
     const path = Object.prototype.hasOwnProperty.call(source, effect.id) ? source[effect.id] : undefined;
-    if (validNativePath(path, effect.kind)) result[effect.id] = path;
+    const extension = effect.kind === "cabinet" ? ".wav" : ".nam";
+    if (typeof path === "string" && path.trim() && path.length <= 4096 &&
+        !path.includes("\0") && path.toLowerCase().endsWith(extension)) {
+      result[effect.id] = path;
+    }
   }
   return result;
 }
 
-/** Native dynamics, NAM and IR execute in the exact user order. Other pedals are reported. */
+/**
+ * The virtual amp head is a dedicated final stage, never a pedal. Pedal DSP
+ * remains in the user's exact visual order. Any model must be a real .nam path,
+ * not a visual demo name or an old VTTAMP pedal.
+ */
 export function buildLiveBoardSnapshot(
   chain: readonly PedalInstance[],
-  paths: Readonly<RigResources>,
+  mainAmpPath = "",
   ampPowered = true,
 ): LiveBoardSnapshot {
   const validated = validateChain([...chain]);
   if (!validated) throw new Error("Cadeia visual inválida: verifique IDs e parâmetros.");
-  const nodes: NativeRigNode[] = [];
-  const ignored: LiveBoardSnapshot["ignored"] = [];
-  for (const effect of validated) {
-    if (!NATIVE_KINDS.has(effect.kind)) {
-      if (effect.enabled) ignored.push({ id: effect.id, kind: effect.kind });
-      continue;
-    }
-    if (effect.kind === "gate" || effect.kind === "compressor" || effect.kind === "sustain" || effect.kind === "chorus" || effect.kind === "delay" || effect.kind === "reverb") {
-      nodes.push({
-        id: effect.id, kind: effect.kind, enabled: effect.enabled,
-        parameters: { ...effect.values },
-      });
-      continue;
-    }
-    const path = Object.prototype.hasOwnProperty.call(paths, effect.id) ? paths[effect.id] : undefined;
-    const enabled = effect.enabled && (effect.kind !== "amp" || ampPowered);
-    if (!validNativePath(path, effect.kind)) {
-      // An unconfigured bypassed slot is a UI placeholder, not a native processor.
-      if (!enabled) continue;
-      throw new Error(`${displayType(effect.kind)} sem arquivo válido no pedal ${effect.id}. Escolha um ${expectedExtension(effect.kind)} na pedalboard.`);
+  const nodes: NativeRigNode[] = validated.map((effect) => ({
+    id: effect.id,
+    kind: effect.kind as "gate" | "compressor" | "sustain" | "chorus" | "delay" | "reverb",
+    enabled: effect.enabled,
+    parameters: { ...effect.values },
+  }));
+  if (mainAmpPath) {
+    if (!validMainAmpPath(mainAmpPath)) {
+      throw new Error("O amplificador principal exige um arquivo .nam válido.");
     }
     nodes.push({
-      id: effect.id,
-      kind: effect.kind as "amp" | "drive" | "cabinet",
-      enabled,
-      parameters: { ...effect.values },
-      resource: { path },
+      id: "main-amp", kind: "amp", enabled: ampPowered,
+      parameters: { input: 0, output: -3 },
+      resource: { path: mainAmpPath },
     });
   }
-  if (!nodes.length) throw new Error("Adicione um Noise Gate, Compressor, Sustain, Chorus, Delay, Reverb, NAM ou IR à pedalboard.");
-  return { schemaVersion: 1, nodes, ignored };
+  if (!nodes.length) {
+    throw new Error("Escolha um amplificador principal .nam ou adicione um pedal de efeito.");
+  }
+  return { schemaVersion: 1, nodes, ignored: [] };
 }
