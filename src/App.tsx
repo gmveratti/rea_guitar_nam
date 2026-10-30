@@ -55,7 +55,7 @@ export default function App() {
   const [view, setView] = useState<View>("board");
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
-  const [modelName, setModelName] = useState(visualDraft.modelName);
+  const [modelName, setModelName] = useState(() => visualDraft.modelName || (ampPath ? ampPath.split(/[\\/]/).pop() ?? "" : ""));
   const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">(visualDraft.ampFamily);
   const [ampPowered, setAmpPowered] = useState(visualDraft.ampPowered ?? true);
 
@@ -276,7 +276,9 @@ export default function App() {
         <div className="model-compact">
           <label htmlFor="amp-example">MODELO</label>
           <select id="amp-example" value={DEMO_MODELS.includes(modelName) ? modelName : modelName ? "__custom__" : ""} onChange={(event) => {
-            if (event.target.value !== "__custom__") chooseModel(event.target.value);
+            if (event.target.value === "__custom__") return;
+            if (!event.target.value && isTauri()) { void pickPrimaryAmp(); return; }
+            chooseModel(event.target.value);
           }}>
             <option value="">+ Adicionar NAM</option>
             {modelName && !DEMO_MODELS.includes(modelName) && <option value="__custom__">{humanizeModelName(modelName)}</option>}
