@@ -272,11 +272,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   flex-direction:column;
   align-items:stretch;
   gap:9px;
-  position:sticky;
-  top:96px;
+  /* Keep the floating menu vertically centered in the visible viewport.
+     The workspace grid still reserves its left column for the stage. */
+  position:fixed;
+  top:50%;
+  left:12px;
+  transform:translateY(-50%);
+  z-index:20;
+  width:120px;
   height:auto;
   min-width:0;
-  margin:20px 0 0 12px;
+  margin:0;
   padding:11px;
   border:1px solid #44403b;
   border-radius:23px;
@@ -421,7 +427,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 }
 @media (max-width:1060px) {
   .clean-workspace {grid-template-columns:112px minmax(0,1fr);gap:8px;}
-  .view-rail {top:90px;margin:14px 0 0 7px;padding:8px;border-radius:19px;}
+  .view-rail {left:7px;width:105px;padding:8px;border-radius:19px;}
   .rail-tab {font-size:10px;min-height:98px;padding:11px 4px;border-radius:14px;}
   .rail-tab small {font-size:7px;white-space:normal;}
   .clean-topbar {grid-template-columns:130px minmax(280px,1fr) minmax(155px,200px);}
@@ -649,6 +655,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   .board-view .amp-panel {gap:6px;padding:8px;}
 }
 
+
+@media (max-height:560px) {
+  /* Short windows cannot fit a centered rail beneath the sticky topbar.
+     Keep every destination reachable instead of clipping the menu. */
+  .view-rail {
+    top:88px;
+    transform:none;
+    max-height:calc(100dvh - 100px);
+    overflow-y:auto;
+  }
+}
 
 /* Amp slot: don't display a fake loaded amplifier before the user selects NAM. */
 .board-view .amp-art-empty {
