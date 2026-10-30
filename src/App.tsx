@@ -64,7 +64,7 @@ export default function App() {
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
-        .then((status) => setEngine(status === "native_live_nam_ir_available" ? "NAM/IR ao vivo (experimental)" : status === "dry_monitor_available_no_nam_dsp" ? "monitor DRY (sem NAM/DSP)" : status === "not_implemented" ? "áudio não implementado" : status))
+        .then((status) => setEngine(status === "native_live_nam_ir_available" ? "NAM ao vivo (experimental)" : status === "dry_monitor_available_no_nam_dsp" ? "monitor DRY (sem NAM/DSP)" : status === "not_implemented" ? "áudio não implementado" : status))
         .catch(() => setEngine("motor indisponível"));
     }
   }, []);
@@ -373,7 +373,7 @@ export default function App() {
                 onClear={clearPrimaryAmp} />
               {isTauri() && <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} compact />}
               <footer className="board-footer">
-                <span><span className="preview-dot" /> {isTauri() ? "NAM/IR EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
+                <span><span className="preview-dot" /> {isTauri() ? "NAM EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
                 {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
               </footer>
             </div>
@@ -389,7 +389,7 @@ export default function App() {
               <div className="library-categories">
                 <article className="collection-card">
                   <div className="collection-icon"><Guitar size={23}/></div><h2>Amplificador principal</h2>
-                  <p>O NAM .a2/.nam pertence ao cabeçote principal, não à cadeia de pedais. Adicione seus seis efeitos separadamente.</p>
+                  <p>O NAM A2 (.nam) pertence ao cabeçote principal, não à cadeia de pedais. Adicione seus seis efeitos separadamente.</p>
                   {isTauri() ? (
                     <button type="button" className="secondary-button" onClick={() => { void pickPrimaryAmp(); }}>
                       Selecionar NAM principal
@@ -431,7 +431,7 @@ export default function App() {
               <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
               <div className="settings-stack">
                 <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} />
-                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A ordem e o bypass da pedalboard são enviados ao motor NAM/IR ao iniciar. Controles de ganho/EQ continuam sem mapeamento DSP; mudanças durante o áudio exigem reinício.</p></div><span className="offline-pill">OFFLINE</span></div>
+                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A ordem e o bypass da pedalboard são enviados ao motor NAM ao iniciar. Controles de ganho/EQ continuam sem mapeamento DSP; mudanças durante o áudio exigem reinício.</p></div><span className="offline-pill">OFFLINE</span></div>
                 <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
                   <label htmlFor="skin-family">Família visual</label>
                   <select id="skin-family" value={ampFamily} onChange={(event) => setAmpFamily(event.target.value as AmpFamily | "auto")}>
