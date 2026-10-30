@@ -312,7 +312,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .rail-tab:hover {background:#343233;border-color:#6b5846;color:#f4eee8;transform:translateY(-2px);}
 .rail-tab.active {background:linear-gradient(165deg,#494540,#302d2b 65%,#252526);color:#f4e5d2;border-color:#86715a;box-shadow:inset 0 1px 1px #ffffff28,0 9px 17px #0007;}
 .rail-tab.active .rail-icon {color:#efc48d;}
-.clean-stage {padding:clamp(20px,2.1vw,35px) clamp(26px,3.1vw,60px) 34px;min-width:0;overflow:hidden;}
+/* The fixed rail is out of grid flow; reserve column one for it. */
+.clean-stage {grid-column:2;padding:clamp(20px,2.1vw,35px) clamp(26px,3.1vw,60px) 34px;min-width:0;overflow:hidden;}
 .board-view {max-width:1480px;margin:0 auto;}
 /* Amplifier: bigger studio head, bronze faceplate and deep black tolex. */
 .board-view .hero-zone {margin:9px 0 10px;}
