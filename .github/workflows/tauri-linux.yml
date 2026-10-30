@@ -32,7 +32,7 @@ jobs:
       - name: Install WebKitGTK build requirements
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf libfuse2t64
+          sudo apt-get install -y libjack-jackd2-dev libasound2-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf libfuse2t64
       - name: Validate AppImage icon (regression check)
         run: python3 scripts/check_tauri_icons.py
       - run: npm install --no-audit --no-fund
