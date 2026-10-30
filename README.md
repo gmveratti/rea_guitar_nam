@@ -2,17 +2,17 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: Gate, Compressor, Sustain, Chorus e Delay Classic integrados à `main`; esta branch acrescenta VTT Reverb Room mono.** Os efeitos nativos seguem a ordem visual da pedalboard e exigem **Parar/Iniciar** para aplicar alterações. **Hardware, latência e estabilidade ainda não estão homologados.**
+> **Status: Gate, Compressor, Sustain, Chorus, Delay e Reverb com DSP mono.** O NAM A2 é carregado apenas no **amplificador principal**, fora dos pedais. Alterações de modelo, ordem e bypass exigem **Parar/Iniciar**. **Hardware, latência e estabilidade ainda não estão homologados.**
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
-- **VTTAMP:** carregar modelos de amplificador **NAM A2-Lite ou A2-Full (`.nam`)** baixados de [TONE3000](https://www.tone3000.com/), executados no **NeuralAmpModelerCore**.
-- **VTTCAB:** carregar **Impulse Responses de gabinetes (`.wav`)** baixadas de [TONE3000](https://www.tone3000.com/guides/impulse-responses), processadas pelo **convolutor IR nativo**.
-- **VTTDRIVE:** carregar capturas de pedais de drive **NAM A2 (`.nam`)** do mesmo catálogo, usando o core NAM.
+- **Amplificador principal:** carregue um NAM A2-Lite ou A2-Full (`.nam`) no cabeçote visual, executado pelo **NeuralAmpModelerCore**. **Não cria pedal VTTAMP.**
+- **Pedalboard:** oferece apenas **Gate, Compressor, Sustain, Chorus, Delay e Reverb**. VTTAMP, VTTDRIVE e VTTCAB/IR foram retirados da cadeia visual e da biblioteca de efeitos.
+- **Presets antigos:** o caminho .nam do antigo VTTAMP é migrado para o cabeçote principal; antigos slots Drive/IR saem da cadeia atual. O motor nativo continua com suporte legado a IR/drive para evoluções futuras, mas estes não são inseridos ocultamente no rig.
 
-**Fluxo disponível hoje:** baixar os arquivos pelo site, salvar no computador e selecioná-los na pedalboard. **Ainda não há navegador/download automático do TONE3000 no aplicativo**; uma possível integração oficial via API permanece no roadmap e depende dos termos da plataforma. Os arquivos de terceiros não são distribuídos junto com o VTTRIG. O TONE3000 também contém arquivos A1 legados: escolher e validar arquivos **A2-Lite/Full** quando esse for o objetivo.
+**Fluxo disponível hoje:** baixar o NAM pelo site, salvar no computador e selecioná-lo no cabeçote principal do aplicativo desktop. **Ainda não há navegador/download automático do TONE3000 no aplicativo**; uma possível integração oficial via API permanece no roadmap e depende dos termos da plataforma. Os arquivos de terceiros não são distribuídos junto com o VTTRIG. O TONE3000 também contém arquivos A1 legados: escolher e validar arquivos **A2-Lite/Full** quando esse for o objetivo.
 
-**Atenção ao tipo de captura:** um *Amp Head* normalmente é combinado com uma IR de gabinete; uma captura *Amp + Cab* já inclui o gabinete e não exige outra IR. O usuário segue livre para organizar e habilitar os módulos. O motor atual é experimental, mono/48 kHz, e a compatibilidade precisa ser validada em testes reais.
+**Atenção ao tipo de captura:** como a interface atual não expõe um slot IR, prefira um NAM do tipo *Amp + Cab* para já obter simulação de gabinete. Um *Amp Head* sozinho pode soar excessivamente agudo sem IR. O motor permanece experimental, mono/48 kHz.
 
 Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHITECTURE.md) e [guia oficial NAM × IR](https://www.tone3000.com/guides/neural-amp-modeler).
 
@@ -69,16 +69,15 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 - Presets antigos continuam legíveis, mas os quatro parâmetros visuais antigos do compressor não são equivalentes aos controles ButterComp2 e são substituídos pelos defaults do modo Smooth.
 - Testes offline automatizados incluídos; **timbre, estabilidade e latência com interface USB ainda não homologados**.
 
-## PR #15: integração inicial da pedalboard ao áudio NAM/IR
+## Fluxo atual: NAM principal separado dos pedais
 
-1. No **aplicativo desktop**, adicione VTTAMP, VTTDRIVE ou VTTCAB à pedalboard. O botão (+) do amplificador abre o seletor nativo de arquivos `.nam`.
-2. Na seção **Modelos da pedalboard**, associe um arquivo `.nam` para cada amplificador/drive e `.wav` para cada gabinete. Modelos repetidos são independentes pelo ID.
-3. Organize a ordem livremente. LEDs/footswitches e **POWER** do amp determinam o bypass dos módulos quando a sessão for iniciada. A tela avisa quando houver efeitos visuais ainda sem DSP.
-4. Na pedalboard (ou em Configurações), escolha driver, entrada, canal da guitarra, saída e buffer. Teste DRY e pare. Selecione NAM/IR e clique **Iniciar NAM/IR** com fones e volume baixo.
-5. **Ao alterar posição, bypass, POWER, recursos ou preset durante a reprodução, clique Parar e Iniciar para aplicar a nova configuração.** Não há troca de grafo instantânea nesta etapa. A sessão nativa é mantida separadamente da árvore React.
-6. Salvar preset mantém IDs, ordem, bypass, parâmetros visuais, potência do amp e arquivos por ID. Presets antigos continuam legíveis, mas sem recursos nativos se não foram previamente associados. O rascunho também persiste localmente e não inicia áudio automaticamente.
+1. No aplicativo desktop, clique no (+) do **amplificador principal** ou em **Selecionar NAM principal** e escolha um arquivo `.nam` A2. Ele aparece no cabeçote; não surge nenhum VTTAMP na cadeia de pedais.
+2. Adicione e reordene Gate, Compressor, Sustain, Chorus, Delay e Reverb pela Biblioteca. O modelo NAM é preparado como um estágio final separado, **após** os pedais, sem IR/Drive como pedais.
+3. Escolha driver, entrada/canal da guitarra, saída e buffer. Teste DRY, pare, selecione NAM/IR e clique **Iniciar NAM/IR**.
+4. Bypass de pedais, POWER do amplificador, parâmetros e alterações de modelo são aplicados após **Parar/Iniciar**. Não existe atualização contínua em tempo real.
+5. Presets e rascunhos guardam a cadeia dos seis efeitos e o caminho local do NAM principal separadamente. A migração de presets antigos preserva o NAM previamente associado ao VTTAMP.
 
-Limitações atuais: o motor permanece **mono/48 kHz**. Gate, Compressor Smooth, Sustain, Chorus, Delay Classic e Reverb Room mono possuem DSP real. Os knobs dos pedais NAM, gabinete e amplificador ainda não controlam ganho/EQ no DSP. Drivers padrão são WASAPI/ALSA; ASIO/JACK exigem configuração/builds separados. Testes CI não substituem teste real com interface física.
+**Limitações:** o motor segue mono/48 kHz. IR e capturas de drive não são selecionáveis neste fluxo; o motor mantém os algoritmos legados, sem inseri-los silenciosamente. O backend Linux usa JACK/PipeWire-JACK se disponível; validação física de interface, timbre e latência segue pendente.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 
@@ -250,7 +249,7 @@ físicos e não ASIO; o comportamento acústico ainda exige hardware.
 ## O que funciona nesta primeira etapa
 
 - **Amp Focus:** amplificador estilizado por CSS. Classificação heurística por nome de .nam em famílias *British, American, Stadium, Chime, Modern, Boutique*. Seletor manual corrige falsos positivos.
-- **Pedais VTTRIG:** chassis padrão inspirado em stompboxes físicos, design próprio e cores por efeito: VTTCHORUS, VTTDELAY, VTTREVERB, VTTCOMP, VTTSUSTAIN, VTTGATE, VTTDRIVE, VTTAMP e VTTCAB.
+- **Pedais VTTRIG:** chassis padrão inspirado em stompboxes físicos, design próprio e cores por efeito: VTTCHORUS, VTTDELAY, VTTREVERB, VTTCOMP, VTTSUSTAIN e VTTGATE (amplificador NAM separado no cabeçote).
 - LED animado refletindo o estado do bypass **visual**; footswitch com animação de pressionar; knobs ajustáveis, destaque do pedal selecionado; reorganização por drag-and-drop e adição/remoção.
 - Presets locais com validação do grafo de efeitos, persistência entre recargas e parâmetros independentes por instância. A **ordem visual é a ordem do sinal**, inclusive efeitos repetidos e bypass individual; a conexão dinâmica Tauri → DSP ainda não existe.
 - Interface desktop com suporte a redução de animações pelo sistema.
