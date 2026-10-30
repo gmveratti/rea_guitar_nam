@@ -23,7 +23,7 @@ type Props = {
 
 export default function AudioDevices({ chain, ampPath, ampPowered, compact = false }: Props) {
   const native = isTauri();
-  // Preserve model/IR selections when navigating away or restarting the WebView.
+  // Preserve model selection when navigating away or restarting the WebView.
   // Device indices remain session-only: enumeration order can change after USB reconnect.
   const [saved] = useState(loadAudioSettings);
   const [hosts, setHosts] = useState<HostInfo[]>([]);
@@ -215,7 +215,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
               <label htmlFor="audio-mode">Modo de monitor
                 <select id="audio-mode" value={mode} disabled={busy || running} onChange={(event) => setMode(event.target.value as Mode)}>
                   <option value="dry">DRY · guitarra limpa</option>
-                  <option value="wet">NAM/IR · processamento ao vivo</option>
+                  <option value="wet">NAM · processamento ao vivo</option>
                 </select>
               </label>
             </div>
@@ -235,22 +235,22 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
             )}
             {running && activeMode === "wet" &&
               (appliedManifest === null || liveManifest !== appliedManifest) &&
-              <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM/IR e depois Iniciar NAM/IR.</p>}
+              <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM e depois Iniciar NAM.</p>}
             <p className="audio-device-note">48.000 Hz · guitarra enviada em mono para as saídas. No Linux, prefira JACK/PipeWire-JACK e confira as portas no qpwgraph. O buffer do JACK é definido no servidor (a opção de samples acima se aplica ao ALSA/WASAPI). JACK usa portas virtuais e pode aparecer como cpal_client_in/out, não como o nome da interface USB. No Windows, WASAPI é padrão e ASIO continua opcional.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
             {running && activeMode === "dry" && dryStatus?.failed && (
               <p className="audio-device-warning" role="alert">Falha na {audioFaultReason(dryStatus)}. Pare o monitor, confira a interface e atualize os dispositivos antes de tentar novamente.</p>
             )}
             {running && activeMode === "wet" && liveStats && (
-              <p className={liveStats.failed ? "audio-device-warning" : "audio-device-note"} role={liveStats.failed ? "alert" : "status"}>NAM/IR: {liveStats.failed ? `falha em ${audioFaultReason(liveStats)}; pare e revise a configuração` : "ativo"} · amostras em falta: {liveStats.underruns} · descartadas: {liveStats.overflows}. Estes contadores não equivalem à latência.</p>
+              <p className={liveStats.failed ? "audio-device-warning" : "audio-device-note"} role={liveStats.failed ? "alert" : "status"}>NAM: {liveStats.failed ? `falha em ${audioFaultReason(liveStats)}; pare e revise a configuração` : "ativo"} · amostras em falta: {liveStats.underruns} · descartadas: {liveStats.overflows}. Estes contadores não equivalem à latência.</p>
             )}
             <div className="audio-device-actions">
               <button className="secondary-button" type="button" disabled={busy || running} onClick={() => void refresh()}><RefreshCw size={15}/> Atualizar dispositivos</button>
               {running ? (
-                <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM/IR" : "DRY"}</button>
+                <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM" : "DRY"}</button>
               ) : (
                 <button type="button" className="primary-button" disabled={busy || !hostId || inputIndex === "" || outputIndex === "" || (mode === "wet" && !liveManifest)}
-                  onClick={() => void start()}><Volume2 size={15}/> Iniciar {mode === "wet" ? "NAM/IR" : "monitor DRY"}</button>
+                  onClick={() => void start()}><Volume2 size={15}/> Iniciar {mode === "wet" ? "NAM" : "monitor DRY"}</button>
               )}
             </div>
           </>
