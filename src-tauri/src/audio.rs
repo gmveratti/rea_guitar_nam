@@ -4,8 +4,8 @@
 //! communicate via a bounded lock-free single-producer/single-consumer ring.
 //! They never allocate, lock, call Tauri or touch the filesystem.
 //!
-//! WASAPI (Windows) and ALSA (Linux) are built by default. ASIO / JACK only
-//! appear when both their optional CPAL feature and system drivers are present.
+//! WASAPI (Windows), ALSA and JACK/PipeWire-JACK (Linux) are built by default.
+//! ASIO remains optional on Windows; JACK requires a running JACK server.
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{BufferSize, SampleFormat, Stream, StreamConfig, SupportedBufferSize};
 use rtrb::RingBuffer;
@@ -83,6 +83,28 @@ pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
     })
 }
 
+// Never offer ALSA's null PCM as if it were a guitar interface.
+fn is_silent_alsa_endpoint(host_id: &str, name: &str) -> bool {
+    if !host_id.eq_ignore_ascii_case("alsa") {
+        return false;
+    }
+    let normalized = name.trim().to_ascii_lowercase();
+    normalized == "null"
+        || normalized.contains("discard all samples")
+        || normalized.contains("generate zero samples")
+        || normalized.contains("null pcm")
+}
+
+fn host_priority(host: &HostInfo) -> u8 {
+    let ready = host.inputs.iter().any(|d| d.supports_monitor)
+        && host.outputs.iter().any(|d| d.supports_monitor);
+    match (host.id.as_str(), ready) {
+        ("jack", true) => 0, // prefer PipeWire/JACK for a guitar rig
+        (_, true) => 1,
+        _ => 2,
+    }
+}
+
 fn supports_48k_float(device: &cpal::Device, input: bool) -> Option<u16> {
     let configs = if input {
         device.supported_input_configs().ok()?.collect::<Vec<_>>()
@@ -97,8 +119,10 @@ fn supports_48k_float(device: &cpal::Device, input: bool) -> Option<u16> {
                 && range.max_sample_rate() >= RATE
                 && range.channels() > 0
         })
+        // JACK advertises 1, 2, 4... channels in that order. Prefer stereo
+        // output (and two possible guitar inputs) over JACK's first mono range.
+        .min_by_key(|range| if range.channels() == 2 { 0 } else { 1 })
         .map(|range| range.channels())
-        .next()
 }
 
 fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
@@ -112,14 +136,16 @@ fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
             .enumerate()
             .map(|(index, device)| {
                 let supported = supports_48k_float(&device, input);
+                let name = device
+                    .description()
+                    .map(|d| d.name().to_string())
+                    .unwrap_or_else(|_| format!("Dispositivo {index}"));
+                let silent = is_silent_alsa_endpoint(&host.id().to_string(), &name);
                 DeviceInfo {
                     index,
-                    name: device
-                        .description()
-                        .map(|d| d.name().to_string())
-                        .unwrap_or_else(|_| format!("Dispositivo {index}")),
+                    name,
                     channels: supported.unwrap_or(0),
-                    supports_monitor: supported.is_some(),
+                    supports_monitor: supported.is_some() && !silent,
                 }
             })
             .collect(),
@@ -128,7 +154,7 @@ fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
 }
 
 pub fn list_hosts() -> Vec<HostInfo> {
-    cpal::available_hosts()
+    let mut hosts: Vec<_> = cpal::available_hosts()
         .into_iter()
         .filter_map(|id| {
             let host = cpal::host_from_id(id).ok()?;
@@ -138,7 +164,9 @@ pub fn list_hosts() -> Vec<HostInfo> {
                 outputs: devices(&host, false),
             })
         })
-        .collect()
+        .collect();
+    hosts.sort_by_key(host_priority);
+    hosts
 }
 
 pub(crate) fn validate_buffer(frames: u32) -> Result<(), String> {
@@ -163,6 +191,13 @@ pub(crate) fn choose_device(
     let device = iterator
         .nth(index)
         .ok_or("Dispositivo desconectado. Atualize a lista.")?;
+    let name = device
+        .description()
+        .map(|d| d.name().to_string())
+        .unwrap_or_default();
+    if is_silent_alsa_endpoint(&host.id().to_string(), &name) {
+        return Err("A saída/entrada ALSA 'null' não transporta áudio. Selecione JACK ou uma interface real.".into());
+    }
     let ranges = if input {
         device
             .supported_input_configs()
@@ -176,19 +211,25 @@ pub(crate) fn choose_device(
     };
     let range = ranges
         .into_iter()
-        .find(|range| {
+        .filter(|range| {
             range.sample_format() == SampleFormat::F32
                 && range.min_sample_rate() <= RATE
                 && range.max_sample_rate() >= RATE
                 && range.channels() > 0
         })
+        .min_by_key(|range| if range.channels() == 2 { 0 } else { 1 })
         .ok_or("Este dispositivo não oferece F32 a 48 kHz neste backend.")?;
 
-    if let SupportedBufferSize::Range { min, max } = range.buffer_size() {
-        if frames < *min || frames > *max {
-            return Err(format!(
-                "Buffer indisponível: o dispositivo aceita {min} a {max} frames."
-            ));
+    // JACK owns its server buffer size. Requesting Fixed(128) while the JACK
+    // server is at 256 will fail in CPAL >= 0.17. Never change server settings.
+    let is_jack = host.id().to_string().eq_ignore_ascii_case("jack");
+    if !is_jack {
+        if let SupportedBufferSize::Range { min, max } = range.buffer_size() {
+            if frames < *min || frames > *max {
+                return Err(format!(
+                    "Buffer indisponível: o dispositivo aceita {min} a {max} frames."
+                ));
+            }
         }
     }
     Ok((
@@ -196,7 +237,11 @@ pub(crate) fn choose_device(
         StreamConfig {
             channels: range.channels(),
             sample_rate: RATE,
-            buffer_size: BufferSize::Fixed(frames),
+            buffer_size: if is_jack {
+                BufferSize::Default
+            } else {
+                BufferSize::Fixed(frames)
+            },
         },
     ))
 }
@@ -328,6 +373,33 @@ pub fn stop(state: &AudioState) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn null_alsa_is_never_offered_as_working_guitar_io() {
+        assert!(is_silent_alsa_endpoint(
+            "alsa",
+            "Discard all samples (playback) or generate zero samples (capture)"
+        ));
+        assert!(is_silent_alsa_endpoint("ALSA", "null"));
+        assert!(!is_silent_alsa_endpoint("jack", "cpal_client_in"));
+        assert!(!is_silent_alsa_endpoint("alsa", "HD-II USB Audio"));
+        let active = |id: &str, ok: bool| HostInfo {
+            id: id.into(),
+            inputs: vec![DeviceInfo {
+                index: 0,
+                name: "input".into(),
+                channels: 2,
+                supports_monitor: ok,
+            }],
+            outputs: vec![DeviceInfo {
+                index: 1,
+                name: "output".into(),
+                channels: 2,
+                supports_monitor: ok,
+            }],
+        };
+        assert!(host_priority(&active("jack", true)) < host_priority(&active("alsa", true)));
+        assert!(host_priority(&active("jack", false)) > host_priority(&active("alsa", true)));
+    }
     #[test]
     fn guitar_channel_routes_correctly_and_rejects_invalid_indices() {
         assert!(validate_input_channel(0, 2).is_ok());

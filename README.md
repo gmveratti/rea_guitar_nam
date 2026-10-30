@@ -201,12 +201,31 @@ backend, entrada, saída e solicitar buffer de 64/128/256/512/1024 frames a
 **48 kHz**. A seleção funciona no aplicativo desktop Tauri, não na
 pré-visualização web.
 
-**Backends disponibilizados no build padrão:** WASAPI (Windows) e ALSA
-(Linux). O suporte ASIO e JACK é **opcional** (`cargo --features asio` ou
-`cargo --features jack`) e depende das bibliotecas, SDKs, toolchain e
-drivers de cada plataforma. Não há promessa de ASIO/JACK nesta build do
-instalador. O app somente lista hosts enumerados pelo CPAL. O formato
+**Backends disponibilizados no build padrão:** WASAPI (Windows); JACK/PipeWire-JACK e ALSA (Linux). JACK agora é compilado por padrão **somente no Linux**, com a biblioteca de desenvolvimento presente durante o build e a biblioteca cliente instalada no sistema. Se o servidor JACK não estiver funcionando, ele não oferecerá entradas/saídas. O aplicativo prefere JACK quando há entrada e saída válidas, mantém ALSA como fallback e não permite o dispositivo `null` (que descarta áudio). **ASIO no Windows continua opcional** (`cargo --features asio`). O app somente lista hosts realmente enumerados pelo CPAL. O formato
 admitido nesta primeira versão é **F32 mono/multicanal a 48 kHz**.
+
+### Fedora e guitarra pelo PipeWire-JACK
+
+A interface USB reconhecida pelo Fedora (por exemplo HD-II) não precisa de driver
+adicional nem de gravação de teste. Uma vez que JACK já funcione em outros aplicativos,
+abra **Configurações → Áudio e dispositivos**, selecione **JACK**, use o par
+`cpal_client_in` / `cpal_client_out` (nomes de portas virtuais do CPAL)
+e selecione a entrada física da guitarra no **qpwgraph** ou deixe a conexão
+automática se ela corresponder à interface correta. Conecte a saída JACK do
+VTTRIG à saída analógica/fones corretos no qpwgraph. Não confunda a saída
+digital `IEC958` com os fones analógicos.
+
+O valor de **Buffer solicitado** no formulário vale para ALSA/WASAPI; em JACK,
+o VTTRIG segue o buffer já definido pelo servidor PipeWire-JACK sem mudá-lo.
+O motor ainda exige **48 kHz / F32**. O servidor pode conectar portas ao
+dispositivo padrão, então confira o roteamento antes de aumentar o volume.
+
+**Para compilar no Fedora:** tenha os pacotes `jack-devel` (ou
+`pipewire-jack-audio-connection-kit-devel`) e `alsa-lib-devel`
+presentes. O build Linux/Tauri habilita JACK automaticamente; não requer
+`--features jack`. Instaladores anteriores a essa correção precisam ser
+substituídos por um build/release novo para que JACK apareça. A CI não
+comprova o roteamento real de hardware nem mede latência ou xrun.
 
 Um botão explícito **Iniciar monitor DRY** abre a primeira entrada de áudio
 (canal 1) e duplica a guitarra limpa na saída escolhida. A monitoração usa
