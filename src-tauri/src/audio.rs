@@ -191,7 +191,10 @@ pub(crate) fn choose_device(
     let device = iterator
         .nth(index)
         .ok_or("Dispositivo desconectado. Atualize a lista.")?;
-    let name = device.description().map(|d| d.name().to_string()).unwrap_or_default();
+    let name = device
+        .description()
+        .map(|d| d.name().to_string())
+        .unwrap_or_default();
     if is_silent_alsa_endpoint(&host.id().to_string(), &name) {
         return Err("A saída/entrada ALSA 'null' não transporta áudio. Selecione JACK ou uma interface real.".into());
     }
@@ -373,15 +376,26 @@ mod tests {
     #[test]
     fn null_alsa_is_never_offered_as_working_guitar_io() {
         assert!(is_silent_alsa_endpoint(
-            "alsa", "Discard all samples (playback) or generate zero samples (capture)"
+            "alsa",
+            "Discard all samples (playback) or generate zero samples (capture)"
         ));
         assert!(is_silent_alsa_endpoint("ALSA", "null"));
         assert!(!is_silent_alsa_endpoint("jack", "cpal_client_in"));
         assert!(!is_silent_alsa_endpoint("alsa", "HD-II USB Audio"));
         let active = |id: &str, ok: bool| HostInfo {
             id: id.into(),
-            inputs: vec![DeviceInfo { index: 0, name: "input".into(), channels: 2, supports_monitor: ok }],
-            outputs: vec![DeviceInfo { index: 1, name: "output".into(), channels: 2, supports_monitor: ok }],
+            inputs: vec![DeviceInfo {
+                index: 0,
+                name: "input".into(),
+                channels: 2,
+                supports_monitor: ok,
+            }],
+            outputs: vec![DeviceInfo {
+                index: 1,
+                name: "output".into(),
+                channels: 2,
+                supports_monitor: ok,
+            }],
         };
         assert!(host_priority(&active("jack", true)) < host_priority(&active("alsa", true)));
         assert!(host_priority(&active("jack", false)) > host_priority(&active("alsa", true)));
