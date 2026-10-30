@@ -15,7 +15,7 @@ struct AudioCommandGate {
     cancel_live_start: AtomicU64,
 }
 
-fn worker_error(error: tauri::async_runtime::JoinError) -> String {
+fn worker_error(error: tauri::Error) -> String {
     format!("Falha interna no worker de áudio: {error}")
 }
 
