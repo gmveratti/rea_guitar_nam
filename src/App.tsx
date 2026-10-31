@@ -265,7 +265,10 @@ export default function App() {
         <div className="preset-compact" aria-label="Gerenciador de presets">
           <label htmlFor="preset-picker">PRESET</label>
           <select id="preset-picker" value={activePresetId} onChange={(event) => {
-            if (event.target.value) loadPreset(event.target.value);
+            // "Personalizado" means Save As New, not overwrite the former preset.
+            // Keep all currently edited pedals, NAM and controls intact.
+            if (!event.target.value) setActivePresetId("");
+            else loadPreset(event.target.value);
           }}>
             <option value="">Personalizado</option>
             {presets.map((preset) => <option value={preset.id} key={preset.id}>{preset.name}</option>)}

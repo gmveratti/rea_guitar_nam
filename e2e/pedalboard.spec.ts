@@ -48,3 +48,37 @@ test("presets preserve the chain and LED bypass state across reload", async ({ p
   await expect(page.getByRole("group", { name: /VTTDELAY/ }).getByRole("img", { name: "LED desligado" })).toBeVisible();
   await expect(page.locator(".amp-art")).toHaveClass(/amp-chime/);
 });
+
+test("Personalizado saves a new preset without overwriting the original (issue #28)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Adicionar primeiro efeito" }).click();
+  await page.getByRole("button", { name: "Adicionar VTTCHORUS" }).click();
+  await page.locator("#preset-name").fill("Preset Original");
+  await page.getByRole("button", { name: "Salvar preset", exact: true }).first().click();
+  const picker = page.locator("#preset-picker");
+  const originalId = await picker.inputValue();
+  expect(originalId).not.toBe("");
+  await expect(picker.locator("option")).toHaveCount(2);
+
+  // Switching to "Personalizado" must not clear the current rig or its settings.
+  await picker.selectOption("");
+  await expect(picker).toHaveValue("");
+  await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toBeVisible();
+
+  // Make a variant of the existing preset, rather than replacing its ID.
+  await page.getByRole("button", { name: "Adicionar efeito" }).click();
+  await page.getByRole("button", { name: "Adicionar VTTDELAY" }).click();
+  await page.locator("#preset-name").fill("Preset Variacao");
+  await page.getByRole("button", { name: "Salvar preset", exact: true }).first().click();
+  const variantId = await picker.inputValue();
+  expect(variantId).not.toBe(originalId);
+  await expect(picker.locator("option")).toHaveCount(3);
+
+  await page.reload();
+  await picker.selectOption(originalId);
+  await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toBeVisible();
+  await expect(page.getByRole("group", { name: /VTTDELAY/ })).toHaveCount(0);
+  await picker.selectOption(variantId);
+  await expect(page.getByRole("group", { name: /VTTCHORUS/ })).toBeVisible();
+  await expect(page.getByRole("group", { name: /VTTDELAY/ })).toBeVisible();
+});

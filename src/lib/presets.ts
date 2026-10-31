@@ -117,6 +117,7 @@ export function saveDraft(chain: PedalInstance[]): void {
   }
 }
 
+/** Never truncate persisted presets: silently dropping entries can destroy data on the next save. */
 export function loadPresets(): Preset[] {
   const raw = safeRead(PRESETS_KEY);
   if (!Array.isArray(raw)) return [];
@@ -139,7 +140,7 @@ export function loadPresets(): Preset[] {
       ? data.ampFamily as AmpFamily | "auto" : undefined;
     const ampPowered = typeof data.ampPowered === "boolean" ? data.ampPowered : true;
     return [{ id: data.id, name: data.name, chain, modelName, ampFamily, resources: {}, ampPowered, ampPath }];
-  }).slice(0, 100);
+  });
 }
 
 export function savePresets(presets: Preset[]): boolean {
