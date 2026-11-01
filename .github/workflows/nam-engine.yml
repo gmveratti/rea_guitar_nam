@@ -1,15 +1,7 @@
 name: VTTRIG NAM cross-platform DSP
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "engine/**"
-      - ".github/workflows/nam-engine.yml"
-  pull_request:
-    paths:
-      - "engine/**"
-      - ".github/workflows/nam-engine.yml"
+  workflow_call:
   workflow_dispatch:
   release:
     types: [published]
@@ -18,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: vttrig-nam-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   native-core:
