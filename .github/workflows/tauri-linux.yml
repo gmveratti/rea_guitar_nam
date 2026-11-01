@@ -1,10 +1,7 @@
 name: VTTRIG Tauri Linux
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
   release:
     types: [published]
 
@@ -12,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: vttrig-tauri-linux-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   tauri-check:
