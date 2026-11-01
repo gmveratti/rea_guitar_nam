@@ -1,7 +1,6 @@
-"""Regression guard: PR/main CI validates sources; only published releases ship binaries.
+"""Guard the central PR quality gate and release-only distribution.
 
-This is deliberately a dependency-free structural check of our workflows,
-not a general YAML parser. GitHub Actions validates the YAML itself.
+No installers or standalone downloads may be produced/published on PR/main.
 """
 from pathlib import Path
 import re
@@ -15,37 +14,31 @@ WORKFLOWS = {
     "nam": ROOT / ".github/workflows/nam-engine.yml",
 }
 BINARY_STEPS = {
-    "windows": (
-        "Build VTTRIG installer for Windows x64",
-        "Validate NSIS installer and desktop executable",
-        "Publish Windows installer download",
-    ),
-    "linux": (
-        "Build VTTRIG AppImage (x86_64)",
-        "Validate Linux executables",
-        "Publish downloadable Fedora/Linux test build",
-    ),
-    "nam": (
-        "Publish standalone Windows NAM processor",
-        "Publish standalone Linux NAM processor",
-    ),
+    "windows": ("Build VTTRIG installer for Windows x64",
+                "Validate NSIS installer and desktop executable",
+                "Publish Windows installer download"),
+    "linux": ("Build VTTRIG AppImage (x86_64)",
+              "Validate Linux executables",
+              "Publish downloadable Fedora/Linux test build"),
+    "nam": ("Package Windows NAM processor with licenses",
+            "Publish standalone Windows NAM processor",
+            "Package Linux NAM processor with licenses",
+            "Publish standalone Linux NAM processor"),
 }
 
 
 class ReleaseDistributionPolicy(unittest.TestCase):
-    def test_published_release_is_explicit_trigger_and_regular_ci_is_preserved(self):
+    def test_reusable_validators_cannot_publish_directly(self):
         for name, path in WORKFLOWS.items():
             with self.subTest(workflow=name):
                 content = path.read_text(encoding="utf-8")
-                self.assertIn("\non:\n", content)
-                self.assertRegex(content, r"(?m)^  workflow_call:")
-                self.assertRegex(content, r"(?m)^  release:\n    types: \[published\]")
-                self.assertRegex(content, r"(?m)^  publish-release:\n    name: .*\n"
-                                          r"    if: github\.event_name == 'release'")
-                self.assertIn("needs:", content)
-                self.assertIn("gh release upload", content)
+                self.assertIn("\non:\n  workflow_call:\n", content)
+                self.assertNotIn("\n  release:\n", content)
+                self.assertNotIn("\n  publish-release:\n", content)
+                self.assertNotIn("gh release upload", content)
+                self.assertRegex(content, r"(?m)^permissions:\n  contents: read$")
 
-    def test_one_always_created_quality_gate_coordinates_pr_and_main(self):
+    def test_always_created_gate_has_all_consumer_dependencies(self):
         gate = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertRegex(gate, r"(?m)^  pull_request:")
         self.assertRegex(gate, r"(?m)^  push:\n    branches: \[main\]")
@@ -56,7 +49,7 @@ class ReleaseDistributionPolicy(unittest.TestCase):
                          "tauri-windows.yml", "nam-engine.yml"):
             self.assertIn("uses: ./.github/workflows/" + reusable, gate)
 
-    def test_binary_steps_are_skipped_for_pr_main_and_manual_runs(self):
+    def test_binary_steps_are_only_for_published_release(self):
         for workflow, path in WORKFLOWS.items():
             content = path.read_text(encoding="utf-8")
             for step in BINARY_STEPS[workflow]:
@@ -68,25 +61,23 @@ class ReleaseDistributionPolicy(unittest.TestCase):
                         rf"(?: && runner\.os == '(?:Linux|Windows)')?\n",
                     )
 
-    def test_release_asset_upload_uses_separate_write_scoped_job(self):
-        for workflow, path in WORKFLOWS.items():
-            with self.subTest(workflow=workflow):
-                content = path.read_text(encoding="utf-8")
-                published = content.split("\n  publish-release:\n", maxsplit=1)
-                self.assertEqual(len(published), 2)
-                # Build/check jobs retain read-only contents permission.
-                self.assertRegex(published[0], r"(?m)^permissions:\n  contents: read$")
-                self.assertRegex(published[1], r"(?m)^    permissions:\n      contents: write$")
-                self.assertIn("actions/download-artifact@v4", published[1])
-                # Publisher jobs do not checkout the repository; gh needs an explicit target.
-                self.assertIn('--repo "$GITHUB_REPOSITORY"', published[1])
+    def test_single_coordinated_release_waits_for_all_successful_jobs(self):
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.assertIn("\non:\n  release:\n    types: [published]", release)
+        self.assertIn("cancel-in-progress: false", release)
+        self.assertIn("needs: [ui, tauri-linux, tauri-windows, nam]", release)
+        self.assertIn("scripts/verify_release_assets.py", release)
+        self.assertIn("SHA256SUMS.txt", release)
+        self.assertIn("gh release upload", release)
+        self.assertIn("permissions:\n      contents: write", release)
+        self.assertIn('gh release upload "$RELEASE_TAG"', release)
+        self.assertIn("images=(release-assets/linux/bundle/appimage/*.AppImage)", release)
+        self.assertNotIn("images=(release-assets/*.AppImage)", release)
 
-    def test_linux_release_uses_the_artifact_subdirectory_for_appimage(self):
-        content = WORKFLOWS["linux"].read_text(encoding="utf-8")
-        self.assertIn(
-            "images=(release-assets/bundle/appimage/*.AppImage)", content
-        )
-        self.assertNotIn("images=(release-assets/*.AppImage)", content)
+    def test_no_release_privileges_in_pr_gate(self):
+        gate = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("permissions:\n  contents: read", gate)
+        self.assertNotIn("contents: write", gate)
 
 
 if __name__ == "__main__":
