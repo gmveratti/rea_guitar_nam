@@ -2,8 +2,6 @@ name: VTTRIG Tauri Linux
 
 on:
   workflow_call:
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -80,27 +78,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish-release:
-    name: Attach AppImage to GitHub Release
-    if: github.event_name == 'release'
-    needs: tauri-check
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: VTTRIG-Linux-x86_64
-          path: release-assets
-      - name: Attach Linux AppImage to the published release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          # Multiple artifact paths preserve bundle/appimage/ under release-assets.
-          images=(release-assets/bundle/appimage/*.AppImage)
-          test "${#images[@]}" -eq 1
-          gh release upload "$RELEASE_TAG" "${images[@]}" --clobber --repo "$GITHUB_REPOSITORY"
