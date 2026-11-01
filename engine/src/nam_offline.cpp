@@ -17,7 +17,8 @@ void usage() {
       << "  vttrig-nam-offline --passthrough --input dry.wav --output copy.wav\n"
       << "  vttrig-nam-offline --validate-chain-json ordered.json\n"
       << "48 kHz, MONO, PCM16 or float32 WAV input; float32 WAV output.\n"
-      << "Default length equals input. --tail-ms adds silence for effects (max 30s).\\n"\n      << "NAM/IR ordering exactly follows schemaVersion 1. No audio device,\n"
+      << "Default length equals input. --tail-ms adds silence for effects (max 30s).\n"
+      << "NAM/IR ordering exactly follows schemaVersion 1. No audio device,\n"
       << "MIDI, effect pedals, parameter DSP mapping or live Tauri bridge yet.\n";
 }
 }  // namespace
@@ -29,7 +30,8 @@ int main(int argc, char* argv[]) {
   }
   try {
     std::filesystem::path manifest, input, output;
-    bool passthrough = false, validate = false, tail_specified = false;\n    std::size_t tail_frames = 0;
+    bool passthrough = false, validate = false, tail_specified = false;
+    std::size_t tail_frames = 0;
     for (int i = 1; i < argc; ++i) {
       const std::string arg(argv[i]);
       if (arg == "--passthrough") {
@@ -40,7 +42,18 @@ int main(int argc, char* argv[]) {
         validate = true;
         if (++i >= argc) throw std::invalid_argument("Missing manifest path");
         manifest = argv[i];
-      } else if (arg == "--tail-ms") {\n        if (tail_specified) throw std::invalid_argument("Duplicate --tail-ms");\n        tail_specified = true;\n        if (++i >= argc) throw std::invalid_argument("Missing milliseconds for --tail-ms");\n        const std::string value(argv[i]);\n        if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos) {\n          throw std::invalid_argument("--tail-ms requires an integer 0..30000");\n        }\n        const auto millis = std::stoull(value);\n        if (millis > 30000) throw std::invalid_argument("--tail-ms must not exceed 30000");\n        tail_frames = static_cast<std::size_t>(millis) * (vttrig::kWavSampleRate / 1000);\n      } else if (arg == "--chain-json" || arg == "--input" || arg == "--output") {
+      } else if (arg == "--tail-ms") {
+        if (tail_specified) throw std::invalid_argument("Duplicate --tail-ms");
+        tail_specified = true;
+        if (++i >= argc) throw std::invalid_argument("Missing milliseconds for --tail-ms");
+        const std::string value(argv[i]);
+        if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos) {
+          throw std::invalid_argument("--tail-ms requires an integer 0..30000");
+        }
+        const auto millis = std::stoull(value);
+        if (millis > 30000) throw std::invalid_argument("--tail-ms must not exceed 30000");
+        tail_frames = static_cast<std::size_t>(millis) * (vttrig::kWavSampleRate / 1000);
+      } else if (arg == "--chain-json" || arg == "--input" || arg == "--output") {
         if (++i >= argc) throw std::invalid_argument("Missing path for " + arg);
         if (arg == "--chain-json") {
           if (!manifest.empty()) throw std::invalid_argument("Duplicate --chain-json");
@@ -64,7 +77,8 @@ int main(int argc, char* argv[]) {
       std::cout << "Validated " << nodes.size() << " ordered NAM/IR nodes.\n";
       return 0;
     }
-    if (input.empty() || output.empty() || (manifest.empty() == !passthrough) ||\n        (passthrough && tail_specified)) {
+    if (input.empty() || output.empty() || (manifest.empty() == !passthrough) ||
+        (passthrough && tail_specified)) {
       throw std::invalid_argument(
           "Provide --input and --output plus exactly one --chain-json or --passthrough");
     }
