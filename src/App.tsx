@@ -54,7 +54,7 @@ export default function App() {
   const [presetName, setPresetName] = useState("Meu primeiro rig");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("board");
-  const [audioSessionSelection, setAudioSessionSelection] = useState<AudioSessionSelection>(EMPTY_AUDIO_SESSION_SELECTION);
+  const [audioSessionSelection, setAudioSessionSelection] = useState<AudioSessionSelection>(() => ({ ...EMPTY_AUDIO_SESSION_SELECTION, inputChannel: loadAudioSettings().inputChannel }));
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
   const [modelName, setModelName] = useState(() => visualDraft.modelName || (ampPath ? ampPath.split(/[\\/]/).pop() ?? "" : ""));
