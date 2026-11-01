@@ -41,6 +41,8 @@ jobs:
         run: |
           git config --global url."https://eigen.googlesource.com/mirror".insteadOf "https://gitlab.com/libeigen/eigen.git"
           git config --global --add url."https://eigen.googlesource.com/mirror".insteadOf "https://gitlab.com/libeigen/eigen"
+      - name: Validate notice packaging without distributing binaries
+        run: python -m unittest discover -s scripts -p "test_standalone_bundle.py" -v
       - name: Configure pinned NAM Core and native tests
         run: cmake -S engine -B engine/build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build portable DSP and platform host
@@ -55,20 +57,36 @@ jobs:
           $file = "engine/build/Release/vttrig-nam-offline.exe"
           if (-not (Test-Path $file)) { throw "Expected Windows NAM offline binary: $file" }
           & $file --help
+      - name: Package Windows NAM processor with licenses
+        if: github.event_name == 'release' && runner.os == 'Windows'
+        run: >-
+          python scripts/package_standalone.py
+          --binary engine/build/Release/vttrig-nam-offline.exe
+          --notices engine/THIRD_PARTY_NOTICES.md
+          --nam-core-license engine/build/_deps/namcore-src/LICENSE
+          --output engine/build/VTTRIG-NAM-Offline-Windows-x64.zip
       - name: Publish standalone Windows NAM processor
         if: github.event_name == 'release' && runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: VTTRIG-NAM-Offline-Windows-x64
-          path: engine/build/Release/vttrig-nam-offline.exe
+          path: engine/build/VTTRIG-NAM-Offline-Windows-x64.zip
           if-no-files-found: error
           retention-days: 14
+      - name: Package Linux NAM processor with licenses
+        if: github.event_name == 'release' && runner.os == 'Linux'
+        run: >-
+          python3 scripts/package_standalone.py
+          --binary engine/build/vttrig-nam-offline
+          --notices engine/THIRD_PARTY_NOTICES.md
+          --nam-core-license engine/build/_deps/namcore-src/LICENSE
+          --output engine/build/VTTRIG-NAM-Offline-Linux-x64.zip
       - name: Publish standalone Linux NAM processor
         if: github.event_name == 'release' && runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: VTTRIG-NAM-Offline-Linux-x64
-          path: engine/build/vttrig-nam-offline
+          path: engine/build/VTTRIG-NAM-Offline-Linux-x64.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -95,8 +113,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f release-assets/windows/vttrig-nam-offline.exe
-          test -f release-assets/linux/vttrig-nam-offline
+          test -f release-assets/windows/VTTRIG-NAM-Offline-Windows-x64.zip
+          test -f release-assets/linux/VTTRIG-NAM-Offline-Linux-x64.zip
           gh release upload "$RELEASE_TAG" \
-            release-assets/windows/vttrig-nam-offline.exe \
-            release-assets/linux/vttrig-nam-offline --clobber --repo "$GITHUB_REPOSITORY"
+            release-assets/windows/VTTRIG-NAM-Offline-Windows-x64.zip \
+            release-assets/linux/VTTRIG-NAM-Offline-Linux-x64.zip --clobber --repo "$GITHUB_REPOSITORY"
