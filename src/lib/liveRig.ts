@@ -1,4 +1,5 @@
 import { validateChain, type PedalInstance } from "./pedals";
+import { isNativeManifestV1 } from "./manifestContract";
 
 export type RigResources = Record<string, string>; // legacy resource map for migration
 export type NativeRigNode =
@@ -64,6 +65,10 @@ export function buildLiveBoardSnapshot(
   }
   if (!nodes.length) {
     throw new Error("Escolha um amplificador principal .nam ou adicione um pedal de efeito.");
+  }
+  const manifest = { schemaVersion: 1, nodes };
+  if (!isNativeManifestV1(manifest)) {
+    throw new Error("Manifesto nativo inválido: versão, IDs ou parâmetros inconsistentes.");
   }
   return { schemaVersion: 1, nodes, ignored: [] };
 }
