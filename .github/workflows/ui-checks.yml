@@ -1,16 +1,13 @@
 name: VTTRIG UI quality
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: vttrig-ui-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
