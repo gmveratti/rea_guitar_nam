@@ -150,6 +150,28 @@ async fn audio_stop_live(
     .map_err(worker_error)?
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .manage(Arc::new(audio::AudioState::default()))
+        .manage(Arc::new(live::LiveState::default()))
+        .manage(Arc::new(AudioCommandGate::default()))
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            audio_engine_status,
+            audio_list_hosts,
+            audio_monitor_status,
+            audio_start_monitor,
+            audio_stop_monitor,
+            audio_live_status,
+            audio_start_live,
+            audio_cancel_live_start,
+            audio_stop_live,
+        ])
+        .run(tauri::generate_context!())
+        .expect("failed to start VTTRIG");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,26 +194,4 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(1));
         drop(locked);
     }
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .manage(Arc::new(audio::AudioState::default()))
-        .manage(Arc::new(live::LiveState::default()))
-        .manage(Arc::new(AudioCommandGate::default()))
-        .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![
-            audio_engine_status,
-            audio_list_hosts,
-            audio_monitor_status,
-            audio_start_monitor,
-            audio_stop_monitor,
-            audio_live_status,
-            audio_start_live,
-            audio_cancel_live_start,
-            audio_stop_live,
-        ])
-        .run(tauri::generate_context!())
-        .expect("failed to start VTTRIG");
 }
