@@ -90,7 +90,22 @@ fn validate_manifest(json: &str) -> Result<(), String> {
     if nodes.is_empty() || nodes.len() > 24 {
         return Err("Selecione de 1 até 24 modelos NAM/IR.".into());
     }
+    // Mirror the native manifest's structural invariants before any I/O.
+    // Shared JSON fixtures pin this contract across TypeScript, Rust and C++.
+    let mut ids = std::collections::HashSet::new();
     for node in nodes {
+        let id = node["id"]
+            .as_str()
+            .ok_or("Cada efeito precisa de um identificador textual")?;
+        if id.is_empty() || id.len() > 128 || !ids.insert(id) {
+            return Err("Identificador de efeito vazio, duplicado ou longo demais".into());
+        }
+        if !node["enabled"].is_boolean() {
+            return Err("O estado de bypass precisa ser booleano".into());
+        }
+        if !node["parameters"].is_object() {
+            return Err("Os parâmetros de cada efeito precisam ser um objeto".into());
+        }
         let kind = node["kind"].as_str().unwrap_or("");
         if kind == "gate" {
             // File-free TONE3000-derived DSP. Parameters must agree with C++ preflight.
@@ -586,6 +601,24 @@ pub fn stop(state: &LiveState) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_manifest_contract_accepts_and_rejects_the_same_fixtures_as_cpp() {
+        let valid = include_str!("../../engine/tests/fixtures/contracts/valid-file-free.json");
+        assert!(validate_manifest(valid).is_ok());
+        for bad in [
+            include_str!("../../engine/tests/fixtures/contracts/invalid-duplicate-id.json"),
+            include_str!("../../engine/tests/fixtures/contracts/invalid-missing-enabled.json"),
+            include_str!("../../engine/tests/fixtures/contracts/invalid-parameter-range.json"),
+            include_str!("../../engine/tests/fixtures/contracts/invalid-version.json"),
+        ] {
+            assert!(
+                validate_manifest(bad).is_err(),
+                "Unexpected accepted manifest: {bad}"
+            );
+        }
+    }
+
     #[test]
     fn handshake_cancellation_works_before_and_during_a_slow_reply() {
         let (_sender, receiver) = mpsc::channel::<u8>();

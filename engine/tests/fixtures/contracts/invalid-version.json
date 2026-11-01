@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "nodes": [
+    {
+      "id": "future",
+      "kind": "gate",
+      "enabled": true,
+      "parameters": {}
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 #include "../src/chain_manifest.hpp"
 #include <cassert>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <stdexcept>
@@ -164,5 +166,27 @@ int main() {
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"x","kind":"amp","enabled":"false","parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid("{"));
+
+  // Shared with Rust and TypeScript: file-free manifest contracts are
+  // source fixtures, not generated binaries or proprietary NAM captures.
+  const auto fixtures = std::filesystem::path(VTTRIG_CONTRACT_FIXTURE_DIR);
+  std::ifstream valid_fixture(fixtures / "valid-file-free.json");
+  assert(valid_fixture.good());
+  const auto shared = vttrig::parse_chain_manifest(valid_fixture);
+  assert(shared.size() == 3);
+  assert(shared[0].id == "gate-1" && shared[1].id == "delay-bypassed");
+  assert(shared[2].id == "gate-2" && !shared[1].enabled);
+  for (const auto name : {
+      "invalid-duplicate-id.json",
+      "invalid-missing-enabled.json",
+      "invalid-parameter-range.json",
+      "invalid-version.json",
+  }) {
+    std::ifstream file(fixtures / name);
+    assert(file.good());
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    assert(invalid(buffer.str()));
+  }
   return 0;
 }

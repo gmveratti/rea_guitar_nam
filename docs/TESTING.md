@@ -50,6 +50,21 @@ Isso fixa a resolução de pacotes e toolchains, mas não torna todos os
 bytes de instaladores idênticos em runners distintos. Testes com interface
 real e empacotamento continuam independentes.
 
+## Contrato de manifesto v1 entre três linguagens (#34, primeira etapa)
+
+Os arquivos em `engine/tests/fixtures/contracts/` são fixtures compartilhadas
+por Vitest (TypeScript), Cargo Test (Rust) e CTest (C++), sem modelo NAM ou
+hardware. Validam formato versionado, IDs duplicados, bypass obrigatório,
+parâmetros fora da faixa, ordem e efeitos repetidos. O frontend usa os limites
+já definidos em `PEDALS` para não criar uma quarta tabela de controles.
+Rust e C++ rejeitam manifestos inválidos antes do setup de áudio; o Rust
+também valida a existência dos arquivos NAM/IR na inicialização real.
+
+A etapa de contrato não substitui os ensaios exigidos pela #34: sidecar
+real com áudio sintético, timeout/erro, A2 Lite/Full licenciados,
+comparação A/B de DSP e sessão longa com interface física. Esses itens
+continuam pendentes e devem ter evidência independente.
+
 ## Quality gate local
 
 Após instalar as dependências Linux de Tauri/JACK, Node e Rust:

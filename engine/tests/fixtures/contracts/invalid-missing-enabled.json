@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "missing",
+      "kind": "gate",
+      "parameters": {
+        "threshold": -80
+      }
+    }
+  ]
+}

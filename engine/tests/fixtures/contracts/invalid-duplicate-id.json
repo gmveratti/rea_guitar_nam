@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "duplicate",
+      "kind": "gate",
+      "enabled": true,
+      "parameters": {}
+    },
+    {
+      "id": "duplicate",
+      "kind": "delay",
+      "enabled": true,
+      "parameters": {
+        "time": 420
+      }
+    }
+  ]
+}
