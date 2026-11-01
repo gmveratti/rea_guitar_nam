@@ -1,20 +1,15 @@
 name: VTTRIG Tauri Windows
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: vttrig-tauri-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   windows-installer:
@@ -22,22 +17,24 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 55
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "22"
-      - uses: actions/setup-python@v5
+          node-version-file: .node-version
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
         with:
+          toolchain: "1.99.0"
           targets: x86_64-pc-windows-msvc
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         with:
           workspaces: src-tauri -> target
 
       - name: Install frontend dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Build React UI
         run: npm run build
       - name: Run shared UI unit tests
@@ -70,13 +67,13 @@ jobs:
           Copy-Item engine/build-live/Release/vttrig-nam-live.exe "src-tauri/binaries/vttrig-nam-live-$triple.exe"
 
       - name: Check Windows Rust code
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
       - name: Check Rust formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
       - name: Run Clippy (deny warnings)
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Run Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Build VTTRIG installer for Windows x64
         if: github.event_name == 'release'
@@ -86,33 +83,10 @@ jobs:
         run: python scripts/check_windows_bundle.py --postbuild
       - name: Publish Windows installer download
         if: github.event_name == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: VTTRIG-Windows-x64
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 14
 
-  publish-release:
-    name: Attach NSIS installer to GitHub Release
-    if: github.event_name == 'release'
-    needs: windows-installer
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: VTTRIG-Windows-x64
-          path: release-assets
-      - name: Attach Windows installer to the published release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          installers=(release-assets/*-setup.exe)
-          test "${#installers[@]}" -eq 1
-          gh release upload "$RELEASE_TAG" "${installers[@]}" --clobber --repo "$GITHUB_REPOSITORY"

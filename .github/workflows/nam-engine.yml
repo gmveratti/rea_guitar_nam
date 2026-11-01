@@ -1,25 +1,15 @@
 name: VTTRIG NAM cross-platform DSP
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "engine/**"
-      - ".github/workflows/nam-engine.yml"
-  pull_request:
-    paths:
-      - "engine/**"
-      - ".github/workflows/nam-engine.yml"
+  workflow_call:
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: vttrig-nam-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   native-core:
@@ -31,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 55
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Install Linux JACK adapter dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libjack-jackd2-dev git
@@ -67,7 +57,7 @@ jobs:
           --output engine/build/VTTRIG-NAM-Offline-Windows-x64.zip
       - name: Publish standalone Windows NAM processor
         if: github.event_name == 'release' && runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: VTTRIG-NAM-Offline-Windows-x64
           path: engine/build/VTTRIG-NAM-Offline-Windows-x64.zip
@@ -83,38 +73,10 @@ jobs:
           --output engine/build/VTTRIG-NAM-Offline-Linux-x64.zip
       - name: Publish standalone Linux NAM processor
         if: github.event_name == 'release' && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: VTTRIG-NAM-Offline-Linux-x64
           path: engine/build/VTTRIG-NAM-Offline-Linux-x64.zip
           if-no-files-found: error
           retention-days: 14
 
-  publish-release:
-    name: Attach standalone NAM processors to GitHub Release
-    if: github.event_name == 'release'
-    needs: native-core
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: VTTRIG-NAM-Offline-Windows-x64
-          path: release-assets/windows
-      - uses: actions/download-artifact@v4
-        with:
-          name: VTTRIG-NAM-Offline-Linux-x64
-          path: release-assets/linux
-      - name: Attach Windows and Linux processors to the published release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f release-assets/windows/VTTRIG-NAM-Offline-Windows-x64.zip
-          test -f release-assets/linux/VTTRIG-NAM-Offline-Linux-x64.zip
-          gh release upload "$RELEASE_TAG" \
-            release-assets/windows/VTTRIG-NAM-Offline-Windows-x64.zip \
-            release-assets/linux/VTTRIG-NAM-Offline-Linux-x64.zip --clobber --repo "$GITHUB_REPOSITORY"

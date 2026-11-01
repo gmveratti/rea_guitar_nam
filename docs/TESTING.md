@@ -34,6 +34,22 @@ roteamento Tauri→engine em runtime, parâmetros DSP dos pedais,
 MIDI, testes A/B de timbre, IR estéreo e instrumentos reais. Nenhuma dessas
 validações pode ser considerada aprovada por CI de ajuda CLI.
 
+## Dependências e builds reproduzíveis (#32)
+
+As versões transitivas são registradas em `package-lock.json` e
+`src-tauri/Cargo.lock`, produzidos pelos registros reais e versionados.
+Use `npm ci` (não `npm install`) para reconstruir o frontend e
+`cargo check --locked`, `cargo clippy --locked` e `cargo test --locked`
+para impedir alterações silenciosas no lock Rust.
+`.node-version` fixa Node.js 22.16.0 e `rust-toolchain.toml` fixa
+Rust 1.99.0 com rustfmt/Clippy. Os actions de terceiros estão referenciados
+por SHA revisado. Atualizações de toolchain e dependências devem ocorrer
+por PR próprio, regenerando os dois locks e passando Linux e Windows.
+
+Isso fixa a resolução de pacotes e toolchains, mas não torna todos os
+bytes de instaladores idênticos em runners distintos. Testes com interface
+real e empacotamento continuam independentes.
+
 ## Contrato de manifesto v1 entre três linguagens (#34, primeira etapa)
 
 Os arquivos em `engine/tests/fixtures/contracts/` são fixtures compartilhadas

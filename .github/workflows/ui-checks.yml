@@ -1,17 +1,14 @@
 name: VTTRIG UI quality
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: vttrig-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   frontend:
@@ -19,14 +16,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "22"
-      - run: npm install --no-audit --no-fund
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm test
       - name: Verify release-only binary distribution policy
         run: python3 -m unittest discover -s scripts -p "test_release_policy.py" -v
+      - name: Verify reproducible dependency policy
+        run: python3 -m unittest discover -s scripts -p "test_dependency_lock_policy.py" -v
+      - name: Verify complete release preflight using fake assets
+        run: python3 -m unittest discover -s scripts -p "test_verify_release_assets.py" -v
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
