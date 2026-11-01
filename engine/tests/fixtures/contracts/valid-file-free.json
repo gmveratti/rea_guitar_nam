@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "gate-1",
+      "kind": "gate",
+      "enabled": true,
+      "parameters": {
+        "threshold": -45,
+        "release": 50,
+        "hold": 20,
+        "range": 80
+      }
+    },
+    {
+      "id": "delay-bypassed",
+      "kind": "delay",
+      "enabled": false,
+      "parameters": {
+        "time": 420,
+        "feedback": 38,
+        "mix": 28
+      }
+    },
+    {
+      "id": "gate-2",
+      "kind": "gate",
+      "enabled": true,
+      "parameters": {
+        "threshold": -80,
+        "release": 50,
+        "hold": 20,
+        "range": 80
+      }
+    }
+  ]
+}

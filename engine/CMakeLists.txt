@@ -97,6 +97,8 @@ if(BUILD_TESTING)
   target_compile_features(vttrig-manifest-tests PRIVATE cxx_std_20)
   target_include_directories(vttrig-manifest-tests SYSTEM PRIVATE
     "${namcore_SOURCE_DIR}/Dependencies/nlohmann")
+  target_compile_definitions(vttrig-manifest-tests PRIVATE
+    VTTRIG_CONTRACT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/contracts")
   vttrig_warnings(vttrig-manifest-tests)
 
   add_executable(vttrig-wav-tests tests/wav_tests.cpp)
