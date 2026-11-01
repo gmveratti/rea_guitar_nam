@@ -33,6 +33,9 @@
     ],
     "externalBin": [
       "binaries/vttrig-nam-live"
-    ]
+    ],
+    "resources": {
+      "../engine/THIRD_PARTY_NOTICES.md": "legal/THIRD_PARTY_NOTICES.md"
+    }
   }
 }
