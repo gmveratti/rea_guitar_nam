@@ -125,7 +125,6 @@ async fn audio_start_live(
 }
 
 #[tauri::command]
-#[tauri::command]
 fn audio_cancel_live_start(gate: State<'_, Arc<AudioCommandGate>>) {
     // Always immediate even if a model is still loading and owns the mutex.
     gate.cancel_live_start.fetch_add(1, Ordering::AcqRel);
