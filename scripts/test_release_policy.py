@@ -38,13 +38,23 @@ class ReleaseDistributionPolicy(unittest.TestCase):
             with self.subTest(workflow=name):
                 content = path.read_text(encoding="utf-8")
                 self.assertIn("\non:\n", content)
-                self.assertRegex(content, r"(?m)^  pull_request:")
-                self.assertRegex(content, r"(?m)^  push:\n    branches:")
+                self.assertRegex(content, r"(?m)^  workflow_call:")
                 self.assertRegex(content, r"(?m)^  release:\n    types: \[published\]")
                 self.assertRegex(content, r"(?m)^  publish-release:\n    name: .*\n"
                                           r"    if: github\.event_name == 'release'")
                 self.assertIn("needs:", content)
                 self.assertIn("gh release upload", content)
+
+    def test_one_always_created_quality_gate_coordinates_pr_and_main(self):
+        gate = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertRegex(gate, r"(?m)^  pull_request:")
+        self.assertRegex(gate, r"(?m)^  push:\n    branches: \[main\]")
+        self.assertIn("name: VTTRIG / quality-gate", gate)
+        self.assertIn("if: always()", gate)
+        self.assertIn("needs: [changes, ui, tauri-linux, tauri-windows, nam]", gate)
+        for reusable in ("ui-checks.yml", "tauri-linux.yml",
+                         "tauri-windows.yml", "nam-engine.yml"):
+            self.assertIn("uses: ./.github/workflows/" + reusable, gate)
 
     def test_binary_steps_are_skipped_for_pr_main_and_manual_runs(self):
         for workflow, path in WORKFLOWS.items():
