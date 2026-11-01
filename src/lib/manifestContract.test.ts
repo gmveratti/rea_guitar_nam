@@ -15,7 +15,7 @@ describe("v1 native Rig contract shared by UI, Rust and C++ (#34)", () => {
       id: node.id,
       kind: node.kind as PedalKind,
       enabled: node.enabled,
-      values: { ...node.parameters } as Record<string, number>,
+      values: Object.fromEntries(Object.entries(node.parameters)),
     }));
     const plan = buildLiveBoardSnapshot(chain);
     expect({ schemaVersion: plan.schemaVersion, nodes: plan.nodes }).toEqual(valid);
