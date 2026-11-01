@@ -612,7 +612,10 @@ mod tests {
             include_str!("../../engine/tests/fixtures/contracts/invalid-parameter-range.json"),
             include_str!("../../engine/tests/fixtures/contracts/invalid-version.json"),
         ] {
-            assert!(validate_manifest(bad).is_err(), "Unexpected accepted manifest: {bad}");
+            assert!(
+                validate_manifest(bad).is_err(),
+                "Unexpected accepted manifest: {bad}"
+            );
         }
     }
 
