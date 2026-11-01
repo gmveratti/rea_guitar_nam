@@ -304,12 +304,26 @@ states:
 vttrig-nam-offline --validate-chain-json rig.json
 vttrig-nam-offline --chain-json rig.json --input dry.wav --output processed.wav
 
+# Optional: preserve 2 seconds of delay/reverb/IR tail after input ends:
+vttrig-nam-offline --chain-json rig.json --input dry.wav --output with-tail.wav --tail-ms 2000
+
 # Diagnostic audio roundtrip WITHOUT any model; for testing WAV I/O only:
 vttrig-nam-offline --passthrough --input dry.wav --output passthrough.wav
 ```
 
 Input: **mono 48 kHz PCM16/float32 WAV**; output: **mono 48 kHz float32
-WAV**, finite samples safely clamped to ±1. The renderer processes 128-frame
+WAV**, finite samples safely clamped to ±1. The default render has the exact input length, so long effect tails are
+cut at EOF unless you request `--tail-ms N`. Choose an explicit duration
+(0 to 30000 ms); the renderer then feeds digital silence through the same
+effect chain for those extra frames. This preserves delayed repeats and
+convolution/reverb tails without changing live processing. A finite requested
+tail can still cut off a decay longer than that value. Oversized output
+(over 128 MiB float32 WAV data) is rejected. `--passthrough` and
+`--validate-chain-json` do not accept `--tail-ms`. `--tail-ms 0` produces
+the historical exact-length behavior. No automatic silence detector is
+implied.
+
+The renderer processes 128-frame
 blocks including the final short block. Very large inputs (over ~128 MiB
 sample data) and unsupported channels/rates/formats fail explicitly;
 no implicit resampling or stereo downmixing. **No prerecorded proprietary

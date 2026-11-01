@@ -170,19 +170,33 @@ inline void write_mono_float_wav(const std::filesystem::path& path,
 
 // Device-neutral block processing: exactly the same MonoChain used by JACK.
 // The caller prepares the graph and allocates buffers ahead of any callback.
+// tail_frames appends silent input to let delay, reverb and IR state decay.
+// Zero preserves the historical exact-length render. This is offline only.
 inline std::vector<Sample> render_offline(MonoChain& chain,
                                            const std::vector<Sample>& input,
-                                           int block_size = 128) {
+                                           int block_size = 128,
+                                           std::size_t tail_frames = 0) {
   if (block_size <= 0 || block_size > static_cast<int>(kMaxFrames)) {
     throw std::invalid_argument("Invalid block size");
   }
-  std::vector<Sample> output(input.size());
+  constexpr std::size_t kMaxOutputFrames = kMaxAudioDataBytes / sizeof(float);
+  if (input.size() > kMaxOutputFrames ||
+      tail_frames > kMaxOutputFrames - input.size()) {
+    throw std::invalid_argument("Rendered WAV exceeds 128 MiB");
+  }
+  std::vector<Sample> output(input.size() + tail_frames);
   std::vector<Sample> scratch_in(static_cast<std::size_t>(block_size));
   std::vector<Sample> scratch_out(static_cast<std::size_t>(block_size));
-  for (std::size_t offset = 0; offset < input.size();) {
+  for (std::size_t offset = 0; offset < output.size();) {
     const auto frames = static_cast<int>(
-        std::min(input.size() - offset, static_cast<std::size_t>(block_size)));
-    std::copy_n(input.data() + offset, frames, scratch_in.data());
+        std::min(output.size() - offset, static_cast<std::size_t>(block_size)));
+    const auto available = offset < input.size()
+        ? std::min(input.size() - offset, static_cast<std::size_t>(frames)) : 0;
+    if (available != 0) {
+      std::copy_n(input.data() + offset, available, scratch_in.data());
+    }
+    std::fill(scratch_in.begin() + static_cast<std::ptrdiff_t>(available),
+              scratch_in.begin() + frames, 0.0);
     chain.process(scratch_in.data(), scratch_out.data(), frames);
     std::copy_n(scratch_out.data(), frames, output.data() + offset);
     offset += static_cast<std::size_t>(frames);
