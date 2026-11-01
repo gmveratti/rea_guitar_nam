@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
+from package_standalone import THIRD_PARTY_LICENSE_NAMES
+
 
 def verify_assets(tag: str, appimage: Path, installer: Path, linux: Path, windows: Path,
                   root: Path) -> None:
@@ -34,6 +36,7 @@ def verify_assets(tag: str, appimage: Path, installer: Path, linux: Path, window
                     expected_executable,
                     "licenses/THIRD_PARTY_NOTICES.md",
                     "licenses/NeuralAmpModelerCore_LICENSE",
+                    *(f"licenses/{name}" for name in THIRD_PARTY_LICENSE_NAMES),
                 }
                 if names != required or archive.testzip() is not None:
                     raise ValueError(f"Missing license/archive entry: {path}")
@@ -43,6 +46,14 @@ def verify_assets(tag: str, appimage: Path, installer: Path, linux: Path, window
                     raise ValueError(f"Missing native DSP notice: {path}")
                 if "MIT License" not in core_license or "Steven Atkinson" not in core_license:
                     raise ValueError(f"Missing pinned NAM Core license: {path}")
+                for filename in THIRD_PARTY_LICENSE_NAMES:
+                    data = archive.read(f"licenses/{filename}").decode("utf-8")
+                    if not data.strip():
+                        raise ValueError(f"Empty dependency license: {filename}")
+                    if filename in ("AudioDSPTools_LICENSE.txt", "nlohmann_json_LICENSE.txt") and "MIT License" not in data:
+                        raise ValueError(f"Invalid dependency license: {filename}")
+                    if filename == "Eigen_COPYING.MPL2.txt" and "Mozilla Public License Version 2.0" not in data:
+                        raise ValueError(f"Invalid Eigen license: {filename}")
         except BadZipFile as error:
             raise ValueError(f"Invalid standalone archive: {path}") from error
     config = json.loads((root / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
@@ -51,6 +62,9 @@ def verify_assets(tag: str, appimage: Path, installer: Path, linux: Path, window
         raise ValueError("Installed Tauri DSP notices resource is not configured")
     if resources.get("../engine/NAM_CORE_LICENSE.txt") != "legal/NeuralAmpModelerCore_LICENSE":
         raise ValueError("Installed Tauri NAM Core license resource is not configured")
+    for name in THIRD_PARTY_LICENSE_NAMES:
+        if resources.get(f"../engine/third_party_licenses/{name}") != f"legal/{name}":
+            raise ValueError(f"Installed Tauri dependency license missing: {name}")
 
 
 def main() -> None:

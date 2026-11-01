@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from zipfile import ZipFile
 
-from package_standalone import package_standalone
+from package_standalone import THIRD_PARTY_LICENSE_NAMES, package_standalone
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,6 +23,11 @@ class LicenseStagingTests(unittest.TestCase):
             "legal/NeuralAmpModelerCore_LICENSE",
         )
         self.assertIn("MIT License", (ROOT / "engine/NAM_CORE_LICENSE.txt").read_text(encoding="utf-8"))
+        for name in THIRD_PARTY_LICENSE_NAMES:
+            with self.subTest(license=name):
+                source = ROOT / "engine/third_party_licenses" / name
+                self.assertTrue(source.is_file())
+                self.assertEqual(resources[f"../engine/third_party_licenses/{name}"], f"legal/{name}")
 
     def test_fake_standalone_contains_binary_and_license_files(self):
         with TemporaryDirectory() as temp:
@@ -32,7 +37,7 @@ class LicenseStagingTests(unittest.TestCase):
             core = base / "LICENSE"
             archive = base / "vttrig-test.zip"
             binary.write_bytes(b"fake test executable")
-            notices.write_text("TONE3000 Airwindows DaisySP", encoding="utf-8")
+            notices.write_text("TONE3000 Airwindows DaisySP Eigen nlohmann/json AudioDSPTools", encoding="utf-8")
             core.write_text("MIT License\nSteven Atkinson", encoding="utf-8")
             package_standalone(binary, notices, core, archive)
             with ZipFile(archive) as result:
@@ -40,7 +45,10 @@ class LicenseStagingTests(unittest.TestCase):
                     "vttrig-nam-offline.exe",
                     "licenses/THIRD_PARTY_NOTICES.md",
                     "licenses/NeuralAmpModelerCore_LICENSE",
+                    *(f"licenses/{name}" for name in THIRD_PARTY_LICENSE_NAMES),
                 })
+                for name in THIRD_PARTY_LICENSE_NAMES:
+                    self.assertGreater(len(result.read(f"licenses/{name}")), 0)
                 self.assertEqual(result.read(binary.name), b"fake test executable")
 
     def test_missing_notice_or_core_license_fails_closed(self):
@@ -60,6 +68,20 @@ class LicenseStagingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 package_standalone(binary, notices, core, destination)
             self.assertFalse(destination.exists())
+
+    def test_missing_transitive_license_prevents_package(self):
+        with TemporaryDirectory() as temp:
+            base = Path(temp)
+            binary = base / "vttrig-nam-offline"
+            notices = base / "THIRD_PARTY_NOTICES.md"
+            core = base / "LICENSE"
+            binary.write_bytes(b"fake")
+            notices.write_text("TONE3000 Airwindows DaisySP Eigen nlohmann/json AudioDSPTools", encoding="utf-8")
+            core.write_text("MIT License Steven Atkinson", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Missing or empty"):
+                package_standalone(binary, notices, core, base / "bundle.zip",
+                                   licenses_dir=base / "missing")
+            self.assertFalse((base / "bundle.zip").exists())
 
 
 if __name__ == "__main__":
