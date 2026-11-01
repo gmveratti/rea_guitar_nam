@@ -67,7 +67,7 @@ class ReleaseDistributionPolicy(unittest.TestCase):
                 # Build/check jobs retain read-only contents permission.
                 self.assertRegex(published[0], r"(?m)^permissions:\n  contents: read$")
                 self.assertRegex(published[1], r"(?m)^    permissions:\n      contents: write$")
-                self.assertIn("actions/download-artifact@v4", published[1])
+                self.assertIn("actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093", published[1])
                 # Publisher jobs do not checkout the repository; gh needs an explicit target.
                 self.assertIn('--repo "$GITHUB_REPOSITORY"', published[1])
 

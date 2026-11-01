@@ -17,10 +17,10 @@ rust-format:
 	cd src-tauri && cargo fmt --all -- --check
 
 rust-lint:
-	cd src-tauri && cargo clippy --all-targets -- -D warnings
+	cd src-tauri && cargo clippy --locked --all-targets -- -D warnings
 
 rust-test:
-	cd src-tauri && cargo test
+	cd src-tauri && cargo test --locked
 
 native-configure:
 	cmake -S engine -B engine/build -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
