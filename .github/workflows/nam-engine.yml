@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 55
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Install Linux JACK adapter dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libjack-jackd2-dev git
@@ -57,7 +57,7 @@ jobs:
           --output engine/build/VTTRIG-NAM-Offline-Windows-x64.zip
       - name: Publish standalone Windows NAM processor
         if: github.event_name == 'release' && runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: VTTRIG-NAM-Offline-Windows-x64
           path: engine/build/VTTRIG-NAM-Offline-Windows-x64.zip
@@ -73,7 +73,7 @@ jobs:
           --output engine/build/VTTRIG-NAM-Offline-Linux-x64.zip
       - name: Publish standalone Linux NAM processor
         if: github.event_name == 'release' && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: VTTRIG-NAM-Offline-Linux-x64
           path: engine/build/VTTRIG-NAM-Offline-Linux-x64.zip
