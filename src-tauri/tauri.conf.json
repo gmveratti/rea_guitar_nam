@@ -36,7 +36,14 @@
     ],
     "resources": {
       "../engine/THIRD_PARTY_NOTICES.md": "legal/THIRD_PARTY_NOTICES.md",
-      "../engine/NAM_CORE_LICENSE.txt": "legal/NeuralAmpModelerCore_LICENSE"
+      "../engine/NAM_CORE_LICENSE.txt": "legal/NeuralAmpModelerCore_LICENSE",
+      "../engine/third_party_licenses/AudioDSPTools_LICENSE.txt": "legal/AudioDSPTools_LICENSE.txt",
+      "../engine/third_party_licenses/nlohmann_json_LICENSE.txt": "legal/nlohmann_json_LICENSE.txt",
+      "../engine/third_party_licenses/Eigen_COPYING.README.txt": "legal/Eigen_COPYING.README.txt",
+      "../engine/third_party_licenses/Eigen_COPYING.MPL2.txt": "legal/Eigen_COPYING.MPL2.txt",
+      "../engine/third_party_licenses/Eigen_COPYING.BSD.txt": "legal/Eigen_COPYING.BSD.txt",
+      "../engine/third_party_licenses/Eigen_COPYING.APACHE.txt": "legal/Eigen_COPYING.APACHE.txt",
+      "../engine/third_party_licenses/Eigen_COPYING.MINPACK.txt": "legal/Eigen_COPYING.MINPACK.txt"
     }
   }
 }

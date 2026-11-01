@@ -14,6 +14,26 @@ Their upstream copyright/license terms remain applicable independently;
 this document describes the DSP adaptations and does not replace those
 third-party licenses.
 
+NeuralAmpModelerCore embeds/transitively uses three additional pinned libraries.
+The copies distributed in `engine/third_party_licenses/` are from these
+specific upstream revisions, and are included with installed Tauri resources
+and standalone ZIPs:
+
+- Eigen submodule `bc3b39870ecb690a623a3f49149a358b95c5781d`:
+  MPL-2.0 plus its upstream COPYING.README, COPYING.BSD,
+  COPYING.APACHE, and COPYING.MINPACK supplemental notices.
+  Source: https://gitlab.com/libeigen/eigen
+- nlohmann/json `json.hpp` header **3.12.0** copied in pinned NAM Core:
+  MIT copyright (c) 2013-2025 Niels Lohmann.
+  Source: https://github.com/nlohmann/json/tree/v3.12.0
+- AudioDSPTools submodule `0827c6c2fc0deced568536142ea86f189e0b98a1`:
+  MIT copyright (c) 2023 Steven Atkinson.
+  Source: https://github.com/sdatkinson/AudioDSPTools/tree/0827c6c2fc0deced568536142ea86f189e0b98a1
+
+These files convey upstream terms; they do not claim algorithms originated with
+VTTRIG. Review actual installer contents and source-availability obligations
+before publishing a public release.
+
 ## VTTRIG original algorithms (not ports)
 
 `engine/src/classic_delay.hpp` (VTTDELAY Classic) and
