@@ -15,7 +15,7 @@ struct AudioCommandGate {
     cancel_live_start: AtomicU64,
 }
 
-fn worker_error(error: tauri::Error) -> String {
+fn worker_error(error: impl std::fmt::Display) -> String {
     format!("Falha interna no worker de áudio: {error}")
 }
 
@@ -125,6 +125,7 @@ async fn audio_start_live(
 }
 
 #[tauri::command]
+#[tauri::command]
 fn audio_cancel_live_start(gate: State<'_, Arc<AudioCommandGate>>) {
     // Always immediate even if a model is still loading and owns the mutex.
     gate.cancel_live_start.fetch_add(1, Ordering::AcqRel);
@@ -162,7 +163,7 @@ mod tests {
         let flag = Arc::clone(&gate);
         let start = Instant::now();
         std::thread::spawn(move || {
-            flag.cancel_live_start.store(true, Ordering::Release);
+            flag.cancel_live_start.fetch_add(1, Ordering::AcqRel);
         })
         .join()
         .unwrap();
