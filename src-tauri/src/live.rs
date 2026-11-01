@@ -7,11 +7,11 @@ use cpal::Stream;
 use rtrb::RingBuffer;
 use serde::Serialize;
 use std::io::{Read, Write};
-use std::sync::mpsc::{self, RecvTimeoutError, Receiver};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -586,9 +586,11 @@ mod tests {
     fn handshake_cancellation_works_before_and_during_a_slow_reply() {
         let (_sender, receiver) = mpsc::channel::<u8>();
         let sequence = AtomicU64::new(1);
-        assert!(wait_for_handshake(&receiver, &sequence, 0, Duration::from_secs(1))
-            .unwrap_err()
-            .contains("cancelado"));
+        assert!(
+            wait_for_handshake(&receiver, &sequence, 0, Duration::from_secs(1))
+                .unwrap_err()
+                .contains("cancelado")
+        );
 
         let epoch = sequence.load(Ordering::Acquire);
         std::thread::scope(|scope| {
