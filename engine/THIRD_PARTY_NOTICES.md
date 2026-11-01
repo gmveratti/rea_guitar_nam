@@ -1,5 +1,28 @@
 # Third-party notices (native DSP)
 
+## Pinned NeuralAmpModelerCore and transitive sources
+
+The offline/live NAM processors embed NeuralAmpModelerCore, pinned in
+`engine/CMakeLists.txt` to commit
+`0b3d3c97b0859a3a8c92a8628c4dd89a25eb5842` by Steven Atkinson.
+Original MIT terms are shipped in `engine/NAM_CORE_LICENSE.txt`
+and in the release archives. Source:
+https://github.com/sdatkinson/NeuralAmpModelerCore/tree/0b3d3c97b0859a3a8c92a8628c4dd89a25eb5842
+
+NeuralAmpModelerCore references Eigen, nlohmann/json and AudioDSPTools.
+Their upstream copyright/license terms remain applicable independently;
+this document describes the DSP adaptations and does not replace those
+third-party licenses.
+
+## VTTRIG original algorithms (not ports)
+
+`engine/src/classic_delay.hpp` (VTTDELAY Classic) and
+`engine/src/room_reverb.hpp` (VTTREVERB Room) are original VTTRIG
+algorithms and are **not** Airwindows TapeDelay2 or CloudSeed ports.
+Their attribution must not be confused with the adapted third-party
+compressor, sustain, chorus or noise gate below.
+
+
 ## TONE3000 Plugin — Noise Gate
 
 Source: https://github.com/tone-3000/tone3000-plugin/blob/main/plugin/include/NoiseGate.h
