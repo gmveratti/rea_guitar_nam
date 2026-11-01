@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 import { audioFaultReason } from "../lib/audioFaults";
+import {
+  isAudioSessionSelectionValid, reconcileAudioSessionSelection, selectAudioHost,
+  type AudioHost, type AudioSessionSelection, type NativeAudioSelection,
+} from "../lib/audioSessionSelection";
 import { loadAudioSettings, saveAudioSettings } from "../lib/audioSettings";
 import { type PedalInstance } from "../lib/pedals";
 import { buildLiveBoardSnapshot } from "../lib/liveRig";
 
-type DeviceInfo = { index: number; name: string; channels: number; supportsMonitor: boolean };
-type HostInfo = { id: string; inputs: DeviceInfo[]; outputs: DeviceInfo[] };
-type MonitorStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; mode: string };
-type LiveStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; engineFailed: boolean; underruns: number; overflows: number; mode: string };
+type HostInfo = AudioHost;
+type MonitorStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; mode: string; selection: NativeAudioSelection | null };
+type LiveStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; engineFailed: boolean; underruns: number; overflows: number; mode: string; selection: NativeAudioSelection | null };
 type Mode = "dry" | "wet";
 
 const BUFFER_OPTIONS = [64, 128, 256, 512, 1024];
@@ -19,18 +22,17 @@ type Props = {
   ampPath: string;
   ampPowered: boolean;
   compact?: boolean;
+  sessionSelection: AudioSessionSelection;
+  setSessionSelection: Dispatch<SetStateAction<AudioSessionSelection>>;
 };
 
-export default function AudioDevices({ chain, ampPath, ampPowered, compact = false }: Props) {
+export default function AudioDevices({ chain, ampPath, ampPowered, compact = false, sessionSelection, setSessionSelection }: Props) {
   const native = isTauri();
   // Preserve model selection when navigating away or restarting the WebView.
   // Device indices remain session-only: enumeration order can change after USB reconnect.
   const [saved] = useState(loadAudioSettings);
   const [hosts, setHosts] = useState<HostInfo[]>([]);
-  const [hostId, setHostId] = useState("");
-  const [inputIndex, setInputIndex] = useState("");
-  const [inputChannel, setInputChannel] = useState(saved.inputChannel);
-  const [outputIndex, setOutputIndex] = useState("");
+  const { hostId, inputIndex, inputChannel, outputIndex } = sessionSelection;
   const [frames, setFrames] = useState(saved.bufferFrames);
   const [mode, setMode] = useState<Mode>(saved.mode);
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
@@ -61,6 +63,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
     try { return { preview: buildLiveBoardSnapshot(chain, ampPath, ampPowered), error: "" }; }
     catch (error) { return { preview: null, error: String(error).replace(/^Error: /, "") }; }
   }, [chain, ampPath, ampPowered]);
+  const selectionValid = isAudioSessionSelectionValid(sessionSelection, hosts);
   const livePreview = livePlan.preview;
   const liveManifest = livePreview ? JSON.stringify({ schemaVersion: 1, nodes: livePreview.nodes }) : null;
 
@@ -80,30 +83,25 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       if (wet.running || dry.running) setMode(wet.running ? "wet" : "dry");
       setRunning(dry.running || wet.running);
       setActiveMode(wet.running ? "wet" : dry.running ? "dry" : null);
-      setHostId((previous) => available.some((h) => h.id === previous)
-        ? previous : (available[0]?.id ?? ""));
+      const actual = wet.running ? wet.selection : dry.running ? dry.selection : null;
+      setSessionSelection((previous) => reconcileAudioSessionSelection(previous, available, actual));
+      if (actual) setFrames(actual.bufferFrames);
       setMessage("");
     } catch (error) {
       setMessage(`Não foi possível consultar os dispositivos: ${String(error)}`);
     } finally {
       setBusy(false);
     }
-  }, [native]);
+  }, [native, setSessionSelection]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => {
-    if (!running) {
-      setInputIndex(inputs.some((d) => String(d.index) === inputIndex)
-        ? inputIndex : (inputs[0] ? String(inputs[0].index) : ""));
-      setOutputIndex(outputs.some((d) => String(d.index) === outputIndex)
-        ? outputIndex : (outputs[0] ? String(outputs[0].index) : ""));
-    }
-  }, [hostId, hosts, inputIndex, inputs, outputIndex, outputs, running]);
 
   useEffect(() => {
     // Avoid clearing a restored channel while device enumeration is still pending.
-    if (channelCount > 0 && inputChannel >= channelCount) setInputChannel(0);
-  }, [inputChannel, channelCount]);
+    if (!running && channelCount > 0 && inputChannel >= channelCount) {
+      setSessionSelection((previous) => ({ ...previous, inputChannel: 0 }));
+    }
+  }, [inputChannel, channelCount, running, setSessionSelection]);
   useEffect(() => {
     if (!native || !running || !activeMode) return;
     const tick = () => {
@@ -119,7 +117,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   }, [native, running, activeMode]);
 
   async function start() {
-    if (!native || !hostId || inputIndex === "" || outputIndex === "" || busy) return;
+    if (!native || !selectionValid || busy) return;
     let nextManifest: string | null = null;
     let ignoredCount = 0;
     if (mode === "wet") {
@@ -198,24 +196,28 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
           <>
             <div className="audio-device-fields">
               <label htmlFor="audio-host">Driver / backend
-                <select id="audio-host" value={hostId} onChange={(event) => setHostId(event.target.value)} disabled={busy || running}>
+                <select id="audio-host" value={hostId} onChange={(event) => setSessionSelection(selectAudioHost(hosts, event.target.value))} disabled={busy || running}>
+                  {hostId && !selected && <option value={hostId}>Backend indisponível: {hostId}</option>}
                   {hosts.length === 0 && <option value="">Nenhum backend disponível</option>}
                   {hosts.map((host) => <option key={host.id} value={host.id}>{host.id.toUpperCase()}</option>)}
                 </select>
               </label>
               <label htmlFor="audio-input">Entrada
-                <select id="audio-input" value={inputIndex} onChange={(event) => { setInputIndex(event.target.value); setInputChannel(0); }} disabled={busy || running}>
+                <select id="audio-input" value={inputIndex} onChange={(event) => setSessionSelection((previous) => ({ ...previous, inputIndex: event.target.value, inputChannel: 0 }))} disabled={busy || running}>
+                  {inputIndex !== "" && !inputs.some((d) => String(d.index) === inputIndex) && <option value={inputIndex}>Entrada indisponível (#{inputIndex})</option>}
                   {inputs.length === 0 && <option value="">Sem entrada F32 / 48 kHz</option>}
                   {inputs.map((d) => <option key={d.index} value={d.index}>{d.name} ({d.channels} canais)</option>)}
                 </select>
               </label>
               <label htmlFor="audio-input-channel">Canal da guitarra
-                <select id="audio-input-channel" value={inputChannel} onChange={(event) => setInputChannel(Number(event.target.value))} disabled={busy || running || channelCount === 0}>
+                <select id="audio-input-channel" value={inputChannel} onChange={(event) => setSessionSelection((previous) => ({ ...previous, inputChannel: Number(event.target.value) }))} disabled={busy || running || channelCount === 0}>
+                  {channelCount === 0 && <option value={inputChannel}>Entrada {inputChannel + 1}</option>}
                   {Array.from({ length: channelCount }, (_, i) => <option value={i} key={i}>Entrada {i + 1}</option>)}
                 </select>
               </label>
               <label htmlFor="audio-output">Saída
-                <select id="audio-output" value={outputIndex} onChange={(event) => setOutputIndex(event.target.value)} disabled={busy || running}>
+                <select id="audio-output" value={outputIndex} onChange={(event) => setSessionSelection((previous) => ({ ...previous, outputIndex: event.target.value }))} disabled={busy || running}>
+                  {outputIndex !== "" && !outputs.some((d) => String(d.index) === outputIndex) && <option value={outputIndex}>Saída indisponível (#{outputIndex})</option>}
                   {outputs.length === 0 && <option value="">Sem saída F32 / 48 kHz</option>}
                   {outputs.map((d) => <option key={d.index} value={d.index}>{d.name} ({d.channels} canais)</option>)}
                 </select>
@@ -249,6 +251,8 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
             {running && activeMode === "wet" &&
               (appliedManifest === null || liveManifest !== appliedManifest) &&
               <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM e depois Iniciar NAM.</p>}
+            {running && <p className="audio-device-note" role="status">Sessão ativa: {hostId.toUpperCase()} · entrada #{inputIndex}, canal {inputChannel + 1} → saída #{outputIndex} · buffer {frames} samples.</p>}
+            {!running && hostId && !selectionValid && <p className="audio-device-warning" role="status">A interface selecionada não está disponível. Escolha outro driver/dispositivo ou atualize a lista antes de iniciar.</p>}
             <p className="audio-device-note">48.000 Hz · guitarra enviada em mono para as saídas. No Linux, prefira JACK/PipeWire-JACK e confira as portas no qpwgraph. O buffer do JACK é definido no servidor (a opção de samples acima se aplica ao ALSA/WASAPI). JACK usa portas virtuais e pode aparecer como cpal_client_in/out, não como o nome da interface USB. No Windows, WASAPI é padrão e ASIO continua opcional.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
             {running && activeMode === "dry" && dryStatus?.failed && (
@@ -266,7 +270,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
               ) : running ? (
                 <button type="button" className="primary-button" disabled={busy} onClick={() => void stop()}><Square size={15}/> Parar {activeMode === "wet" ? "NAM" : "DRY"}</button>
               ) : (
-                <button type="button" className="primary-button" disabled={busy || !hostId || inputIndex === "" || outputIndex === "" || (mode === "wet" && !liveManifest)}
+                <button type="button" className="primary-button" disabled={busy || !selectionValid || (mode === "wet" && !liveManifest)}
                   onClick={() => void start()}><Volume2 size={15}/> Iniciar {mode === "wet" ? "NAM" : "monitor DRY"}</button>
               )}
             </div>

@@ -33,6 +33,7 @@ pub struct LiveSession {
     overflows: Arc<AtomicU64>,
     child: Child,
     worker: Option<JoinHandle<()>>,
+    selection: MonitorSelection,
 }
 
 #[derive(Default)]
@@ -50,6 +51,7 @@ pub struct LiveStatus {
     pub underruns: u64,
     pub overflows: u64,
     pub mode: &'static str,
+    pub selection: Option<MonitorSelection>,
 }
 
 pub fn status(state: &LiveState) -> Result<LiveStatus, String> {
@@ -69,6 +71,7 @@ pub fn status(state: &LiveState) -> Result<LiveStatus, String> {
         underruns: session.map_or(0, |s| s.underruns.load(Ordering::Relaxed)),
         overflows: session.map_or(0, |s| s.overflows.load(Ordering::Relaxed)),
         mode: "live_nam_ir_pipe",
+        selection: session.map(|s| s.selection.clone()),
     })
 }
 
@@ -550,6 +553,7 @@ pub fn start(
         overflows,
         child,
         worker: Some(worker),
+        selection,
     });
     Ok(())
 }

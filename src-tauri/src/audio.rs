@@ -36,7 +36,7 @@ pub struct HostInfo {
     pub inputs: Vec<DeviceInfo>,
     pub outputs: Vec<DeviceInfo>,
 }
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonitorSelection {
     pub host_id: String,
@@ -54,12 +54,14 @@ pub struct MonitorStatus {
     pub input_failed: bool,
     pub output_failed: bool,
     pub mode: &'static str,
+    pub selection: Option<MonitorSelection>,
 }
 
 pub struct MonitorStreams {
     _input: Stream,
     _output: Stream,
     faults: Arc<AtomicU8>,
+    selection: MonitorSelection,
 }
 #[derive(Default)]
 pub struct AudioState {
@@ -80,6 +82,7 @@ pub fn status(state: &AudioState) -> Result<MonitorStatus, String> {
         input_failed: faults & INPUT_FAULT != 0,
         output_failed: faults & OUTPUT_FAULT != 0,
         mode: "dry_monitor_only_no_nam_dsp",
+        selection: guard.as_ref().map(|s| s.selection.clone()),
     })
 }
 
@@ -357,6 +360,7 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
         _input: input_stream,
         _output: output_stream,
         faults,
+        selection,
     });
     Ok(())
 }
