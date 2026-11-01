@@ -3,8 +3,6 @@ name: VTTRIG NAM cross-platform DSP
 on:
   workflow_call:
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -82,31 +80,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish-release:
-    name: Attach standalone NAM processors to GitHub Release
-    if: github.event_name == 'release'
-    needs: native-core
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: VTTRIG-NAM-Offline-Windows-x64
-          path: release-assets/windows
-      - uses: actions/download-artifact@v4
-        with:
-          name: VTTRIG-NAM-Offline-Linux-x64
-          path: release-assets/linux
-      - name: Attach Windows and Linux processors to the published release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f release-assets/windows/VTTRIG-NAM-Offline-Windows-x64.zip
-          test -f release-assets/linux/VTTRIG-NAM-Offline-Linux-x64.zip
-          gh release upload "$RELEASE_TAG" \
-            release-assets/windows/VTTRIG-NAM-Offline-Windows-x64.zip \
-            release-assets/linux/VTTRIG-NAM-Offline-Linux-x64.zip --clobber --repo "$GITHUB_REPOSITORY"
