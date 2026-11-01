@@ -21,6 +21,8 @@ def classify(paths: list[str]) -> dict[str, bool]:
             continue
         if path.startswith(("docs/",)) or path in {"README.md", "AGENTS.md"}:
             continue
+        if path == "engine/CMakeLists.txt":
+            return dict.fromkeys(result, True)
         if path.startswith(("src-tauri/src/", "src-tauri/capabilities/")):
             result["tauri"] = True
         elif path.startswith("engine/"):
