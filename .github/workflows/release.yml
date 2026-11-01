@@ -1,0 +1,91 @@
+name: VTTRIG coordinated release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vttrig-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  ui:
+    uses: ./.github/workflows/ui-checks.yml
+
+  tauri-linux:
+    uses: ./.github/workflows/tauri-linux.yml
+
+  tauri-windows:
+    uses: ./.github/workflows/tauri-windows.yml
+
+  nam:
+    uses: ./.github/workflows/nam-engine.yml
+
+  publish:
+    name: Verify and attach complete VTTRIG release
+    needs: [ui, tauri-linux, tauri-windows, nam]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: VTTRIG-Linux-x86_64
+          path: release-assets/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: VTTRIG-Windows-x64
+          path: release-assets/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: VTTRIG-NAM-Offline-Linux-x64
+          path: release-assets/nam-linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: VTTRIG-NAM-Offline-Windows-x64
+          path: release-assets/nam-windows
+      - name: Validate version, assets, notices and create checksums
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # All validation must succeed before any gh release upload.
+          version="$(python3 -c 'import json; print(json.load(open("src-tauri/tauri.conf.json", encoding="utf-8"))["version"])')"
+          [[ "$RELEASE_TAG" == "v$version" || "$RELEASE_TAG" == "$version" ]] ||
+            { echo "::error::Release tag $RELEASE_TAG does not match app $version"; exit 1; }
+          images=(release-assets/linux/bundle/appimage/*.AppImage)
+          installers=(release-assets/windows/*-setup.exe)
+          [[ "${#images[@]}" == 1 && "${#installers[@]}" == 1 ]] ||
+            { echo "::error::Expected exactly one Linux AppImage and Windows setup"; exit 1; }
+          nam_linux="release-assets/nam-linux/VTTRIG-NAM-Offline-Linux-x64.zip"
+          nam_windows="release-assets/nam-windows/VTTRIG-NAM-Offline-Windows-x64.zip"
+          assets=("${images[0]}" "${installers[0]}" "$nam_linux" "$nam_windows")
+          python3 scripts/verify_release_assets.py --tag "$RELEASE_TAG" "${assets[@]}"
+          : > SHA256SUMS.txt
+          for asset in "${assets[@]}"; do
+            hash="$(sha256sum "$asset" | cut -d' ' -f1)"
+            printf '%s  %s\n' "$hash" "$(basename "$asset")" >> SHA256SUMS.txt
+          done
+          cat SHA256SUMS.txt
+      - name: Publish one validated asset set
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(release-assets/linux/bundle/appimage/*.AppImage)
+          installers=(release-assets/windows/*-setup.exe)
+          gh release upload "$RELEASE_TAG" \
+            "${images[0]}" "${installers[0]}" \
+            release-assets/nam-linux/VTTRIG-NAM-Offline-Linux-x64.zip \
+            release-assets/nam-windows/VTTRIG-NAM-Offline-Windows-x64.zip \
+            SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          echo "Validated installers, standalone archives and SHA256SUMS uploaded." >> "$GITHUB_STEP_SUMMARY"
