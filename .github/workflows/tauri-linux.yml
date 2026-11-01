@@ -24,8 +24,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .node-version
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
@@ -35,7 +38,7 @@ jobs:
           sudo apt-get install -y libjack-jackd2-dev libasound2-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf libfuse2t64
       - name: Validate AppImage icon (regression check)
         run: python3 scripts/check_tauri_icons.py
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: Mirror Eigen upstream during GitLab outage
         run: |
@@ -52,13 +55,13 @@ jobs:
           triple="$(rustc --print host-tuple)"
           cp engine/build-live/vttrig-nam-live "src-tauri/binaries/vttrig-nam-live-$triple"
           chmod +x "src-tauri/binaries/vttrig-nam-live-$triple"
-      - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml
       - name: Check Rust formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
       - name: Run Clippy (deny warnings)
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Run Rust regression tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - name: Build VTTRIG AppImage (x86_64)
         if: github.event_name == 'release'
         run: npx tauri build --bundles appimage
