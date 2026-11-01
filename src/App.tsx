@@ -14,6 +14,7 @@ import PedalFace, { VTT_PEDAL_NAMES } from "./components/PedalFace";
 import PedalFocusPanel from "./components/PedalFocusPanel";
 import AmpHero from "./components/AmpHero";
 import AudioDevices from "./components/AudioDevices";
+import { EMPTY_AUDIO_SESSION_SELECTION, type AudioSessionSelection } from "./lib/audioSessionSelection";
 import RigResourceList from "./components/RigResourceList";
 import { loadAudioSettings } from "./lib/audioSettings";
 import { validMainAmpPath } from "./lib/liveRig";
@@ -53,6 +54,7 @@ export default function App() {
   const [presetName, setPresetName] = useState("Meu primeiro rig");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("board");
+  const [audioSessionSelection, setAudioSessionSelection] = useState<AudioSessionSelection>(EMPTY_AUDIO_SESSION_SELECTION);
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
   const [modelName, setModelName] = useState(() => visualDraft.modelName || (ampPath ? ampPath.split(/[\\/]/).pop() ?? "" : ""));
@@ -374,7 +376,7 @@ export default function App() {
               <RigResourceList ampPath={ampPath} native={isTauri()}
                 onPick={() => { void pickPrimaryAmp(); }}
                 onClear={clearPrimaryAmp} />
-              {isTauri() && <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} compact />}
+              {isTauri() && <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} sessionSelection={audioSessionSelection} setSessionSelection={setAudioSessionSelection} compact />}
               <footer className="board-footer">
                 <span><span className="preview-dot" /> {isTauri() ? "NAM EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
                 {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
@@ -433,7 +435,7 @@ export default function App() {
             <section className="settings-view" aria-label="Configurações VTTRIG">
               <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
               <div className="settings-stack">
-                <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} />
+                <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} sessionSelection={audioSessionSelection} setSessionSelection={setAudioSessionSelection} />
                 <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A ordem e o bypass da pedalboard são enviados ao motor NAM ao iniciar. Controles de ganho/EQ continuam sem mapeamento DSP; mudanças durante o áudio exigem reinício.</p></div><span className="offline-pill">OFFLINE</span></div>
                 <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
                   <label htmlFor="skin-family">Família visual</label>
