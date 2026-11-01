@@ -1,0 +1,108 @@
+name: VTTRIG quality gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vttrig-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Classify changed paths
+    runs-on: ubuntu-24.04
+    outputs:
+      ui: ${{ steps.impact.outputs.ui }}
+      tauri: ${{ steps.impact.outputs.tauri }}
+      nam: ${{ steps.impact.outputs.nam }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test impact rules
+        run: python3 -m unittest discover -s scripts -p 'test_ci_impact.py' -v
+      - name: Detect all affected consumers
+        id: impact
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null &&
+             git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null; then
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-paths.txt
+          else
+            # Unknown first-push diff: classify conservatively, never skip.
+            printf '%s\n' 'unknown-first-push' > changed-paths.txt
+          fi
+          python3 scripts/ci_impact.py changed-paths.txt > impact.json
+          cat impact.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          with open("impact.json", encoding="utf-8") as file:
+              result = json.load(file)
+          for key, value in result.items():
+              print(f"{key}={str(value).lower()}")
+          PY
+
+  ui:
+    name: UI + E2E
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    uses: ./.github/workflows/ui-checks.yml
+
+  tauri-linux:
+    name: Linux Tauri + Rust
+    needs: changes
+    if: needs.changes.outputs.tauri == 'true'
+    uses: ./.github/workflows/tauri-linux.yml
+
+  tauri-windows:
+    name: Windows Tauri + Rust
+    needs: changes
+    if: needs.changes.outputs.tauri == 'true'
+    uses: ./.github/workflows/tauri-windows.yml
+
+  nam:
+    name: DSP C++ / CTest
+    needs: changes
+    if: needs.changes.outputs.nam == 'true'
+    uses: ./.github/workflows/nam-engine.yml
+
+  quality-gate:
+    name: VTTRIG / quality-gate
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [changes, ui, tauri-linux, tauri-windows, nam]
+    env:
+      DETECT: ${{ needs.changes.result }}
+      EXPECT_UI: ${{ needs.changes.outputs.ui }}
+      EXPECT_TAURI: ${{ needs.changes.outputs.tauri }}
+      EXPECT_NAM: ${{ needs.changes.outputs.nam }}
+      UI: ${{ needs.ui.result }}
+      LINUX: ${{ needs.tauri-linux.result }}
+      WINDOWS: ${{ needs.tauri-windows.result }}
+      NAM: ${{ needs.nam.result }}
+    steps:
+      - name: Require successful checks or explicitly inapplicable skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DETECT" == "success" ]] || { echo "Impact detection failed"; exit 1; }
+          verify() {
+            local name="$1" required="$2" actual="$3" expected="skipped"
+            if [[ "$required" == "true" ]]; then expected="success"; fi
+            echo "$name: required=$required actual=$actual expected=$expected"
+            [[ "$actual" == "$expected" ]] || { echo "::error::$name did not meet the gate"; return 1; }
+          }
+          verify UI "$EXPECT_UI" "$UI"
+          verify Linux "$EXPECT_TAURI" "$LINUX"
+          verify Windows "$EXPECT_TAURI" "$WINDOWS"
+          verify NAM "$EXPECT_NAM" "$NAM"
+          echo "VTTRIG quality gate passed." >> "$GITHUB_STEP_SUMMARY"
