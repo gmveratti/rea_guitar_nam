@@ -35,7 +35,8 @@
       "binaries/vttrig-nam-live"
     ],
     "resources": {
-      "../engine/THIRD_PARTY_NOTICES.md": "legal/THIRD_PARTY_NOTICES.md"
+      "../engine/THIRD_PARTY_NOTICES.md": "legal/THIRD_PARTY_NOTICES.md",
+      "../engine/NAM_CORE_LICENSE.txt": "legal/NeuralAmpModelerCore_LICENSE"
     }
   }
 }
