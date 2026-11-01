@@ -18,10 +18,13 @@ def verify_assets(tag: str, appimage: Path, installer: Path, linux: Path, window
     for path in (appimage, installer, linux, windows):
         if not path.is_file() or path.stat().st_size < 4:
             raise ValueError(f"Missing, empty or truncated release file: {path}")
-    if appimage.read_bytes()[:4] != b"\x7fELF":
-        raise ValueError("AppImage must begin with an ELF header")
-    if installer.read_bytes()[:2] != b"MZ":
-        raise ValueError("Windows installer must begin with an executable header")
+    # Never load a potentially gigabyte-scale AppImage/installer into RAM.
+    with appimage.open("rb") as image_file:
+        if image_file.read(4) != b"\x7fELF":
+            raise ValueError("AppImage must begin with an ELF header")
+    with installer.open("rb") as installer_file:
+        if installer_file.read(2) != b"MZ":
+            raise ValueError("Windows installer must begin with an executable header")
     for path, expected_executable in ((linux, "vttrig-nam-offline"),
                                       (windows, "vttrig-nam-offline.exe")):
         try:
