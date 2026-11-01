@@ -18,6 +18,11 @@ class LicenseStagingTests(unittest.TestCase):
             "legal/THIRD_PARTY_NOTICES.md",
         )
         self.assertTrue((ROOT / "engine/THIRD_PARTY_NOTICES.md").is_file())
+        self.assertEqual(
+            resources["../engine/NAM_CORE_LICENSE.txt"],
+            "legal/NeuralAmpModelerCore_LICENSE",
+        )
+        self.assertIn("MIT License", (ROOT / "engine/NAM_CORE_LICENSE.txt").read_text(encoding="utf-8"))
 
     def test_fake_standalone_contains_binary_and_license_files(self):
         with TemporaryDirectory() as temp:
