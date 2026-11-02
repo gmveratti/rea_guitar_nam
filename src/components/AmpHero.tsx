@@ -1,6 +1,7 @@
 import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { Cpu, FileAudio2, FolderOpen, Info, Plus, RotateCw, Upload } from "lucide-react";
 import { AMP_FAMILIES, classifyNamFilename, humanizeModelName, type AmpFamily } from "../lib/ampSkins";
+import { DEFAULT_AMP_LEVELS, type AmpLevels } from "../lib/liveRig";
 
 type Props = {
   modelName: string;
@@ -11,6 +12,8 @@ type Props = {
   powered?: boolean;
   onPowerChange?: (next: boolean) => void;
   onPickNative?: () => void;
+  ampLevels?: Readonly<AmpLevels>;
+  onAmpLevelChange?: (control: keyof AmpLevels, value: number) => void;
 };
 
 const DEMOS = [
@@ -21,27 +24,27 @@ const DEMOS = [
   "Mesa_Dual_Rectifier.nam",
 ];
 
-function FaceKnob({ label, index }: { label: string; index: number }) {
-  const [position, setPosition] = useState(index === 0 ? 7 : 5);
+function FaceKnob({ label, value, onChange }: { label: string; value: number; onChange?: (value: number) => void }) {
   return (
-    <label className="face-control" title="Controle visual da interface. Não altera o áudio NAM.">
+    <label className="face-control" title={`${label}: ganho real em dB no amplificador NAM`}>
       <span className="face-control-label">{label}</span>
       <span className="face-knob-shell">
-        <span className="face-knob" style={{ "--angle": `${position * 27 - 135}deg` } as CSSProperties}>
+        <span className="face-knob" style={{ "--angle": `${(value + 24) * 270 / 48 - 135}deg` } as CSSProperties}>
           <i className="face-knob-mark" />
         </span>
         <input
-          aria-label={`${label}: ajuste visual`}
-          type="range" min="0" max="10" step="1" value={position}
-          onChange={(event) => setPosition(Number(event.target.value))}
+          aria-label={`Amplificador: ${label} (dB)`}
+          type="range" min="-24" max="24" step="0.5" value={value}
+          disabled={!onChange}
+          onChange={(event) => onChange?.(Number(event.target.value))}
         />
       </span>
-      <span className="face-control-value">{position}</span>
+      <span className="face-control-value">{value > 0 ? "+" : ""}{value} dB</span>
     </label>
   );
 }
 
-export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange, minimal = false, powered, onPowerChange, onPickNative }: Props) {
+export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOverrideChange, minimal = false, powered, onPowerChange, onPickNative, ampLevels = DEFAULT_AMP_LEVELS, onAmpLevelChange }: Props) {
   const skin = classifyNamFilename(modelName, overrideFamily);
   const [error, setError] = useState("");
   const [localPowered, setLocalPowered] = useState(true);
@@ -91,10 +94,11 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
             <span className="grille-caption">{skin.subtitle}</span>
           </div>
           <div className="amp-panel">
-            <div className="amp-power"><button type="button" className={`amp-power-switch ${isPowered ? "powered" : ""}`} aria-label={isPowered ? "Desligar amplificador" : "Ligar amplificador"} aria-pressed={isPowered} title={onPowerChange ? "Power NAM (aplica após reiniciar o áudio)" : "Power do amplificador (visual)"} onClick={togglePower}><span className="power-indicator" /></button><small>POWER</small></div>
-            <div className="amp-channel"><strong>{skin.title}</strong><span>{skin.channel}</span></div>
+            <div className="amp-power"><button type="button" className={`amp-power-switch ${isPowered ? "powered" : ""}`} aria-label={isPowered ? "Desligar amplificador" : "Ligar amplificador"} aria-pressed={isPowered} title="Ligar ou colocar o amplificador em bypass" onClick={togglePower}><span className="power-indicator" /></button><small>POWER</small></div>
+            <div className="amp-channel"><strong>{skin.title}</strong><span>CAPTURA NAM · TIMBRE FIXO</span></div>
             <div className="amp-controls">
-              {skin.controls.map((label, index) => <FaceKnob key={skin.id + label} label={label} index={index} />)}
+              <FaceKnob label="Input" value={ampLevels.input} onChange={onAmpLevelChange ? value => onAmpLevelChange("input", value) : undefined} />
+              <FaceKnob label="Output" value={ampLevels.output} onChange={onAmpLevelChange ? value => onAmpLevelChange("output", value) : undefined} />
             </div>
             <div className="amp-jack">
               <span className="jack-hole" />
@@ -122,7 +126,7 @@ export default function AmpHero({ modelName, overrideFamily, onModelChosen, onOv
               <Plus size={34} strokeWidth={1.6} />
             </button>
             <strong>Adicionar amplificador</strong>
-            <span>Selecione um modelo .nam ou arraste o arquivo para cá</span>
+            <span>{onPickNative ? "Selecione um modelo .nam no seu computador" : "Selecione um modelo .nam ou arraste o arquivo para cá"}</span>
             <small>{onPickNative ? "Selecione o arquivo NAM real para vincular à cadeia." : "Escolha um modelo visual para pré-visualização."}</small>
             <input
               ref={emptyPicker}

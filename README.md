@@ -2,7 +2,19 @@
 
 **Modular Neural Guitar Studio**. Um pedalboard desktop com visual de amplificadores clássicos, pedais próprios padronizados, presets locais e motor nativo experimental de áudio NAM/IR. **Sem Wine e sem yabridge.**
 
-> **Status: Gate, Compressor, Sustain, Chorus, Delay e Reverb com DSP mono.** O NAM A2 é carregado apenas no **amplificador principal**, fora dos pedais. Alterações de modelo, ordem e bypass exigem **Parar/Iniciar**. **Hardware, latência e estabilidade ainda não estão homologados.**
+> **Fluxo atual:** escolha a interface, carregue o amplificador `.nam`, selecione o gabinete `.wav` se necessário e ligue o áudio. NAM e IR ficam separados dos pedais. Alterações do rig são preparadas em segundo plano e aplicadas automaticamente com a sessão ligada. **Hardware, latência e estabilidade ainda não estão homologados.**
+
+## Áudio no Windows e troca de rig (#47)
+
+- O instalador Windows inclui **ASIO e WASAPI**. ASIO depende de um driver instalado; entrada e saída usam a mesma interface. Formatos PCM inteiros do driver são convertidos para o processamento interno, sem exigir que a interface anuncie float32.
+- Amplificador e IR têm seletores independentes. O IR é opcional: uma captura *Amp + Cab* já inclui o gabinete. Nada é inserido automaticamente na pedalboard.
+- Os controles **Input** e **Output** do amplificador ajustam ganhos reais em dB. Uma captura NAM é fixa; não simulamos controles de EQ do amplificador original que o modelo não oferece.
+- Trocar NAM, IR, ganhos, parâmetros, ordem ou bypass prepara um novo grafo enquanto o atual toca. O worker troca o grafo entre blocos de 128 amostras, preservando os streams da interface. Um arquivo inválido mantém o rig anterior. Limpar o último módulo resulta em sinal limpo.
+- A troca ainda **reinicia os estados e as caudas dos efeitos**; não é automação contínua de parâmetros, nem há garantia de troca sem clique ou de latência medida. A sessão continua mono a 48 kHz.
+- Os executáveis Windows usam o runtime C/C++ estático. A CI verifica as dependências PE reais para impedir DLLs do runtime MSVC ausentes no computador do usuário.
+
+Build e licenças do ASIO: [docs/WINDOWS_ASIO.md](docs/WINDOWS_ASIO.md).
+Os trechos identificados como histórico abaixo descrevem etapas anteriores.
 
 ## Origem de amplificadores e gabinetes: TONE3000
 
@@ -12,7 +24,7 @@
 
 **Fluxo disponível hoje:** baixar o NAM pelo site, salvar no computador e selecioná-lo no cabeçote principal do aplicativo desktop. **Ainda não há navegador/download automático do TONE3000 no aplicativo**; uma possível integração oficial via API permanece no roadmap e depende dos termos da plataforma. Os arquivos de terceiros não são distribuídos junto com o VTTRIG. O TONE3000 também contém arquivos A1 legados: escolher e validar arquivos **A2-Lite/Full** quando esse for o objetivo.
 
-**Atenção ao tipo de captura:** como a interface atual não expõe um slot IR, prefira um NAM do tipo *Amp + Cab* para já obter simulação de gabinete. Um *Amp Head* sozinho pode soar excessivamente agudo sem IR. O motor permanece experimental, mono/48 kHz.
+**Atenção ao tipo de captura:** use um IR separado com uma captura *Amp Head*. Para *Amp + Cab*, deixe o IR vazio para evitar aplicar dois gabinetes. O motor permanece experimental, mono/48 kHz.
 
 Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHITECTURE.md) e [guia oficial NAM × IR](https://www.tone3000.com/guides/neural-amp-modeler).
 
@@ -72,12 +84,12 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 ## Fluxo atual: NAM principal separado dos pedais
 
 1. No aplicativo desktop, clique no (+) do **amplificador principal** ou em **Selecionar NAM principal** e escolha um arquivo `.nam` A2. Ele aparece no cabeçote; não surge nenhum VTTAMP na cadeia de pedais.
-2. Adicione e reordene Gate, Compressor, Sustain, Chorus, Delay e Reverb pela Biblioteca. O modelo NAM é preparado como um estágio final separado, **após** os pedais, sem IR/Drive como pedais.
-3. Escolha driver, entrada/canal da guitarra, saída e buffer. Teste DRY, pare, selecione NAM/IR e clique **Iniciar NAM/IR**.
-4. Bypass de pedais, POWER do amplificador, parâmetros e alterações de modelo são aplicados após **Parar/Iniciar**. Não existe atualização contínua em tempo real.
-5. Presets e rascunhos guardam a cadeia dos seis efeitos e o caminho local do NAM principal separadamente. A migração de presets antigos preserva o NAM previamente associado ao VTTAMP.
+2. Se necessário, selecione o **Gabinete IR** `.wav`. Adicione e reordene Gate, Compressor, Sustain, Chorus, Delay e Reverb pela Biblioteca. O fluxo é pedais → NAM → IR opcional.
+3. Escolha driver, entrada/canal da guitarra, saída e buffer e clique **Iniciar NAM**. No ASIO, a saída acompanha a interface de entrada.
+4. Bypass de pedais, POWER, Input/Output e alterações do rig são aplicados automaticamente. O carregamento de um arquivo inválido preserva o som anterior.
+5. Presets e rascunhos guardam a cadeia, o NAM, o IR e os ganhos separadamente. A migração de presets antigos preserva o NAM previamente associado ao VTTAMP.
 
-**Limitações:** o motor segue mono/48 kHz. IR e capturas de drive não são selecionáveis neste fluxo; o motor mantém os algoritmos legados, sem inseri-los silenciosamente. O backend Linux usa JACK/PipeWire-JACK se disponível; validação física de interface, timbre e latência segue pendente.
+**Limitações:** mono/48 kHz, sem capturas de drive na biblioteca de pedais. A troca de grafo reinicia estados/caudas; não representa automação contínua ou compatibilidade homologada com hardware. Linux usa JACK/PipeWire-JACK se disponível; a validação física segue pendente.
 
 ## Histórico: PR #14 · configuração local persistente do monitor
 

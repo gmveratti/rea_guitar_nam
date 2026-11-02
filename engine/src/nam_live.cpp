@@ -13,9 +13,17 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #endif
 
 namespace {
@@ -27,7 +35,7 @@ bool is_little_endian() {
 }
 } // namespace
 
-int main(int argc, char** argv) {
+int run_sidecar(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--help") {
     std::cout << "vttrig-nam-live --chain-json <schema-v1-json>\n"
               << "Protocol: READY\\n then 128 float32 LE samples each way.\n";
@@ -84,3 +92,38 @@ int main(int argc, char** argv) {
     return 1;
   }
 }
+
+#ifdef _WIN32
+// Rust's Command uses the native UTF-16 command line. A narrow main() argv
+// converts it through the active ANSI codepage and corrupts non-ASCII paths
+// inside the manifest before JSON parsing even starts.
+int wmain(int argc, wchar_t** argv) {
+  try {
+    std::vector<std::string> utf8_arguments;
+    utf8_arguments.reserve(static_cast<std::size_t>(argc));
+    for (int i = 0; i < argc; ++i) {
+      const int bytes = WideCharToMultiByte(
+          CP_UTF8, WC_ERR_INVALID_CHARS, argv[i], -1, nullptr, 0, nullptr, nullptr);
+      if (bytes == 0) throw std::runtime_error("Invalid UTF-16 command argument");
+      std::string argument(static_cast<std::size_t>(bytes), '\0');
+      if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, argv[i], -1,
+                              argument.data(), bytes, nullptr, nullptr) == 0) {
+        throw std::runtime_error("Unable to encode command argument as UTF-8");
+      }
+      argument.pop_back(); // Exclude the terminating NUL from std::string.
+      utf8_arguments.push_back(std::move(argument));
+    }
+    std::vector<char*> arguments;
+    arguments.reserve(utf8_arguments.size());
+    for (auto& argument : utf8_arguments) arguments.push_back(argument.data());
+    return run_sidecar(argc, arguments.data());
+  } catch (const std::exception& error) {
+    std::cerr << "VTTRIG live DSP: " << error.what() << "\n";
+    return 1;
+  }
+}
+#else
+int main(int argc, char** argv) {
+  return run_sidecar(argc, argv);
+}
+#endif

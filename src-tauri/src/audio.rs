@@ -4,10 +4,13 @@
 //! communicate via a bounded lock-free single-producer/single-consumer ring.
 //! They never allocate, lock, call Tauri or touch the filesystem.
 //!
-//! WASAPI (Windows), ALSA and JACK/PipeWire-JACK (Linux) are built by default.
-//! ASIO remains optional on Windows; JACK requires a running JACK server.
+//! Windows builds include WASAPI and ASIO; Linux includes ALSA and JACK.
+//! ASIO needs an installed driver; JACK/PipeWire-JACK needs a running server.
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, SampleFormat, Stream, StreamConfig, SupportedBufferSize};
+use cpal::{
+    BufferSize, FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig,
+    SupportedBufferSize, SupportedStreamConfigRange,
+};
 use rtrb::RingBuffer;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -102,13 +105,62 @@ fn host_priority(host: &HostInfo) -> u8 {
     let ready = host.inputs.iter().any(|d| d.supports_monitor)
         && host.outputs.iter().any(|d| d.supports_monitor);
     match (host.id.as_str(), ready) {
-        ("jack", true) => 0, // prefer PipeWire/JACK for a guitar rig
+        ("jack" | "asio", true) => 0, // prefer native low-latency guitar backends
         (_, true) => 1,
         _ => 2,
     }
 }
 
-fn supports_48k_float(device: &cpal::Device, input: bool) -> Option<u16> {
+fn supported_pcm_format(format: SampleFormat) -> bool {
+    matches!(
+        format,
+        SampleFormat::F32
+            | SampleFormat::F64
+            | SampleFormat::I16
+            | SampleFormat::I24
+            | SampleFormat::I32
+            | SampleFormat::I8
+            | SampleFormat::I64
+            | SampleFormat::U8
+            | SampleFormat::U16
+            | SampleFormat::U24
+            | SampleFormat::U32
+            | SampleFormat::U64
+    )
+}
+
+fn supports_48k(range: &SupportedStreamConfigRange) -> bool {
+    supported_pcm_format(range.sample_format())
+        && range.min_sample_rate() <= RATE
+        && range.max_sample_rate() >= RATE
+        && range.channels() > 0
+}
+
+fn range_priority(range: &SupportedStreamConfigRange) -> (u8, u8) {
+    (
+        if range.channels() == 2 { 0 } else { 1 },
+        if range.sample_format() == SampleFormat::F32 {
+            0
+        } else {
+            1
+        },
+    )
+}
+
+fn supports_backend_format(format: SampleFormat, host_id: &str) -> bool {
+    if host_id.eq_ignore_ascii_case("asio") {
+        // CPAL 0.17's ASIO check_config accepts these formats only, even though
+        // its native format enum also describes Float64 and DSD variants.
+        matches!(
+            format,
+            SampleFormat::I16 | SampleFormat::I24 | SampleFormat::I32 | SampleFormat::F32
+        )
+    } else {
+        supported_pcm_format(format)
+    }
+}
+
+fn supports_48k_pcm(device: &cpal::Device, input: bool, host_id: &str) -> Option<u16> {
     let configs = if input {
         device.supported_input_configs().ok()?.collect::<Vec<_>>()
     } else {
@@ -116,15 +168,11 @@ fn supports_48k_float(device: &cpal::Device, input: bool) -> Option<u16> {
     };
     configs
         .into_iter()
-        .filter(|range| {
-            range.sample_format() == SampleFormat::F32
-                && range.min_sample_rate() <= RATE
-                && range.max_sample_rate() >= RATE
-                && range.channels() > 0
-        })
+        .filter(supports_48k)
+        .filter(|range| supports_backend_format(range.sample_format(), host_id))
         // JACK advertises 1, 2, 4... channels in that order. Prefer stereo
         // output (and two possible guitar inputs) over JACK's first mono range.
-        .min_by_key(|range| if range.channels() == 2 { 0 } else { 1 })
+        .min_by_key(range_priority)
         .map(|range| range.channels())
 }
 
@@ -138,7 +186,7 @@ fn devices(host: &cpal::Host, input: bool) -> Vec<DeviceInfo> {
         Ok(devices) => devices
             .enumerate()
             .map(|(index, device)| {
-                let supported = supports_48k_float(&device, input);
+                let supported = supports_48k_pcm(&device, input, &host.id().to_string());
                 let name = device
                     .description()
                     .map(|d| d.name().to_string())
@@ -180,12 +228,18 @@ pub(crate) fn validate_buffer(frames: u32) -> Result<(), String> {
     }
 }
 
+pub(crate) struct ConfiguredDevice {
+    pub device: cpal::Device,
+    pub config: StreamConfig,
+    pub sample_format: SampleFormat,
+}
+
 pub(crate) fn choose_device(
     host: &cpal::Host,
     input: bool,
     index: usize,
     frames: u32,
-) -> Result<(cpal::Device, StreamConfig), String> {
+) -> Result<ConfiguredDevice, String> {
     let mut iterator = if input {
         host.input_devices().map_err(|e| e.to_string())?
     } else {
@@ -194,6 +248,15 @@ pub(crate) fn choose_device(
     let device = iterator
         .nth(index)
         .ok_or("Dispositivo desconectado. Atualize a lista.")?;
+    configure_device(host, device, input, frames)
+}
+
+fn configure_device(
+    host: &cpal::Host,
+    device: cpal::Device,
+    input: bool,
+    frames: u32,
+) -> Result<ConfiguredDevice, String> {
     let name = device
         .description()
         .map(|d| d.name().to_string())
@@ -214,14 +277,10 @@ pub(crate) fn choose_device(
     };
     let range = ranges
         .into_iter()
-        .filter(|range| {
-            range.sample_format() == SampleFormat::F32
-                && range.min_sample_rate() <= RATE
-                && range.max_sample_rate() >= RATE
-                && range.channels() > 0
-        })
-        .min_by_key(|range| if range.channels() == 2 { 0 } else { 1 })
-        .ok_or("Este dispositivo não oferece F32 a 48 kHz neste backend.")?;
+        .filter(supports_48k)
+        .filter(|range| supports_backend_format(range.sample_format(), &host.id().to_string()))
+        .min_by_key(range_priority)
+        .ok_or("Este dispositivo não oferece áudio PCM a 48 kHz neste backend.")?;
 
     // JACK owns its server buffer size. Requesting Fixed(128) while the JACK
     // server is at 256 will fail in CPAL >= 0.17. Never change server settings.
@@ -235,9 +294,10 @@ pub(crate) fn choose_device(
             }
         }
     }
-    Ok((
+    Ok(ConfiguredDevice {
         device,
-        StreamConfig {
+        sample_format: range.sample_format(),
+        config: StreamConfig {
             channels: range.channels(),
             sample_rate: RATE,
             buffer_size: if is_jack {
@@ -246,7 +306,50 @@ pub(crate) fn choose_device(
                 BufferSize::Fixed(frames)
             },
         },
-    ))
+    })
+}
+
+pub(crate) fn choose_duplex_devices(
+    host: &cpal::Host,
+    input_index: usize,
+    output_index: usize,
+    frames: u32,
+) -> Result<(ConfiguredDevice, ConfiguredDevice), String> {
+    if host.id().to_string().eq_ignore_ascii_case("asio") {
+        // Resolve and DROP the output handle before retaining an input handle.
+        // ASIO can load one driver globally: keeping the input alive while
+        // enumerating outputs hides other drivers and changes their indices.
+        let output_name = {
+            let device = host
+                .output_devices()
+                .map_err(|e| e.to_string())?
+                .nth(output_index)
+                .ok_or("Dispositivo desconectado. Atualize a lista.")?;
+            device
+                .description()
+                .map_err(|e| e.to_string())?
+                .name()
+                .to_owned()
+        };
+        let input = choose_device(host, true, input_index, frames)?;
+        let input_name = input.device.description().map_err(|e| e.to_string())?;
+        validate_asio_pair(input_name.name(), &output_name)?;
+        // Configure the same driver's output without a second enumeration.
+        // Cloning also preserves CPAL's shared ASIO stream state for duplex.
+        let output = configure_device(host, input.device.clone(), false, frames)?;
+        return Ok((input, output));
+    }
+    let input = choose_device(host, true, input_index, frames)?;
+    let output = choose_device(host, false, output_index, frames)?;
+    Ok((input, output))
+}
+
+fn validate_asio_pair(input: &str, output: &str) -> Result<(), String> {
+    if input == output {
+        Ok(())
+    } else {
+        Err("ASIO exige entrada e saída do mesmo driver/interface.".into())
+    }
 }
 
 pub(crate) fn validate_input_channel(channel: usize, channels: u16) -> Result<(), String> {
@@ -262,13 +365,135 @@ pub(crate) fn validate_input_channel(channel: usize, channels: u16) -> Result<()
 }
 
 // Called from the native callback; no allocation, locking or logging.
-pub(crate) fn selected_mono_sample(frame: &[f32], channel: usize) -> f32 {
-    let sample = frame.get(channel).copied().unwrap_or(0.0);
+pub(crate) fn selected_mono_sample<T: Sample>(frame: &[T], channel: usize) -> f32
+where
+    f32: FromSample<T>,
+{
+    let sample = frame
+        .get(channel)
+        .map(|value| value.to_sample::<f32>())
+        .unwrap_or(0.0);
     if sample.is_finite() {
         sample
     } else {
         0.0
     }
+}
+
+// Conversion runs sample-by-sample on preallocated device buffers. No temporary
+// Vec, lock, allocation or logging is introduced into either audio callback.
+fn receive_input<T: Sample>(
+    data: &[T],
+    channels: usize,
+    channel: usize,
+    receive: &mut impl FnMut(f32),
+) where
+    f32: FromSample<T>,
+{
+    for frame in data.chunks(channels) {
+        receive(selected_mono_sample(frame, channel));
+    }
+}
+
+fn fill_output<T: Sample + FromSample<f32>>(
+    data: &mut [T],
+    channels: usize,
+    next_sample: &mut impl FnMut() -> f32,
+) {
+    for frame in data.chunks_mut(channels) {
+        let sample = next_sample();
+        let sample = if sample.is_finite() {
+            sample.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        frame.fill(sample.to_sample::<T>());
+    }
+}
+
+fn typed_input_stream<T, D, E>(
+    selected: &ConfiguredDevice,
+    channel: usize,
+    mut receive: D,
+    error: E,
+) -> Result<Stream, cpal::BuildStreamError>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+    D: FnMut(f32) + Send + 'static,
+    E: FnMut(cpal::StreamError) + Send + 'static,
+{
+    let channels = usize::from(selected.config.channels);
+    selected.device.build_input_stream(
+        &selected.config,
+        move |data: &[T], _| receive_input(data, channels, channel, &mut receive),
+        error,
+        None,
+    )
+}
+
+fn typed_output_stream<T, D, E>(
+    selected: &ConfiguredDevice,
+    mut next_sample: D,
+    error: E,
+) -> Result<Stream, cpal::BuildStreamError>
+where
+    T: SizedSample + FromSample<f32>,
+    D: FnMut() -> f32 + Send + 'static,
+    E: FnMut(cpal::StreamError) + Send + 'static,
+{
+    let channels = usize::from(selected.config.channels);
+    selected.device.build_output_stream(
+        &selected.config,
+        move |data: &mut [T], _| fill_output(data, channels, &mut next_sample),
+        error,
+        None,
+    )
+}
+
+pub(crate) fn build_input_stream<D, E>(
+    selected: &ConfiguredDevice,
+    channel: usize,
+    receive: D,
+    error: E,
+) -> Result<Stream, cpal::BuildStreamError>
+where
+    D: FnMut(f32) + Send + 'static,
+    E: FnMut(cpal::StreamError) + Send + 'static,
+{
+    macro_rules! dispatch {
+        ($($format:ident => $sample:ty),+ $(,)?) => {
+            match selected.sample_format {
+                $(SampleFormat::$format => typed_input_stream::<$sample, _, _>(selected, channel, receive, error),)+
+                _ => Err(cpal::BuildStreamError::StreamConfigNotSupported),
+            }
+        };
+    }
+    dispatch!(F32 => f32, F64 => f64, I8 => i8, I16 => i16, I24 => cpal::I24,
+              I32 => i32, I64 => i64, U8 => u8, U16 => u16, U24 => cpal::U24,
+              U32 => u32, U64 => u64)
+}
+
+pub(crate) fn build_output_stream<D, E>(
+    selected: &ConfiguredDevice,
+    next_sample: D,
+    error: E,
+) -> Result<Stream, cpal::BuildStreamError>
+where
+    D: FnMut() -> f32 + Send + 'static,
+    E: FnMut(cpal::StreamError) + Send + 'static,
+{
+    macro_rules! dispatch {
+        ($($format:ident => $sample:ty),+ $(,)?) => {
+            match selected.sample_format {
+                $(SampleFormat::$format => typed_output_stream::<$sample, _, _>(selected, next_sample, error),)+
+                _ => Err(cpal::BuildStreamError::StreamConfigNotSupported),
+            }
+        };
+    }
+    dispatch!(F32 => f32, F64 => f64, I8 => i8, I16 => i16, I24 => cpal::I24,
+              I32 => i32, I64 => i64, U8 => u8, U16 => u16, U24 => cpal::U24,
+              U32 => u32, U64 => u64)
 }
 
 fn safe_sample(value: f32) -> f32 {
@@ -287,15 +512,13 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
         return Err("Backend não está disponível neste computador/build.".into());
     }
     let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
-    let (input, input_config) =
-        choose_device(&host, true, selection.input_index, selection.buffer_frames)?;
-    let (output, output_config) = choose_device(
+    let (input, output) = choose_duplex_devices(
         &host,
-        false,
+        selection.input_index,
         selection.output_index,
         selection.buffer_frames,
     )?;
-    validate_input_channel(selection.input_channel, input_config.channels)?;
+    validate_input_channel(selection.input_channel, input.config.channels)?;
     // Lock is used only on the control thread, never on an audio callback.
     let mut guard = state
         .streams
@@ -305,50 +528,38 @@ pub fn start(state: &AudioState, selection: MonitorSelection) -> Result<(), Stri
         return Err("O monitor já está ligado. Desligue antes de alterar o dispositivo.".into());
     }
     let (mut producer, mut consumer) = RingBuffer::<f32>::new(RING_FRAMES);
-    let input_channels = usize::from(input_config.channels);
     let input_channel = selection.input_channel;
-    let output_channels = usize::from(output_config.channels);
     let faults = Arc::new(AtomicU8::new(0));
     let input_error = Arc::clone(&faults);
     let output_error = Arc::clone(&faults);
     let output_silence = Arc::clone(&faults);
     // Enqueue selected mono channel. Full ring drops frames; no latency guarantee.
-    let input_stream = input
-        .build_input_stream(
-            &input_config,
-            move |data: &[f32], _| {
-                for frame in data.chunks(input_channels) {
-                    let _ = producer.push(selected_mono_sample(frame, input_channel));
-                }
-            },
-            move |_error| {
-                input_error.fetch_or(INPUT_FAULT, Ordering::Relaxed);
-            },
-            None,
-        )
-        .map_err(|e| format!("Não foi possível abrir a entrada: {e}"))?;
+    let input_stream = build_input_stream(
+        &input,
+        input_channel,
+        move |sample| {
+            let _ = producer.push(sample);
+        },
+        move |_error| {
+            input_error.fetch_or(INPUT_FAULT, Ordering::Relaxed);
+        },
+    )
+    .map_err(|e| format!("Não foi possível abrir a entrada: {e}"))?;
 
-    let output_stream = output
-        .build_output_stream(
-            &output_config,
-            move |data: &mut [f32], _| {
-                for frame in data.chunks_mut(output_channels) {
-                    let sample = if output_silence.load(Ordering::Relaxed) != 0 {
-                        0.0
-                    } else {
-                        safe_sample(consumer.pop().unwrap_or(0.0))
-                    };
-                    for channel in frame {
-                        *channel = sample;
-                    }
-                }
-            },
-            move |_error| {
-                output_error.fetch_or(OUTPUT_FAULT, Ordering::Relaxed);
-            },
-            None,
-        )
-        .map_err(|e| format!("Não foi possível abrir a saída: {e}"))?;
+    let output_stream = build_output_stream(
+        &output,
+        move || {
+            if output_silence.load(Ordering::Relaxed) != 0 {
+                0.0
+            } else {
+                safe_sample(consumer.pop().unwrap_or(0.0))
+            }
+        },
+        move |_error| {
+            output_error.fetch_or(OUTPUT_FAULT, Ordering::Relaxed);
+        },
+    )
+    .map_err(|e| format!("Não foi possível abrir a saída: {e}"))?;
     // No autostart. This only executes following an explicit UI click.
     output_stream
         .play()
@@ -403,6 +614,8 @@ mod tests {
         };
         assert!(host_priority(&active("jack", true)) < host_priority(&active("alsa", true)));
         assert!(host_priority(&active("jack", false)) > host_priority(&active("alsa", true)));
+        assert!(host_priority(&active("asio", true)) < host_priority(&active("wasapi", true)));
+        assert!(host_priority(&active("asio", false)) > host_priority(&active("wasapi", true)));
     }
     #[test]
     fn guitar_channel_routes_correctly_and_rejects_invalid_indices() {
@@ -415,6 +628,105 @@ mod tests {
         assert_eq!(selected_mono_sample(&[0.1], 1), 0.0);
         assert_eq!(selected_mono_sample(&[f32::NAN, 0.3], 0), 0.0);
     }
+    #[test]
+    fn integer_native_configs_are_available_at_48k_without_f32() {
+        for format in [
+            SampleFormat::I16,
+            SampleFormat::I24,
+            SampleFormat::I32,
+            SampleFormat::F32,
+            SampleFormat::F64,
+            SampleFormat::U16,
+        ] {
+            let range = SupportedStreamConfigRange::new(
+                2,
+                44_100,
+                96_000,
+                SupportedBufferSize::Unknown,
+                format,
+            );
+            assert!(supports_48k(&range), "Rejected native PCM: {format}");
+        }
+        let dsd = SupportedStreamConfigRange::new(
+            2,
+            RATE,
+            RATE,
+            SupportedBufferSize::Unknown,
+            SampleFormat::DsdU8,
+        );
+        assert!(!supports_48k(&dsd));
+        assert!(supports_backend_format(SampleFormat::I24, "asio"));
+        assert!(!supports_backend_format(SampleFormat::F64, "asio"));
+        assert!(supports_backend_format(SampleFormat::F64, "wasapi"));
+        let wrong_rate = SupportedStreamConfigRange::new(
+            2,
+            44_100,
+            44_100,
+            SupportedBufferSize::Unknown,
+            SampleFormat::I32,
+        );
+        assert!(!supports_48k(&wrong_rate));
+    }
+
+    #[test]
+    fn native_integer_callbacks_convert_normalized_audio_and_fan_out() {
+        fn roundtrip<T>()
+        where
+            T: Sample + FromSample<f32>,
+            f32: FromSample<T>,
+        {
+            let mut block = [T::EQUILIBRIUM; 12];
+            let mut source = [-0.5_f32, 0.0, 0.5].into_iter();
+            fill_output(&mut block, 4, &mut || source.next().unwrap());
+            for (frame, expected) in block.chunks(4).zip([-0.5_f32, 0.0, 0.5]) {
+                for channel in frame {
+                    assert!((channel.to_sample::<f32>() - expected).abs() < 0.0001);
+                }
+            }
+            let mut converted = Vec::new();
+            receive_input(&block, 4, 2, &mut |sample| converted.push(sample));
+            assert_eq!(converted, vec![-0.5, 0.0, 0.5]);
+        }
+        roundtrip::<i16>();
+        roundtrip::<cpal::I24>();
+        roundtrip::<i32>();
+        roundtrip::<f32>();
+        roundtrip::<f64>();
+        roundtrip::<u16>();
+        roundtrip::<cpal::U24>();
+    }
+
+    #[test]
+    fn integer_input_channel_selection_preserves_sign_and_floating_faults_are_silent() {
+        assert_eq!(selected_mono_sample(&[i16::MIN, 16_384], 1), 0.5);
+        assert_eq!(selected_mono_sample(&[i32::MIN, 0], 0), -1.0);
+        assert_eq!(
+            selected_mono_sample(&[cpal::I24::new(-4_194_304).unwrap()], 0),
+            -0.5
+        );
+        assert_eq!(selected_mono_sample(&[f64::NAN], 0), 0.0);
+        assert_eq!(selected_mono_sample(&[f64::INFINITY], 0), 0.0);
+        assert_eq!(selected_mono_sample(&[0_i32], 1), 0.0);
+    }
+
+    #[test]
+    fn output_conversion_silences_nonfinite_samples_and_centers_unsigned_pcm() {
+        let mut output = [0_u16; 6];
+        let mut source = [f32::NAN, f32::INFINITY, -f32::INFINITY].into_iter();
+        fill_output(&mut output, 2, &mut || source.next().unwrap());
+        assert_eq!(output, [32_768; 6]);
+        let mut clipped = [0_i16; 2];
+        let mut source = [-2.0_f32, 2.0].into_iter();
+        fill_output(&mut clipped, 1, &mut || source.next().unwrap());
+        assert_eq!(clipped, [i16::MIN, i16::MAX]);
+    }
+
+    #[test]
+    fn asio_duplex_rejects_two_separate_drivers() {
+        assert!(validate_asio_pair("USB ASIO", "USB ASIO").is_ok());
+        assert!(validate_asio_pair("USB ASIO", "ASIO4ALL").is_err());
+    }
+
     #[test]
     fn independent_failure_bits_identify_input_and_output() {
         let faults = AtomicU8::new(0);

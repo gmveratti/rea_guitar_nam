@@ -37,6 +37,15 @@ jobs:
         run: cmake -S engine -B engine/build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build portable DSP and platform host
         run: cmake --build engine/build --config Release --parallel 2
+      - name: Test native Windows runtime verification
+        if: runner.os == 'Windows'
+        run: python -m unittest discover -s scripts -p "test_native_runtime.py" -v
+      - name: Verify Windows native executables do not require the MSVC redistributable
+        if: runner.os == 'Windows'
+        run: >-
+          python scripts/check_native_runtime.py
+          engine/build/Release/vttrig-nam-live.exe
+          engine/build/Release/vttrig-nam-offline.exe
       - name: Run regressions on this OS
         run: ctest --test-dir engine/build -C Release --output-on-failure
 

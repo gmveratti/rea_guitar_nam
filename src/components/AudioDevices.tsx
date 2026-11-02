@@ -3,16 +3,17 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { AudioLines, RefreshCw, Square, Volume2 } from "lucide-react";
 import { audioFaultReason } from "../lib/audioFaults";
 import {
-  isAudioSessionSelectionValid, reconcileAudioSessionSelection, selectAudioHost,
+  isAudioSessionSelectionValid, reconcileAudioSessionSelection, selectAudioHost, selectAudioInput,
   type AudioHost, type AudioSessionSelection, type NativeAudioSelection,
 } from "../lib/audioSessionSelection";
 import { loadAudioSettings, saveAudioSettings } from "../lib/audioSettings";
 import { type PedalInstance } from "../lib/pedals";
-import { buildLiveBoardSnapshot } from "../lib/liveRig";
+import { buildLiveBoardSnapshot, type AmpLevels } from "../lib/liveRig";
+import { createLiveRigSync } from "../lib/liveRigSync";
 
 type HostInfo = AudioHost;
 type MonitorStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; mode: string; selection: NativeAudioSelection | null };
-type LiveStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; engineFailed: boolean; underruns: number; overflows: number; mode: string; selection: NativeAudioSelection | null };
+type LiveStatus = { running: boolean; failed: boolean; inputFailed: boolean; outputFailed: boolean; engineFailed: boolean; underruns: number; overflows: number; mode: string; selection: NativeAudioSelection | null; appliedManifest: string | null };
 type Mode = "dry" | "wet";
 
 const BUFFER_OPTIONS = [64, 128, 256, 512, 1024];
@@ -20,13 +21,15 @@ const RATE = 48000;
 type Props = {
   chain: readonly PedalInstance[];
   ampPath: string;
+  cabPath: string;
   ampPowered: boolean;
+  ampLevels: AmpLevels;
   compact?: boolean;
   sessionSelection: AudioSessionSelection;
   setSessionSelection: Dispatch<SetStateAction<AudioSessionSelection>>;
 };
 
-export default function AudioDevices({ chain, ampPath, ampPowered, compact = false, sessionSelection, setSessionSelection }: Props) {
+export default function AudioDevices({ chain, ampPath, cabPath, ampPowered, ampLevels, compact = false, sessionSelection, setSessionSelection }: Props) {
   const native = isTauri();
   // Preserve model selection when navigating away or restarting the WebView.
   // Device indices remain session-only: enumeration order can change after USB reconnect.
@@ -34,7 +37,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const { hostId, inputIndex, inputChannel, outputIndex } = sessionSelection;
   const [frames, setFrames] = useState(saved.bufferFrames);
-  const [mode, setMode] = useState<Mode>(saved.mode);
+  const [mode, setMode] = useState<Mode>("wet");
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,6 +46,16 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   const [appliedManifest, setAppliedManifest] = useState<string | null>(null);
   const [liveStats, setLiveStats] = useState<LiveStatus | null>(null);
   const [dryStatus, setDryStatus] = useState<MonitorStatus | null>(null);
+  const [updatingRig, setUpdatingRig] = useState(false);
+  const rigSync = useMemo(() => createLiveRigSync({
+    apply: (manifest) => invoke("audio_update_live", { chainJson: manifest }),
+    onApplied: (manifest) => {
+      setAppliedManifest(manifest);
+      setMessage("Amplificador, IR e pedais atualizados.");
+    },
+    onError: (error) => setMessage(`Não foi possível aplicar o rig: ${String(error)}. O som anterior foi mantido.`),
+    onBusy: setUpdatingRig,
+  }), []);
 
   useEffect(() => {
     // Save only the chosen setup, never live streams, a "running" flag or USB indices.
@@ -60,9 +73,9 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   const outputs = selected?.outputs.filter((d) => d.supportsMonitor) ?? [];
   const channelCount = inputs.find((d) => String(d.index) === inputIndex)?.channels ?? 0;
   const livePlan = useMemo(() => {
-    try { return { preview: buildLiveBoardSnapshot(chain, ampPath, ampPowered), error: "" }; }
+    try { return { preview: buildLiveBoardSnapshot(chain, ampPath, ampPowered, cabPath, ampLevels), error: "" }; }
     catch (error) { return { preview: null, error: String(error).replace(/^Error: /, "") }; }
-  }, [chain, ampPath, ampPowered]);
+  }, [chain, ampPath, ampPowered, cabPath, ampLevels]);
   const selectionValid = isAudioSessionSelectionValid(sessionSelection, hosts);
   const livePreview = livePlan.preview;
   const liveManifest = livePreview ? JSON.stringify({ schemaVersion: 1, nodes: livePreview.nodes }) : null;
@@ -83,6 +96,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       if (wet.running || dry.running) setMode(wet.running ? "wet" : "dry");
       setRunning(dry.running || wet.running);
       setActiveMode(wet.running ? "wet" : dry.running ? "dry" : null);
+      setAppliedManifest(wet.running ? wet.appliedManifest : null);
       const actual = wet.running ? wet.selection : dry.running ? dry.selection : null;
       setSessionSelection((previous) => reconcileAudioSessionSelection(previous, available, actual));
       if (actual) setFrames(actual.bufferFrames);
@@ -95,6 +109,21 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   }, [native, setSessionSelection]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!native || !running || activeMode !== "wet") return;
+    rigSync.begin(appliedManifest);
+    return () => rigSync.stop();
+    // The applied manifest is the initial baseline. Subsequent edits are
+    // acknowledged by the serialized updater without resetting its generation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [native, running, activeMode, rigSync]);
+
+  useEffect(() => {
+    if (!native || !running || activeMode !== "wet" || !liveManifest) return;
+    const timer = setTimeout(() => rigSync.request(liveManifest), 200);
+    return () => clearTimeout(timer);
+  }, [native, running, activeMode, liveManifest, rigSync]);
 
   useEffect(() => {
     // Avoid clearing a restored channel while device enumeration is still pending.
@@ -122,7 +151,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
     let ignoredCount = 0;
     if (mode === "wet") {
       try {
-        const plan = buildLiveBoardSnapshot(chain, ampPath, ampPowered);
+        const plan = buildLiveBoardSnapshot(chain, ampPath, ampPowered, cabPath, ampLevels);
         nextManifest = JSON.stringify({ schemaVersion: 1, nodes: plan.nodes });
         ignoredCount = plan.ignored.length;
       } catch (error) {
@@ -148,7 +177,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       setLiveStats(null);
       setActiveMode(mode);
       setMessage(mode === "wet"
-        ? `Pedais e amplificador principal iniciados. ${ignoredCount ? `${ignoredCount} efeito(s) visual(is) sem DSP foram ignorados. ` : ""}Alterações de ordem, bypass, power ou recursos exigem Parar e Iniciar.`
+        ? `Áudio ligado. ${ignoredCount ? `${ignoredCount} efeito(s) sem DSP foram ignorados. ` : ""}Alterações de amplificador, IR e pedais são aplicadas automaticamente.`
         : "Monitor DRY ligado: sem amp NAM ou pedais DSP. Use volume baixo.");
     } catch (error) {
       setRunning(false);
@@ -170,6 +199,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
   }
 
   async function stop() {
+    rigSync.stop();
     setBusy(true);
     try {
       await invoke(activeMode === "wet" ? "audio_stop_live" : "audio_stop_monitor");
@@ -178,6 +208,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       setAppliedManifest(null);
       setMessage("Monitor de áudio desligado.");
     } catch (error) {
+      if (activeMode === "wet") rigSync.begin(appliedManifest);
       setMessage(`Erro ao desligar áudio: ${String(error)}`);
     } finally {
       setBusy(false);
@@ -189,7 +220,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
       <AudioLines size={23}/>
       <div>
         <h2>Áudio e dispositivos</h2>
-        <p>Escolha driver, canais e buffer. Teste a guitarra limpa em DRY ou processe os efeitos da pedalboard na ordem visual, seguidos pelo amplificador NAM principal. Os efeitos possuem DSP funcional na cadeia mono.</p>
+        <p>Escolha sua interface, carregue o amplificador NAM e, se necessário, o IR do gabinete. Ligue o áudio para tocar.</p>
         {!native ? (
           <p role="status">Abra o aplicativo desktop para listar drivers e interfaces de áudio. Esta visualização web não acessa seus dispositivos.</p>
         ) : (
@@ -203,9 +234,12 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
                 </select>
               </label>
               <label htmlFor="audio-input">Entrada
-                <select id="audio-input" value={inputIndex} onChange={(event) => setSessionSelection((previous) => ({ ...previous, inputIndex: event.target.value, inputChannel: 0 }))} disabled={busy || running}>
+                <select id="audio-input" value={inputIndex} onChange={(event) => {
+                  const nextIndex = event.target.value;
+                  if (selected) setSessionSelection(previous => selectAudioInput(previous, selected, nextIndex));
+                }} disabled={busy || running}>
                   {inputIndex !== "" && !inputs.some((d) => String(d.index) === inputIndex) && <option value={inputIndex}>Entrada indisponível (#{inputIndex})</option>}
-                  {inputs.length === 0 && <option value="">Sem entrada F32 / 48 kHz</option>}
+                  {inputs.length === 0 && <option value="">Sem entrada compatível / 48 kHz</option>}
                   {inputs.map((d) => <option key={d.index} value={d.index}>{d.name} ({d.channels} canais)</option>)}
                 </select>
               </label>
@@ -216,9 +250,9 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
                 </select>
               </label>
               <label htmlFor="audio-output">Saída
-                <select id="audio-output" value={outputIndex} onChange={(event) => setSessionSelection((previous) => ({ ...previous, outputIndex: event.target.value }))} disabled={busy || running}>
+                <select id="audio-output" value={outputIndex} onChange={(event) => setSessionSelection((previous) => ({ ...previous, outputIndex: event.target.value }))} disabled={busy || running || selected?.id.toLowerCase() === "asio"}>
                   {outputIndex !== "" && !outputs.some((d) => String(d.index) === outputIndex) && <option value={outputIndex}>Saída indisponível (#{outputIndex})</option>}
-                  {outputs.length === 0 && <option value="">Sem saída F32 / 48 kHz</option>}
+                  {outputs.length === 0 && <option value="">Sem saída compatível / 48 kHz</option>}
                   {outputs.map((d) => <option key={d.index} value={d.index}>{d.name} ({d.channels} canais)</option>)}
                 </select>
               </label>
@@ -237,7 +271,7 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
             {mode === "wet" && (
               <section className="audio-live-models" aria-label="Cadeia nativa: pedais + amplificador principal">
                 <h3>Cadeia nativa da pedalboard</h3>
-                <p>O arquivo .nam é associado somente ao amplificador principal, fora dos pedais. Os pedais respeitam a ordem visual; o NAM é o estágio final. Power e bypass são aplicados ao iniciar. Ajustes durante a sessão precisam de reinício manual.</p>
+                <p>Pedais na ordem escolhida → amplificador NAM → IR opcional. Arquivos, parâmetros dos pedais e bypass são aplicados automaticamente com o áudio ligado.</p>
                 {livePreview ? (
                   <>
                     <p role="status">{livePreview.nodes.length} módulo(s) nativo(s) preparado(s) · {livePreview.ignored.length} efeito(s) visual(is) sem DSP serão ignorados.</p>
@@ -250,10 +284,10 @@ export default function AudioDevices({ chain, ampPath, ampPowered, compact = fal
             )}
             {running && activeMode === "wet" &&
               (appliedManifest === null || liveManifest !== appliedManifest) &&
-              <p className="audio-device-warning" role="status">O rig visual pode diferir do áudio em execução. Para aplicar as alterações, clique Parar NAM e depois Iniciar NAM.</p>}
+              <p className="audio-device-note" role="status">{updatingRig ? "Aplicando alterações; o som atual continua durante o carregamento." : "Há alterações pendentes no rig."}</p>}
             {running && <p className="audio-device-note" role="status">Sessão ativa: {hostId.toUpperCase()} · entrada #{inputIndex}, canal {inputChannel + 1} → saída #{outputIndex} · buffer {frames} samples.</p>}
             {!running && hostId && !selectionValid && <p className="audio-device-warning" role="status">A interface selecionada não está disponível. Escolha outro driver/dispositivo ou atualize a lista antes de iniciar.</p>}
-            <p className="audio-device-note">48.000 Hz · guitarra enviada em mono para as saídas. No Linux, prefira JACK/PipeWire-JACK e confira as portas no qpwgraph. O buffer do JACK é definido no servidor (a opção de samples acima se aplica ao ALSA/WASAPI). JACK usa portas virtuais e pode aparecer como cpal_client_in/out, não como o nome da interface USB. No Windows, WASAPI é padrão e ASIO continua opcional.</p>
+            <p className="audio-device-note">48.000 Hz · guitarra mono para as saídas. Windows: escolha ASIO para usar o driver da interface ou WASAPI. Linux: JACK/PipeWire-JACK usa o buffer configurado no servidor.</p>
             <p className="audio-device-warning">Use fones ou volume de saída baixo antes de ligar. Cuidado com microfonia e ganho excessivo de modelos NAM.</p>
             {running && activeMode === "dry" && dryStatus?.failed && (
               <p className="audio-device-warning" role="alert">Falha na {audioFaultReason(dryStatus)}. Pare o monitor, confira a interface e atualize os dispositivos antes de tentar novamente.</p>

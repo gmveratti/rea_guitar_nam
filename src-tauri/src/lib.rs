@@ -1,5 +1,6 @@
 mod audio;
 mod live;
+mod sidecar;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -125,6 +126,26 @@ async fn audio_start_live(
 }
 
 #[tauri::command]
+async fn audio_update_live(
+    state: State<'_, Arc<live::LiveState>>,
+    gate: State<'_, Arc<AudioCommandGate>>,
+    chain_json: String,
+) -> Result<(), String> {
+    let state = Arc::clone(state.inner());
+    let gate = Arc::clone(gate.inner());
+    let start_epoch = gate.cancel_live_start.load(Ordering::Acquire);
+    tauri::async_runtime::spawn_blocking(move || {
+        let _lock = gate
+            .control
+            .lock()
+            .map_err(|_| "Audio command gate unavailable")?;
+        live::update(&state, chain_json, &gate.cancel_live_start, start_epoch)
+    })
+    .await
+    .map_err(worker_error)?
+}
+
+#[tauri::command]
 fn audio_cancel_live_start(gate: State<'_, Arc<AudioCommandGate>>) {
     // Always immediate even if a model is still loading and owns the mutex.
     gate.cancel_live_start.fetch_add(1, Ordering::AcqRel);
@@ -165,6 +186,7 @@ pub fn run() {
             audio_stop_monitor,
             audio_live_status,
             audio_start_live,
+            audio_update_live,
             audio_cancel_live_start,
             audio_stop_live,
         ])

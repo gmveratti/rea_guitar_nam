@@ -26,7 +26,7 @@ function record(value: unknown): value is Record<string, unknown> {
 
 export function isNativeManifestV1(value: unknown): value is NativeManifestV1 {
   if (!record(value) || value.schemaVersion !== 1 ||
-      !Array.isArray(value.nodes) || value.nodes.length < 1 || value.nodes.length > 24) {
+      !Array.isArray(value.nodes) || value.nodes.length > 24) {
     return false;
   }
   const ids = new Set<string>();

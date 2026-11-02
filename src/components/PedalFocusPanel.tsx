@@ -75,7 +75,7 @@ export default function PedalFocusPanel({
           <button type="button" className="primary-button" onClick={onSavePreset}><Save size={16} /> Salvar preset</button>
         </div>
       </footer>
-      <span className="focus-disclaimer">Preview visual: os parâmetros ainda não controlam o motor DSP.</span>
+      <span className="focus-disclaimer">Com o áudio ligado no aplicativo desktop, os ajustes são aplicados automaticamente.</span>
     </section>
   );
 }

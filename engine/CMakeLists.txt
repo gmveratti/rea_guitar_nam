@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
 project(VTTRIG_NAM_CORE LANGUAGES CXX)
 
+# Ship a self-contained MSVC runtime (/MT), including NAM object files.
+# A dynamic CRT can terminate the sidecar before main() on Windows machines
+# without the VC++ redistributable, leaving only EOF on the handshake pipe.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # One pinned MIT NAM implementation for both Linux/JACK and Windows/offline.
 # Building the upstream library is deliberately independent of audio backends.
 include(FetchContent)
@@ -120,7 +125,8 @@ if(BUILD_TESTING)
   add_test(NAME live_sidecar_streaming_protocol
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tests/live_protocol_test.py"
             "$<TARGET_FILE:vttrig-nam-live>"
-            "${namcore_SOURCE_DIR}/example_models/wavenet.nam")
+            "${namcore_SOURCE_DIR}/example_models/wavenet.nam"
+            "${namcore_SOURCE_DIR}/example_models/A2.nam")
   set_tests_properties(live_sidecar_streaming_protocol PROPERTIES TIMEOUT 60)
   add_test(NAME native_offline_manifest_validation
     COMMAND vttrig-nam-offline --validate-chain-json

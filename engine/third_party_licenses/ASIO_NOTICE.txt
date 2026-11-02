@@ -1,0 +1,22 @@
+Steinberg ASIO SDK 2.3.4
+Copyright (c) 2025 Steinberg Media Technologies GmbH
+Official SDK source: https://www.steinberg.net/asiosdk
+Pinned source archive SHA256:
+d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca
+
+The SDK offers a proprietary Steinberg license or GPL version 3. This
+open-source Windows ASIO build uses the GPL version 3 option. See
+ASIO_SDK_LICENSE.txt and GPL-3.0.txt. The existing licenses on the original
+VTTRIG sources and other third-party components are preserved.
+
+Corresponding VTTRIG source is identified by the exact GitHub Release tag:
+https://github.com/gmveratti/rea_guitar_nam/releases
+Build instructions and the pinned SDK source are documented in
+https://github.com/gmveratti/rea_guitar_nam/blob/main/docs/WINDOWS_ASIO.md
+
+Release maintainers must provide the complete corresponding source alongside
+GPL-covered binary downloads, including the pinned SDK and dependencies,
+according to GPLv3 section 6. This notice alone is not a source offer.
+
+ASIO is a trademark of Steinberg Media Technologies GmbH. No Steinberg logo
+or endorsement is implied.

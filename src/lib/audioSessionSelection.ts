@@ -48,12 +48,15 @@ export function reconcileAudioSessionSelection(
     : hosts.find((host) => host.inputs.some((d) => d.supportsMonitor) &&
         host.outputs.some((d) => d.supportsMonitor));
   if (!preferredHost) return previous;
-  const next = {
+  let next = {
     hostId: preferredHost.id,
     inputIndex: previous.inputIndex || firstSupported(preferredHost.inputs),
     outputIndex: previous.outputIndex || firstSupported(preferredHost.outputs),
     inputChannel: previous.inputChannel,
   };
+  if (!previous.outputIndex && preferredHost.id.toLowerCase() === "asio") {
+    next = { ...selectAudioInput(next, preferredHost, next.inputIndex), inputChannel: previous.inputChannel };
+  }
   return sameSelection(previous, next) ? previous : next;
 }
 
@@ -61,12 +64,24 @@ export function selectAudioHost(
   hosts: readonly AudioHost[], hostId: string,
 ): AudioSessionSelection {
   const host = hosts.find((candidate) => candidate.id === hostId);
-  return {
+  const initial = {
     hostId,
     inputIndex: host ? firstSupported(host.inputs) : "",
     outputIndex: host ? firstSupported(host.outputs) : "",
     inputChannel: 0,
   };
+  return host ? selectAudioInput(initial, host, initial.inputIndex) : initial;
+}
+
+/** ASIO is duplex: one driver owns both the guitar input and playback. */
+export function selectAudioInput(
+  previous: AudioSessionSelection, host: AudioHost, inputIndex: string,
+): AudioSessionSelection {
+  const next = { ...previous, inputIndex, inputChannel: 0 };
+  if (host.id.toLowerCase() !== "asio") return next;
+  const input = host.inputs.find(d => String(d.index) === inputIndex);
+  const output = host.outputs.find(d => d.supportsMonitor && d.name === input?.name);
+  return { ...next, outputIndex: output ? String(output.index) : "" };
 }
 
 export function isAudioSessionSelectionValid(
@@ -77,7 +92,9 @@ export function isAudioSessionSelectionValid(
   if (!host) return false;
   const input = host.inputs.find((d) => d.supportsMonitor && String(d.index) === selection.inputIndex);
   const output = host.outputs.find((d) => d.supportsMonitor && String(d.index) === selection.outputIndex);
-  return Boolean(input && output && selection.inputChannel >= 0 && selection.inputChannel < input.channels);
+  return Boolean(input && output &&
+    (host.id.toLowerCase() !== "asio" || input.name === output.name) &&
+    selection.inputChannel >= 0 && selection.inputChannel < input.channels);
 }
 
 function sameSelection(a: AudioSessionSelection, b: AudioSessionSelection): boolean {

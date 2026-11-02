@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_AUDIO_SESSION_SELECTION, isAudioSessionSelectionValid,
-  reconcileAudioSessionSelection, selectAudioHost, type AudioHost,
+  reconcileAudioSessionSelection, selectAudioHost, selectAudioInput, type AudioHost,
 } from "./audioSessionSelection";
 
 const hosts: AudioHost[] = [
@@ -15,6 +15,22 @@ const hosts: AudioHost[] = [
 ];
 
 describe("native audio session selection, issue #30", () => {
+  it("pairs ASIO input and output by driver identity, including a nonzero index", () => {
+    const asio: AudioHost = { id: "asio", inputs: [
+      { index: 0, name: "Driver A", channels: 2, supportsMonitor: true },
+      { index: 2, name: "Driver B", channels: 4, supportsMonitor: true },
+    ], outputs: [
+      { index: 3, name: "Driver B", channels: 2, supportsMonitor: true },
+      { index: 1, name: "Driver A", channels: 2, supportsMonitor: true },
+    ] };
+    const first = selectAudioHost([asio], "asio");
+    expect(first.outputIndex).toBe("1");
+    const next = selectAudioInput(first, asio, "2");
+    expect(next).toEqual({ hostId: "asio", inputIndex: "2", outputIndex: "3", inputChannel: 0 });
+    expect(isAudioSessionSelectionValid(next, [asio])).toBe(true);
+    expect(isAudioSessionSelectionValid({ ...next, outputIndex: "1" }, [asio])).toBe(false);
+  });
+
   it("chooses a usable default only on the first enumeration", () => {
     const first = reconcileAudioSessionSelection(EMPTY_AUDIO_SESSION_SELECTION, hosts);
     expect(first).toEqual({ hostId: "ALSA", inputIndex: "0", outputIndex: "0", inputChannel: 0 });

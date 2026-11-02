@@ -1,5 +1,33 @@
 # VTTRIG — política de testes e regressão
 
+## Integração NAM, IR e ASIO (#47)
+
+- Vitest protege o IR opcional, ganhos reais Input/Output, persistência e
+  grafo vazio como sinal limpo. O sincronizador serializa atualizações,
+  mantém só a edição mais recente pendente, preserva o rig após erro e
+  ignora respostas de sessões encerradas.
+- CTest executa o sidecar real com o WaveNet e o A2 do NAM Core fixado,
+  incluindo container, Lite/Full, IR e caminhos Unicode. Processa vários
+  blocos, verifica saída finita/não nula, alteração real do sinal, ganhos,
+  bypass, sinal limpo e diagnósticos de arquivos inválidos. Isso não é
+  comparação A/B de timbre nem teste de interface física.
+- Rust testa conversão PCM, seleção duplex ASIO, cancelamento, stderr
+  limitado e código de saída do subprocesso. Os testes de integração
+  usam o sidecar real para verificar troca de grafo e falha de preparação
+  sem perda do grafo anterior; nenhum dispositivo físico é simulado como
+  validado.
+- O teste Windows referencia `HostId::Asio` e exige CRT estático. A CI
+  provisiona o SDK fixado e verifica as tabelas de imports PE dos
+  executáveis produzidos, incluindo imports com carregamento adiado.
+- Playwright com IPC controlado cobre selecionar NAM/IR, editar ganhos e
+  pedais durante a sessão, navegar pela Biblioteca e persistir presets.
+  O teste exige `audio_update_live`, sem Stop/Start para aplicar o rig.
+
+Ainda exigem ensaio físico: driver ASIO instalado, entrada/canal correto,
+latência, xruns, timbre e sessão longa. As trocas de grafo reiniciam as
+caudas e não têm crossfade; não afirmar automação sem interrupções.
+As seções por PR abaixo documentam etapas históricas.
+
 **Obrigatório:** correções seguem **bug reproduzido → teste vermelho →
 correção mínima → teste verde → suites relacionadas → quality gate**.
 A mesma disciplina é usada no TaxUtil. Nunca enfraquecer um teste para

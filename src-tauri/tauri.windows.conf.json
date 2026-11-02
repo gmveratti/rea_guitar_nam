@@ -5,6 +5,11 @@
     ],
     "icon": [
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "../engine/third_party_licenses/ASIO_SDK_LICENSE.txt": "legal/ASIO_SDK_LICENSE.txt",
+      "../engine/third_party_licenses/GPL-3.0.txt": "legal/GPL-3.0.txt",
+      "../engine/third_party_licenses/ASIO_NOTICE.txt": "legal/ASIO_NOTICE.txt"
+    }
   }
 }

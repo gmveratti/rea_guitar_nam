@@ -17,7 +17,7 @@ import AudioDevices from "./components/AudioDevices";
 import { EMPTY_AUDIO_SESSION_SELECTION, type AudioSessionSelection } from "./lib/audioSessionSelection";
 import RigResourceList from "./components/RigResourceList";
 import { loadAudioSettings } from "./lib/audioSettings";
-import { validMainAmpPath } from "./lib/liveRig";
+import { validCabinetPath, validMainAmpPath } from "./lib/liveRig";
 import { AMP_FAMILIES, humanizeModelName, type AmpFamily } from "./lib/ampSkins";
 
 type View = "board" | "library" | "settings";
@@ -47,6 +47,12 @@ export default function App() {
   const [ampPath, setAmpPath] = useState(() =>
     visualDraft.ampPath !== undefined ? visualDraft.ampPath
       : loadLegacyDraftAmpPath() || loadAudioSettings().ampPath);
+  // IR is explicit and optional; do not revive the retired IR pedal or old
+  // diagnostic monitor setting when no cabinet was selected in this rig.
+  const [cabPath, setCabPath] = useState(visualDraft.cabPath ?? "");
+  const [ampInputDb, setAmpInputDb] = useState(visualDraft.ampInputDb ?? 0);
+  const [ampOutputDb, setAmpOutputDb] = useState(visualDraft.ampOutputDb ?? -3);
+  const ampLevels = useMemo(() => ({ input: ampInputDb, output: ampOutputDb }), [ampInputDb, ampOutputDb]);
 
   const [presets, setPresets] = useState<Preset[]>(loadPresets);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -57,12 +63,14 @@ export default function App() {
   const [audioSessionSelection, setAudioSessionSelection] = useState<AudioSessionSelection>(() => ({ ...EMPTY_AUDIO_SESSION_SELECTION, inputChannel: loadAudioSettings().inputChannel }));
   const [engine, setEngine] = useState("interface demo");
   const [notice, setNotice] = useState("");
-  const [modelName, setModelName] = useState(() => visualDraft.modelName || (ampPath ? ampPath.split(/[\\/]/).pop() ?? "" : ""));
+  const [modelName, setModelName] = useState(() => isTauri()
+    ? (ampPath ? ampPath.split(/[\\/]/).pop() ?? "" : "")
+    : visualDraft.modelName || (ampPath ? ampPath.split(/[\\/]/).pop() ?? "" : ""));
   const [ampFamily, setAmpFamily] = useState<AmpFamily | "auto">(visualDraft.ampFamily);
   const [ampPowered, setAmpPowered] = useState(visualDraft.ampPowered ?? true);
 
   useEffect(() => { saveDraft(chain); }, [chain]);
-  useEffect(() => { saveDraftVisual({ modelName, ampFamily, ampPowered, ampPath }); }, [modelName, ampFamily, ampPowered, ampPath]);
+  useEffect(() => { saveDraftVisual({ modelName, ampFamily, ampPowered, ampPath, cabPath, ampInputDb, ampOutputDb }); }, [modelName, ampFamily, ampPowered, ampPath, cabPath, ampInputDb, ampOutputDb]);
   useEffect(() => {
     if (isTauri()) {
       void invoke<string>("audio_engine_status")
@@ -118,7 +126,7 @@ export default function App() {
     const name = presetName.trim();
     if (!name) { setNotice("Dê um nome ao preset antes de salvar."); return; }
     const id = activePresetId || crypto.randomUUID();
-    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily, ampPowered, ampPath };
+    const preset: Preset = { id, name, chain: structuredClone(chain), modelName, ampFamily, ampPowered, ampPath, cabPath, ampInputDb, ampOutputDb };
     const updated = [...presets.filter((item) => item.id !== id), preset];
     if (!savePresets(updated)) { setNotice("Falha ao gravar preset no armazenamento local."); return; }
     setPresets(updated);
@@ -131,8 +139,13 @@ export default function App() {
     if (!preset) return;
     setChain(structuredClone(preset.chain));
     setAmpPath(preset.ampPath ?? "");
+    setCabPath(preset.cabPath ?? "");
+    setAmpInputDb(preset.ampInputDb ?? 0);
+    setAmpOutputDb(preset.ampOutputDb ?? -3);
     setAmpPowered(preset.ampPowered ?? true);
-    setModelName(preset.modelName ?? "");
+    setModelName(isTauri()
+      ? (preset.ampPath ? preset.ampPath.split(/[\\/]/).pop() ?? "" : "")
+      : preset.modelName ?? "");
     setAmpFamily(preset.ampFamily ?? "auto");
     setPresetName(preset.name);
     setActivePresetId(id);
@@ -215,7 +228,7 @@ export default function App() {
       setAmpPath(candidate);
       setModelName(candidate.split(/[\\/]/).pop() ?? candidate);
       setAmpFamily("auto");
-      setNotice("NAM associado apenas ao amplificador principal. Reinicie o áudio para aplicar.");
+      setNotice("Amplificador NAM selecionado.");
     } catch (error) {
       setNotice(`Não foi possível carregar o NAM: ${String(error)}`);
     }
@@ -225,10 +238,40 @@ export default function App() {
     setAmpPath("");
     setModelName("");
     setAmpFamily("auto");
-    setNotice("Modelo do amplificador principal removido. Reinicie o áudio para aplicar.");
+    setNotice("Modelo do amplificador principal removido.");
+  }
+
+  async function pickPrimaryCabinet() {
+    if (!isTauri()) return;
+    try {
+      const candidate = await open({
+        multiple: false, directory: false,
+        filters: [{ name: "Gabinete IR", extensions: ["wav"] }],
+      });
+      if (typeof candidate !== "string") return;
+      if (!validCabinetPath(candidate)) {
+        setNotice("Escolha um arquivo .wav válido para o gabinete IR.");
+        return;
+      }
+      setCabPath(candidate);
+      setNotice("Gabinete IR selecionado.");
+    } catch (error) {
+      setNotice(`Não foi possível carregar o IR: ${String(error)}`);
+    }
+  }
+
+  function clearPrimaryCabinet() {
+    setCabPath("");
+    setNotice("Gabinete IR removido.");
   }
 
   function chooseModel(filename: string) {
+    if (isTauri()) {
+      // Browser File objects only expose a basename. Use the native picker
+      // rather than pretending that a dropped name loaded a model into DSP.
+      void pickPrimaryAmp();
+      return;
+    }
     setModelName(filename);
     setAmpFamily("auto");
     setNotice(filename
@@ -279,17 +322,17 @@ export default function App() {
           <button type="button" className="compact-icon-button" onClick={saveCurrentPreset} title="Salvar preset" aria-label="Salvar preset"><Save size={18} /></button>
         </div>
         <div className="model-compact">
-          <label htmlFor="amp-example">MODELO</label>
-          <select id="amp-example" value={DEMO_MODELS.includes(modelName) ? modelName : modelName ? "__custom__" : ""} onChange={(event) => {
+          <label htmlFor="amp-example">{isTauri() ? "AMPLIFICADOR" : "PRÉVIA"}</label>
+          <select id="amp-example" value={!isTauri() && DEMO_MODELS.includes(modelName) ? modelName : modelName ? "__custom__" : ""} onChange={(event) => {
             if (event.target.value === "__custom__") return;
-            if (!event.target.value && isTauri()) { void pickPrimaryAmp(); return; }
+            if (isTauri()) { void pickPrimaryAmp(); return; }
             chooseModel(event.target.value);
           }}>
             <option value="">+ Adicionar NAM</option>
-            {modelName && !DEMO_MODELS.includes(modelName) && <option value="__custom__">{humanizeModelName(modelName)}</option>}
-            {DEMO_MODELS.map((name) => <option key={name} value={name}>{humanizeModelName(name)}</option>)}
+            {modelName && (!DEMO_MODELS.includes(modelName) || isTauri()) && <option value="__custom__">{humanizeModelName(modelName)}</option>}
+            {!isTauri() && DEMO_MODELS.map((name) => <option key={name} value={name}>{humanizeModelName(name)}</option>)}
           </select>
-          <span className="preview-dot" title="Motor de áudio ainda não conectado" />
+          <span className="preview-dot" title={isTauri() ? "Modelo NAM do amplificador principal" : "Prévia visual do amplificador"} />
         </div>
       </header>
 
@@ -317,6 +360,8 @@ export default function App() {
                 onOverrideChange={setAmpFamily}
                 powered={ampPowered}
                 onPowerChange={setAmpPowered}
+                ampLevels={ampLevels}
+                onAmpLevelChange={(control, value) => control === "input" ? setAmpInputDb(value) : setAmpOutputDb(value)}
                 onPickNative={isTauri() ? () => { void pickPrimaryAmp(); } : undefined}
               />
 
@@ -355,7 +400,7 @@ export default function App() {
                   {chain.length === 0 ? (
                     <button type="button" className="empty-add" onClick={() => openView("library")} aria-label="Adicionar primeiro efeito">
                       <Plus size={34} /><strong>Adicionar primeiro efeito</strong>
-                      <span>Escolha um NAM, IR ou pedal na Biblioteca</span>
+                      <span>Escolha um pedal na Biblioteca</span>
                     </button>
                   ) : (
                     <>
@@ -373,10 +418,11 @@ export default function App() {
                 </div>
                 <div className="route-label last"><span className="cable-line" /> OUTPUT <span className="in-out-marker" /></div>
               </section>
-              <RigResourceList ampPath={ampPath} native={isTauri()}
+              <RigResourceList ampPath={ampPath} cabPath={cabPath} native={isTauri()}
                 onPick={() => { void pickPrimaryAmp(); }}
-                onClear={clearPrimaryAmp} />
-              {isTauri() && <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} sessionSelection={audioSessionSelection} setSessionSelection={setAudioSessionSelection} compact />}
+                onClear={clearPrimaryAmp}
+                onPickCab={() => { void pickPrimaryCabinet(); }}
+                onClearCab={clearPrimaryCabinet} />
               <footer className="board-footer">
                 <span><span className="preview-dot" /> {isTauri() ? "NAM EXPERIMENTAL" : "INTERFACE DE DEMONSTRAÇÃO"} · {engine}</span>
                 {chain.length > 0 && <button type="button" onClick={clearChain}>Limpar cadeia</button>}
@@ -408,6 +454,15 @@ export default function App() {
                     </label>
                   )}
                 </article>
+                <article className="collection-card">
+                  <div className="collection-icon"><Waves size={23}/></div><h2>Gabinete IR</h2>
+                  <p>Selecione um IR .wav para acompanhar o amplificador. Opcional para capturas que já incluem gabinete.</p>
+                  {isTauri() ? (
+                    <button type="button" className="secondary-button" onClick={() => { void pickPrimaryCabinet(); }}>
+                      Selecionar IR do gabinete
+                    </button>
+                  ) : <p>Seleção de IR disponível no aplicativo desktop.</p>}
+                </article>
               </div>
 
               <div className="library-heading library-pedals-heading">
@@ -435,8 +490,10 @@ export default function App() {
             <section className="settings-view" aria-label="Configurações VTTRIG">
               <div className="library-heading"><span className="eyebrow">VTTRIG STUDIO</span><h1>Configurações<span>.</span></h1><p>Preferências do rig e estado atual do processamento.</p></div>
               <div className="settings-stack">
-                <AudioDevices chain={chain} ampPath={ampPath} ampPowered={ampPowered} sessionSelection={audioSessionSelection} setSessionSelection={setAudioSessionSelection} />
-                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. A ordem e o bypass da pedalboard são enviados ao motor NAM ao iniciar. Controles de ganho/EQ continuam sem mapeamento DSP; mudanças durante o áudio exigem reinício.</p></div><span className="offline-pill">OFFLINE</span></div>
+                <RigResourceList ampPath={ampPath} cabPath={cabPath} native={isTauri()}
+                  onPick={() => { void pickPrimaryAmp(); }} onClear={clearPrimaryAmp}
+                  onPickCab={() => { void pickPrimaryCabinet(); }} onClearCab={clearPrimaryCabinet} />
+                <div className="settings-card"><SlidersHorizontal size={23}/><div><h2>Motor de áudio</h2><p>{engine}. Processa os pedais na ordem visual, o amplificador NAM e o gabinete IR selecionados. Input ajusta o sinal que entra na captura; Output ajusta seu volume. O timbre base vem do arquivo NAM.</p></div><span className="offline-pill">{isTauri() ? "NATIVO" : "PRÉVIA"}</span></div>
                 <div className="settings-card"><Guitar size={23}/><div><h2>Visual do amplificador</h2><p>A skin acompanha o nome do NAM. Você pode corrigir a família manualmente.</p>
                   <label htmlFor="skin-family">Família visual</label>
                   <select id="skin-family" value={ampFamily} onChange={(event) => setAmpFamily(event.target.value as AmpFamily | "auto")}>
@@ -450,6 +507,15 @@ export default function App() {
                 {activePresetId && <button type="button" className="secondary-button" onClick={deletePreset}><Trash2 size={15}/> Excluir preset atual</button>}
               </div>
             </section>
+          )}
+
+          {(isTauri() || view === "settings") && (
+            <div className="persistent-audio-controls" hidden={view === "library"}
+              style={{ display: view === "library" ? "none" : undefined, maxWidth: view === "board" ? 1480 : 1060, margin: "20px auto" }}>
+              <AudioDevices chain={chain} ampPath={ampPath} cabPath={cabPath} ampPowered={ampPowered} ampLevels={ampLevels}
+                sessionSelection={audioSessionSelection} setSessionSelection={setAudioSessionSelection}
+                compact={view === "board"} />
+            </div>
           )}
 
           {notice && <div className="notification" role="status">{notice}<button type="button" aria-label="Fechar mensagem" onClick={() => setNotice("")}>×</button></div>}

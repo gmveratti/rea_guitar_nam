@@ -65,10 +65,43 @@ describe("migrate legacy VTTAMP into separate main amplifier", () => {
       .nodes.map(n => n.kind)).toEqual(["gate", "amp"]);
   });
 
+  it("persists the selected cabinet with amp and pedals and respects a cleared IR", () => {
+    const gate = createPedal("gate");
+    const preset: Preset = {
+      id: "amp-ir", name: "Amplificador e caixa", chain: [gate],
+      ampPath: "/models/amp.nam", cabPath: "C:/Usuários/Gabi/caixa.WAV",
+    };
+    expect(savePresets([preset])).toBe(true);
+    const loaded = loadPresets()[0];
+    expect(loaded.cabPath).toBe("C:/Usuários/Gabi/caixa.WAV");
+    expect(buildLiveBoardSnapshot(loaded.chain, loaded.ampPath, loaded.ampPowered, loaded.cabPath)
+      .nodes.map(n => n.kind)).toEqual(["gate", "amp", "cabinet"]);
+    expect(savePresets([{ ...preset, cabPath: "" }])).toBe(true);
+    expect(loadPresets()[0].cabPath).toBe("");
+  });
+
+  it("preserves a draft IR selection and clear without restoring legacy IR", () => {
+    expect(saveDraftVisual({ modelName: "amp.nam", ampFamily: "auto", ampPath: "/amp.nam", cabPath: "/cab.wav" })).toBe(true);
+    expect(loadDraftVisual().cabPath).toBe("/cab.wav");
+    expect(saveDraftVisual({ modelName: "amp.nam", ampFamily: "auto", ampPath: "/amp.nam", cabPath: "" })).toBe(true);
+    expect(loadDraftVisual().cabPath).toBe("");
+  });
+
+  it("stores real amplifier input/output gains in presets and the active draft", () => {
+    const preset: Preset = {
+      id: "levels", name: "Amp levels", chain: [], ampPath: "/amp.nam",
+      ampInputDb: 6.5, ampOutputDb: -12,
+    };
+    expect(savePresets([preset])).toBe(true);
+    expect(loadPresets()[0]).toMatchObject({ ampInputDb: 6.5, ampOutputDb: -12 });
+    expect(saveDraftVisual({ modelName: "amp.nam", ampFamily: "auto", ampInputDb: -4, ampOutputDb: -9 })).toBe(true);
+    expect(loadDraftVisual()).toMatchObject({ ampInputDb: -4, ampOutputDb: -9 });
+  });
+
   it("does not use demo names as valid native models", () => {
     expect(savePresets([{ id: "preview", name: "Preview", chain: [], modelName: "demo.nam" }])).toBe(true);
     const preset = loadPresets()[0];
     expect(preset.ampPath).toBe("");
-    expect(() => buildLiveBoardSnapshot(preset.chain, preset.ampPath)).toThrow();
+    expect(buildLiveBoardSnapshot(preset.chain, preset.ampPath).nodes).toEqual([]);
   });
 });

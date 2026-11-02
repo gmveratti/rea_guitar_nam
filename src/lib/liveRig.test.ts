@@ -27,6 +27,33 @@ describe("pedalboard and standalone amplifier -> native DSP manifest", () => {
     expect(plan.nodes[0].id).toBe("main-amp");
   });
 
+  it("sends real input/output gain in dB and rejects invalid levels", () => {
+    const levels = { input: 6.5, output: -12 };
+    const plan = buildLiveBoardSnapshot([], "/amp.nam", true, "", levels);
+    expect(plan.nodes[0].parameters).toEqual(levels);
+    expect(() => buildLiveBoardSnapshot([], "/amp.nam", true, "", { input: 25, output: 0 })).toThrow(/ganho/);
+    expect(() => buildLiveBoardSnapshot([], "/amp.nam", true, "", { input: 0, output: Number.NaN })).toThrow(/ganho/);
+  });
+
+  it("applies an explicitly selected IR after the amp without creating a pedal", () => {
+    const gate = createPedal("gate");
+    const chain = [gate];
+    const plan = buildLiveBoardSnapshot(chain, "C:/Usuários/Gabi/amp.nam", true, "C:/Usuários/Gabi/caixa.WAV");
+    expect(plan.nodes.map(n => n.kind)).toEqual(["gate", "amp", "cabinet"]);
+    expect(plan.nodes[2]).toEqual({
+      id: "main-cabinet", kind: "cabinet", enabled: true,
+      parameters: {}, resource: { path: "C:/Usuários/Gabi/caixa.WAV" },
+    });
+    expect(chain).toEqual([gate]);
+  });
+
+  it("keeps IR optional and validates it before sending the rig to audio", () => {
+    expect(buildLiveBoardSnapshot([], "/amp.nam", true, "").nodes.map(n => n.kind)).toEqual(["amp"]);
+    expect(() => buildLiveBoardSnapshot([], "/amp.nam", true, "/invalid.nam")).toThrow(/IR.*\.wav/);
+    expect(() => buildLiveBoardSnapshot([], "/amp.nam", true, "/cab.wav\u0000")).toThrow();
+    expect(buildLiveBoardSnapshot([], "", true, "/cab.wav").nodes.map(n => n.kind)).toEqual(["cabinet"]);
+  });
+
   it("master power bypasses only main amp without affecting pedals or presets", () => {
     const gate = createPedal("gate");
     const plan = buildLiveBoardSnapshot([gate], "/models/a.nam", false);
@@ -72,9 +99,14 @@ describe("pedalboard and standalone amplifier -> native DSP manifest", () => {
     expect(validMainAmpPath("")).toBe(false);
     expect(validMainAmpPath("/models/invalid.wav")).toBe(false);
     expect(validMainAmpPath("/models/evil.nam\u0000")).toBe(false);
-    expect(() => buildLiveBoardSnapshot([], "")).toThrow(/amplificador principal/);
+    expect(buildLiveBoardSnapshot([], "").nodes).toEqual([]);
     expect(() => buildLiveBoardSnapshot([], "/wrong.wav")).toThrow(/arquivo .nam/);
     expect(() => buildLiveBoardSnapshot([], "/evil.nam\u0000")).toThrow();
+  });
+
+  it("uses an explicit empty native rig when the last model is cleared", () => {
+    const cleared = buildLiveBoardSnapshot([], "", true, "");
+    expect(cleared).toEqual({ schemaVersion: 1, nodes: [], ignored: [] });
   });
 
   it("legacy file mappings remain available only to the migration layer", () => {

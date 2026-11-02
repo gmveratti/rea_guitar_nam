@@ -19,9 +19,10 @@ Seções condicionais não introduzem novas tecnologias no projeto.
 - **Código aberto:** licenciamento e atribuição ao reutilizar NAM,
   CloudSeedCore, Airwindows, DaisySP e outros motores; validar DSP com
   testes offline, A/B e profiling, não apenas visualmente.
-- **Limite atual:** o Tauri possui integração experimental de NAM/IR ao vivo;
-  o host JACK separado e os demais pedais seguem não integrados. A pedalboard
-  envia o manifesto ordenado somente ao iniciar/reiniciar uma sessão (PR #15).
+- **Limite atual:** o Tauri integra NAM/IR e pedais nativos mono a 48 kHz.
+  O manifesto ordenado é preparado fora dos callbacks e substituído entre
+  blocos pelo worker, sem reabrir streams; estados e caudas são reiniciados
+  em trocas. ASIO faz parte do build Windows e usa a mesma interface duplex.
   Nunca relatar latência, estabilidade ou compatibilidade física como testados
   quando houver apenas testes e builds de CI, sem interface de áudio real.
 - **CI sem empacotamento por commit:** PRs e pushes na `main` executam
