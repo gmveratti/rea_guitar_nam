@@ -177,7 +177,7 @@ test("desktop amp and IR pickers send one rig and persist its files without addi
     return state.nativeCalls.filter(call => call.command === "audio_start_live" || call.command === "audio_stop_live").map(call => call.command);
   })).toEqual(["audio_start_live"]);
   await page.locator("#preset-name").fill("Amp e IR");
-  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await page.getByRole("button", { name: "Salvar preset", exact: true }).click();
   await page.reload();
   await page.locator("#preset-picker").selectOption({ label: "Amp e IR" });
   await expect(rig).toContainText("4x12.wav");

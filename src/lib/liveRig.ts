@@ -4,6 +4,12 @@ import { isNativeManifestV1 } from "./manifestContract";
 export type RigResources = Record<string, string>; // legacy resource map for migration
 export type AmpLevels = { input: number; output: number };
 export const DEFAULT_AMP_LEVELS: Readonly<AmpLevels> = { input: 0, output: -3 };
+export const MAX_LIVE_RIG_NODES = 24;
+export const LIVE_RIG_LIMIT_MESSAGE = "Limite de 24 módulos no áudio, incluindo amplificador e IR. Remova um pedal ou recurso antes de adicionar outro.";
+
+export function countLiveRigNodes(chain: readonly PedalInstance[], mainAmpPath = "", cabinetPath = ""): number {
+  return chain.length + Number(Boolean(mainAmpPath)) + Number(Boolean(cabinetPath));
+}
 
 export function validAmpLevel(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= -24 && value <= 24;
@@ -62,6 +68,9 @@ export function buildLiveBoardSnapshot(
 ): LiveBoardSnapshot {
   const validated = validateChain([...chain]);
   if (!validated) throw new Error("Cadeia visual inválida: verifique IDs e parâmetros.");
+  if (countLiveRigNodes(validated, mainAmpPath, cabinetPath) > MAX_LIVE_RIG_NODES) {
+    throw new Error(LIVE_RIG_LIMIT_MESSAGE);
+  }
   const nodes: NativeRigNode[] = validated.map((effect) => ({
     id: effect.id,
     kind: effect.kind as "gate" | "compressor" | "sustain" | "chorus" | "delay" | "reverb",

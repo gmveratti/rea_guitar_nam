@@ -54,6 +54,15 @@ describe("pedalboard and standalone amplifier -> native DSP manifest", () => {
     expect(buildLiveBoardSnapshot([], "", true, "/cab.wav").nodes.map(n => n.kind)).toEqual(["cabinet"]);
   });
 
+  it("counts the main amplifier and IR in the 24-module audio limit", () => {
+    const pedals = Array.from({ length: 22 }, () => createPedal("gate"));
+    expect(buildLiveBoardSnapshot(pedals, "/amp.nam", true, "/cab.wav").nodes).toHaveLength(24);
+    expect(() => buildLiveBoardSnapshot([...pedals, createPedal("gate")], "/amp.nam", true, "/cab.wav"))
+      .toThrow(/24 módulos.*incluindo amplificador e IR/);
+    expect(buildLiveBoardSnapshot([...pedals, createPedal("gate")], "/amp.nam").nodes).toHaveLength(24);
+    expect(buildLiveBoardSnapshot([...pedals, createPedal("gate"), createPedal("gate")]).nodes).toHaveLength(24);
+  });
+
   it("master power bypasses only main amp without affecting pedals or presets", () => {
     const gate = createPedal("gate");
     const plan = buildLiveBoardSnapshot([gate], "/models/a.nam", false);

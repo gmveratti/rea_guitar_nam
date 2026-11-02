@@ -17,7 +17,7 @@ import AudioDevices from "./components/AudioDevices";
 import { EMPTY_AUDIO_SESSION_SELECTION, type AudioSessionSelection } from "./lib/audioSessionSelection";
 import RigResourceList from "./components/RigResourceList";
 import { loadAudioSettings } from "./lib/audioSettings";
-import { validCabinetPath, validMainAmpPath } from "./lib/liveRig";
+import { countLiveRigNodes, LIVE_RIG_LIMIT_MESSAGE, MAX_LIVE_RIG_NODES, validCabinetPath, validMainAmpPath } from "./lib/liveRig";
 import { AMP_FAMILIES, humanizeModelName, type AmpFamily } from "./lib/ampSkins";
 
 type View = "board" | "library" | "settings";
@@ -87,7 +87,10 @@ export default function App() {
 
   function add(kind: PedalKind, atIndex = chain.length) {
     if (!PEDAL_KINDS.includes(kind)) return;
-    if (chain.length >= 24) { setNotice("Limite de 24 módulos atingido."); return; }
+    if (countLiveRigNodes(chain, ampPath, cabPath) >= MAX_LIVE_RIG_NODES) {
+      setNotice(LIVE_RIG_LIMIT_MESSAGE);
+      return;
+    }
     const pedal = createPedal(kind);
     setChain((previous) => {
       const next = [...previous];
@@ -225,6 +228,10 @@ export default function App() {
         setNotice("Escolha um arquivo .nam válido para o amplificador principal.");
         return;
       }
+      if (countLiveRigNodes(chain, candidate, cabPath) > MAX_LIVE_RIG_NODES) {
+        setNotice(LIVE_RIG_LIMIT_MESSAGE);
+        return;
+      }
       setAmpPath(candidate);
       setModelName(candidate.split(/[\\/]/).pop() ?? candidate);
       setAmpFamily("auto");
@@ -251,6 +258,10 @@ export default function App() {
       if (typeof candidate !== "string") return;
       if (!validCabinetPath(candidate)) {
         setNotice("Escolha um arquivo .wav válido para o gabinete IR.");
+        return;
+      }
+      if (countLiveRigNodes(chain, ampPath, candidate) > MAX_LIVE_RIG_NODES) {
+        setNotice(LIVE_RIG_LIMIT_MESSAGE);
         return;
       }
       setCabPath(candidate);
