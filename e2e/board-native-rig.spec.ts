@@ -7,7 +7,7 @@ test("main amp NAM lives outside the pedalboard, even when previewed as A2", asy
   await expect(page.locator(".amp-case")).toBeVisible();
   await expect(page.locator(".effects-grid .pedal-shell")).toHaveCount(0);
 
-  const main = page.getByRole("region", { name: "Amplificador principal" });
+  const main = page.getByRole("region", { name: "Amplificador principal", exact: true });
   await expect(main).toBeVisible();
   await expect(main).toContainText("Arquivo não selecionado");
   await expect(main).toContainText("aplicativo desktop");
@@ -87,7 +87,7 @@ test("desktop amp and IR pickers send one rig and persist its files without addi
     };
   });
   await page.goto("/");
-  const rig = page.getByRole("region", { name: "Amplificador principal" });
+  const rig = page.getByRole("region", { name: "Amplificador principal", exact: true });
   await expect(rig).toContainText("Sem IR adicional");
   await rig.getByRole("button", { name: "Escolher NAM do amplificador principal" }).click();
   await rig.getByRole("button", { name: "Escolher IR do gabinete" }).click();
@@ -105,8 +105,12 @@ test("desktop amp and IR pickers send one rig and persist its files without addi
     { kind: "amp", resource: { path: "C:/Usuários/Gabi/JCM900.nam" } },
     { kind: "cabinet", resource: { path: "C:/Usuários/Gabi/4x12.wav" } },
   ] });
-  await page.getByRole("slider", { name: "Amplificador: Input (dB)", exact: true }).fill("6.5");
-  await page.getByRole("slider", { name: "Amplificador: Output (dB)", exact: true }).fill("-12");
+  const inputGain = page.getByRole("slider", { name: "Amplificador: Input (dB)", exact: true });
+  const outputGain = page.getByRole("slider", { name: "Amplificador: Output (dB)", exact: true });
+  await inputGain.press("End");
+  for (let step = 0; step < 35; step += 1) await inputGain.press("ArrowLeft");
+  await outputGain.press("Home");
+  for (let step = 0; step < 24; step += 1) await outputGain.press("ArrowRight");
   await expect.poll(() => page.evaluate(() => {
     const applied = (window as unknown as { appliedManifest: string | null }).appliedManifest;
     return applied ? JSON.parse(applied).nodes.find((node: { kind: string }) => node.kind === "amp").parameters : null;

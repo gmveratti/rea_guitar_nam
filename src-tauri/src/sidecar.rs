@@ -201,6 +201,14 @@ impl NativeEngine {
         start_epoch: u64,
         timeout: Duration,
     ) -> Result<Self, String> {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // The DSP is an implementation detail of the desktop app. A new
+            // console must not appear whenever a model or parameter changes.
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
