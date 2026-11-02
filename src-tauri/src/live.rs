@@ -2,19 +2,22 @@
 //! CPU model loading and blocking pipes are confined to a worker thread.
 //! The CPAL device callbacks only copy samples through bounded SPSC rings.
 use crate::audio::{self, AudioState, MonitorSelection};
-use cpal::traits::{DeviceTrait, StreamTrait};
+use crate::sidecar::{
+    apply_rig_update, await_rig_update, EngineControl, NativeEngine, RigUpdate, UPDATE_PENDING,
+};
+use cpal::traits::StreamTrait;
 use cpal::Stream;
 use rtrb::RingBuffer;
 use serde::Serialize;
-use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(test)]
+use std::time::Instant;
 
 const FRAMES: usize = 128;
 const RING_SIZE: usize = 16_384;
@@ -31,7 +34,9 @@ pub struct LiveSession {
     faults: Arc<AtomicU8>,
     underruns: Arc<AtomicU64>,
     overflows: Arc<AtomicU64>,
-    child: Child,
+    engine: Arc<EngineControl>,
+    updates: SyncSender<RigUpdate>,
+    applied_manifest: Arc<Mutex<String>>,
     worker: Option<JoinHandle<()>>,
     selection: MonitorSelection,
 }
@@ -52,6 +57,7 @@ pub struct LiveStatus {
     pub overflows: u64,
     pub mode: &'static str,
     pub selection: Option<MonitorSelection>,
+    pub applied_manifest: Option<String>,
 }
 
 pub fn status(state: &LiveState) -> Result<LiveStatus, String> {
@@ -72,6 +78,12 @@ pub fn status(state: &LiveState) -> Result<LiveStatus, String> {
         overflows: session.map_or(0, |s| s.overflows.load(Ordering::Relaxed)),
         mode: "live_nam_ir_pipe",
         selection: session.map(|s| s.selection.clone()),
+        applied_manifest: session.and_then(|s| {
+            s.applied_manifest
+                .lock()
+                .ok()
+                .map(|manifest| manifest.clone())
+        }),
     })
 }
 
@@ -87,8 +99,8 @@ fn validate_manifest(json: &str) -> Result<(), String> {
     let nodes = value["nodes"]
         .as_array()
         .ok_or("Cadeia sem lista de efeitos")?;
-    if nodes.is_empty() || nodes.len() > 24 {
-        return Err("Selecione de 1 até 24 modelos NAM/IR.".into());
+    if nodes.len() > 24 {
+        return Err("A cadeia suporta no máximo 24 módulos.".into());
     }
     // Mirror the native manifest's structural invariants before any I/O.
     // Shared JSON fixtures pin this contract across TypeScript, Rust and C++.
@@ -300,98 +312,6 @@ fn sidecar_path() -> Result<PathBuf, String> {
     Err("Motor NAM ao vivo não foi incluído no pacote. Reinstale o VTTRIG.".into())
 }
 
-// Poll a bounded handshake without stalling cancellation behind a blocking
-// recv_timeout. We never wait on this channel inside an audio callback.
-fn wait_for_handshake<T>(
-    receiver: &Receiver<T>,
-    cancel_sequence: &AtomicU64,
-    start_epoch: u64,
-    timeout: Duration,
-) -> Result<T, String> {
-    let deadline = Instant::now() + timeout;
-    loop {
-        if cancel_sequence.load(Ordering::Acquire) != start_epoch {
-            return Err("Carregamento do NAM cancelado.".into());
-        }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return Err("Motor NAM não confirmou inicialização em 30 segundos.".into());
-        }
-        match receiver.recv_timeout(remaining.min(Duration::from_millis(50))) {
-            Ok(reply) => {
-                if cancel_sequence.load(Ordering::Acquire) != start_epoch {
-                    return Err("Carregamento do NAM cancelado.".into());
-                }
-                return Ok(reply);
-            }
-            Err(RecvTimeoutError::Timeout) => continue,
-            Err(RecvTimeoutError::Disconnected) => {
-                return Err("Motor NAM encerrou antes do handshake.".into());
-            }
-        }
-    }
-}
-
-fn start_sidecar(
-    json: &str,
-    cancel_sequence: &AtomicU64,
-    start_epoch: u64,
-) -> Result<Child, String> {
-    let path = sidecar_path()?;
-    let mut child = Command::new(path)
-        .arg("--chain-json")
-        .arg(json)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Não foi possível iniciar o motor NAM: {e}"))?;
-    // The model is prepared before streaming. Bound the handshake so an
-    // unresponsive child cannot stall a Tauri control command indefinitely.
-    let mut stdout = child.stdout.take().ok_or("Pipe de saída indisponível")?;
-    let (sender, receiver) = mpsc::sync_channel(1);
-    let reader = thread::spawn(move || {
-        let mut ready = [0u8; 1];
-        let reply = stdout.read_exact(&mut ready).map(|_| ready[0]);
-        let _ = sender.send((reply, stdout));
-    });
-    match wait_for_handshake(
-        &receiver,
-        cancel_sequence,
-        start_epoch,
-        Duration::from_secs(30),
-    ) {
-        Ok((Ok(b'R'), stdout)) => {
-            let _ = reader.join();
-            child.stdout = Some(stdout);
-            Ok(child)
-        }
-        Ok((reply, stdout)) => {
-            drop(stdout);
-            let _ = reader.join();
-            let _ = child.kill();
-            let _ = child.wait();
-            let mut errors = String::new();
-            if let Some(stderr) = child.stderr.as_mut() {
-                let _ = stderr.read_to_string(&mut errors);
-            }
-            let reason = if errors.trim().is_empty() {
-                format!("handshake inválido: {reply:?}")
-            } else {
-                errors.trim().to_owned()
-            };
-            Err(format!("Falha ao carregar NAM/IR: {reason}"))
-        }
-        Err(error) => {
-            // Kill before joining: the pipe reader is otherwise blocked on read.
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = reader.join();
-            Err(error)
-        }
-    }
-}
-
 // The worker may outrun the output device. Count dropped WET frames too;
 // otherwise the UI would report zero overflows even while output is lost.
 // Single-producer ring operation is nonblocking and allocation-free.
@@ -419,126 +339,108 @@ pub fn start(
         return Err("Backend de áudio indisponível".into());
     }
     let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
-    let (input, input_cfg) =
-        audio::choose_device(&host, true, selection.input_index, selection.buffer_frames)?;
-    let (output, output_cfg) = audio::choose_device(
+    let (input, output) = audio::choose_duplex_devices(
         &host,
-        false,
+        selection.input_index,
         selection.output_index,
         selection.buffer_frames,
     )?;
-    audio::validate_input_channel(selection.input_channel, input_cfg.channels)?;
-    let mut guard = state
+    audio::validate_input_channel(selection.input_channel, input.config.channels)?;
+    if state
         .session
         .lock()
-        .map_err(|_| "Audio state unavailable")?;
-    if guard.is_some() {
-        return Err("O áudio NAM já está ligado. Pare antes de trocar arquivos.".into());
+        .map_err(|_| "Audio state unavailable")?
+        .is_some()
+    {
+        return Err("O áudio NAM já está ligado.".into());
     }
-    let mut child = start_sidecar(&chain_json, cancel_sequence, start_epoch)?;
+    // Preparation runs without the session mutex: status remains responsive.
+    let mut current_engine =
+        NativeEngine::start(&sidecar_path()?, &chain_json, cancel_sequence, start_epoch)?;
     if cancel_sequence.load(Ordering::Acquire) != start_epoch {
-        let _ = child.kill();
-        let _ = child.wait();
         return Err("Carregamento do NAM cancelado.".into());
     }
-    let mut in_pipe = child
-        .stdin
-        .take()
-        .ok_or("Entrada do motor NAM indisponível")?;
-    let mut out_pipe = child
-        .stdout
-        .take()
-        .ok_or("Saída do motor NAM indisponível")?;
     let (mut input_tx, mut input_rx) = RingBuffer::<f32>::new(RING_SIZE);
     let (mut output_tx, mut output_rx) = RingBuffer::<f32>::new(RING_SIZE);
     let running = Arc::new(AtomicBool::new(true));
     let faults = Arc::new(AtomicU8::new(0));
     let underruns = Arc::new(AtomicU64::new(0));
     let overflows = Arc::new(AtomicU64::new(0));
-    let input_channels = usize::from(input_cfg.channels);
     let input_channel = selection.input_channel;
-    let output_channels = usize::from(output_cfg.channels);
     let in_overflows = Arc::clone(&overflows);
     let out_underruns = Arc::clone(&underruns);
     let out_overflows = Arc::clone(&overflows);
     let input_error = Arc::clone(&faults);
     let output_error = Arc::clone(&faults);
     let output_silence = Arc::clone(&faults);
-    let input_stream = match input.build_input_stream(
-        &input_cfg,
-        move |data: &[f32], _| {
-            for frame in data.chunks(input_channels) {
-                let value = audio::selected_mono_sample(frame, input_channel);
-                if input_tx.push(value).is_err() {
-                    in_overflows.fetch_add(1, Ordering::Relaxed);
-                }
+    let input_stream = audio::build_input_stream(
+        &input,
+        input_channel,
+        move |value| {
+            if input_tx.push(value).is_err() {
+                in_overflows.fetch_add(1, Ordering::Relaxed);
             }
         },
         move |_error| {
             input_error.fetch_or(INPUT_FAULT, Ordering::Relaxed);
         },
-        None,
-    ) {
-        Ok(stream) => stream,
-        Err(e) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(format!("Erro ao abrir entrada: {e}"));
-        }
-    };
-    let output_stream = match output.build_output_stream(
-        &output_cfg,
-        move |data: &mut [f32], _| {
-            for frame in data.chunks_mut(output_channels) {
-                let value = if output_silence.load(Ordering::Relaxed) != 0 {
-                    0.0
-                } else {
-                    match output_rx.pop() {
-                        Ok(sample) => sample,
-                        Err(_) => {
-                            out_underruns.fetch_add(1, Ordering::Relaxed);
-                            0.0
-                        }
+    )
+    .map_err(|error| format!("Erro ao abrir entrada: {error}"))?;
+    let output_stream = audio::build_output_stream(
+        &output,
+        move || {
+            let value = if output_silence.load(Ordering::Relaxed) != 0 {
+                0.0
+            } else {
+                match output_rx.pop() {
+                    Ok(sample) => sample,
+                    Err(_) => {
+                        out_underruns.fetch_add(1, Ordering::Relaxed);
+                        0.0
                     }
-                };
-                let value = if value.is_finite() {
-                    (value * SAFE_GAIN).clamp(-0.8, 0.8)
-                } else {
-                    0.0
-                };
-                for channel in frame {
-                    *channel = value;
                 }
+            };
+            if value.is_finite() {
+                (value * SAFE_GAIN).clamp(-0.8, 0.8)
+            } else {
+                0.0
             }
         },
         move |_error| {
             output_error.fetch_or(OUTPUT_FAULT, Ordering::Relaxed);
         },
-        None,
-    ) {
-        Ok(stream) => stream,
-        Err(e) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(format!("Erro ao abrir saída: {e}"));
-        }
-    };
+    )
+    .map_err(|error| format!("Erro ao abrir saída: {error}"))?;
     if cancel_sequence.load(Ordering::Acquire) != start_epoch {
-        let _ = child.kill();
-        let _ = child.wait();
         return Err("Carregamento do NAM cancelado.".into());
     }
-    if let Err(e) = output_stream.play().and_then(|_| input_stream.play()) {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(format!("Não foi possível iniciar monitoramento: {e}"));
-    }
+    output_stream
+        .play()
+        .and_then(|_| input_stream.play())
+        .map_err(|error| format!("Não foi possível iniciar monitoramento: {error}"))?;
+    let engine = Arc::new(EngineControl::default());
+    engine.activate(&current_engine, &running)?;
+    let worker_engine = Arc::clone(&engine);
+    let applied_manifest = Arc::new(Mutex::new(chain_json));
+    let worker_manifest = Arc::clone(&applied_manifest);
+    let (updates, receiver) = mpsc::sync_channel::<RigUpdate>(1);
     let worker_running = Arc::clone(&running);
     let worker_faults = Arc::clone(&faults);
     let worker = thread::spawn(move || {
         let mut input_bytes = [0u8; FRAMES * 4];
         let mut output_bytes = [0u8; FRAMES * 4];
-        while worker_running.load(Ordering::Relaxed) && worker_faults.load(Ordering::Relaxed) == 0 {
+        while worker_running.load(Ordering::Acquire) && worker_faults.load(Ordering::Relaxed) == 0 {
+            // Only this worker owns the pipes. Replace a fully prepared engine
+            // between blocks; no device callback loads files or locks anything.
+            if let Ok(update) = receiver.try_recv() {
+                apply_rig_update(
+                    &mut current_engine,
+                    update,
+                    &worker_engine,
+                    &worker_manifest,
+                    &worker_running,
+                );
+            }
             if input_rx.slots() < FRAMES {
                 thread::sleep(Duration::from_millis(1));
                 continue;
@@ -547,8 +449,9 @@ pub fn start(
                 let sample = input_rx.pop().unwrap_or(0.0);
                 chunk.copy_from_slice(&sample.to_le_bytes());
             }
-            if in_pipe.write_all(&input_bytes).is_err()
-                || out_pipe.read_exact(&mut output_bytes).is_err()
+            if current_engine
+                .process(&input_bytes, &mut output_bytes)
+                .is_err()
             {
                 worker_faults.fetch_or(ENGINE_FAULT, Ordering::Relaxed);
                 break;
@@ -559,6 +462,10 @@ pub fn start(
             }
         }
     });
+    let mut guard = state
+        .session
+        .lock()
+        .map_err(|_| "Audio state unavailable")?;
     *guard = Some(LiveSession {
         input: input_stream,
         output: output_stream,
@@ -566,7 +473,9 @@ pub fn start(
         faults,
         underruns,
         overflows,
-        child,
+        engine,
+        updates,
+        applied_manifest,
         worker: Some(worker),
         selection,
     });
@@ -577,11 +486,10 @@ impl Drop for LiveSession {
     fn drop(&mut self) {
         // Stop the child even if the window closes without clicking Stop.
         // Killing the child releases a worker blocked on the native pipe.
-        self.running.store(false, Ordering::Relaxed);
+        self.running.store(false, Ordering::Release);
         let _ = self.input.pause();
         let _ = self.output.pause();
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        self.engine.terminate();
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -598,14 +506,71 @@ pub fn stop(state: &LiveState) -> Result<(), String> {
     Ok(())
 }
 
+/// Prepare the next graph while the current one keeps playing. A failed model
+/// load never replaces the current graph or reopens either device stream.
+pub fn update(
+    state: &LiveState,
+    chain_json: String,
+    cancel_sequence: &AtomicU64,
+    start_epoch: u64,
+) -> Result<(), String> {
+    validate_manifest(&chain_json)?;
+    let (updates, running) = {
+        let guard = state
+            .session
+            .lock()
+            .map_err(|_| "Audio state unavailable")?;
+        let session = guard.as_ref().ok_or("O áudio NAM não está ligado.")?;
+        if session.faults.load(Ordering::Acquire) != 0 {
+            return Err("A sessão de áudio falhou. Confira a interface e inicie novamente.".into());
+        }
+        if session
+            .applied_manifest
+            .lock()
+            .map_err(|_| "Estado do rig indisponível")?
+            .as_str()
+            == chain_json
+        {
+            return Ok(());
+        }
+        (session.updates.clone(), Arc::clone(&session.running))
+    };
+    let next = NativeEngine::start(&sidecar_path()?, &chain_json, cancel_sequence, start_epoch)?;
+    if cancel_sequence.load(Ordering::Acquire) != start_epoch || !running.load(Ordering::Acquire) {
+        return Err("Atualização do rig cancelada.".into());
+    }
+    let (completion, receiver) = mpsc::sync_channel(1);
+    let pending = Arc::new(AtomicU8::new(UPDATE_PENDING));
+    updates
+        .try_send(RigUpdate {
+            engine: next,
+            manifest: chain_json,
+            pending: Arc::clone(&pending),
+            completion,
+        })
+        .map_err(|_| "O motor não está disponível para atualizar o rig.".to_owned())?;
+    await_rig_update(
+        &receiver,
+        &pending,
+        cancel_sequence,
+        start_epoch,
+        Duration::from_secs(3),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sidecar::wait_for_handshake;
 
     #[test]
     fn shared_manifest_contract_accepts_and_rejects_the_same_fixtures_as_cpp() {
         let valid = include_str!("../../engine/tests/fixtures/contracts/valid-file-free.json");
         assert!(validate_manifest(valid).is_ok());
+        assert!(validate_manifest(include_str!(
+            "../../engine/tests/fixtures/contracts/valid-empty.json"
+        ))
+        .is_ok());
         for bad in [
             include_str!("../../engine/tests/fixtures/contracts/invalid-duplicate-id.json"),
             include_str!("../../engine/tests/fixtures/contracts/invalid-missing-enabled.json"),
@@ -812,9 +777,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_unknown_or_missing_models() {
+    fn accepts_empty_passthrough_and_rejects_unknown_or_missing_models() {
         assert!(validate_manifest("{}").is_err());
-        assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_err());
+        assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[]}"#).is_ok());
         assert!(validate_manifest(r#"{"schemaVersion":1,"nodes":[{"kind":"chorus"}]}"#).is_err());
         assert!(validate_manifest(
             r#"{"schemaVersion":1,"nodes":[{"kind":"amp","resource":{"path":"missing.nam"}}]}"#

@@ -8,3 +8,6 @@ src-tauri/target/
 .env
 .env.*
 !.env.example
+__pycache__/
+*.py[cod]
+engine/build*/

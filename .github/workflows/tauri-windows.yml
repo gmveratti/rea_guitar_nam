@@ -33,6 +33,23 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      - name: Initialize MSVC x64 for ASIO bindings
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: x64
+      - name: Prepare pinned ASIO SDK and Clang bindings
+        shell: pwsh
+        run: |
+          python scripts/setup_asio.py --output "$env:RUNNER_TEMP\vttrig-asio" --github-env "$env:GITHUB_ENV"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $clang = "$env:ProgramFiles\LLVM\bin"
+          if (-not (Test-Path "$clang\libclang.dll")) {
+            throw "The Windows build requires the runner's LLVM/libclang installation: $clang"
+          }
+          "LIBCLANG_PATH=$clang" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Run ASIO SDK provisioning regressions
+        run: python -m unittest discover -s scripts -p "test_asio_setup.py" -v
+
       - name: Install frontend dependencies
         run: npm ci --no-audit --no-fund
       - name: Build React UI
@@ -61,26 +78,33 @@ jobs:
         run: |
           cmake -S engine -B engine/build-live -DBUILD_TESTING=ON -DVTTRIG_BUILD_JACK=OFF
           cmake --build engine/build-live --config Release --target vttrig-nam-live --parallel 2
+          python -m unittest discover -s scripts -p "test_native_runtime.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Native runtime regression tests failed" }
+          python scripts/check_native_runtime.py engine/build-live/Release/vttrig-nam-live.exe
+          if ($LASTEXITCODE -ne 0) { throw "Native sidecar requires an unbundled MSVC runtime" }
           ctest --test-dir engine/build-live -C Release --output-on-failure -R "live_sidecar"
           New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
           $triple = (rustc --print host-tuple).Trim()
           Copy-Item engine/build-live/Release/vttrig-nam-live.exe "src-tauri/binaries/vttrig-nam-live-$triple.exe"
 
       - name: Check Windows Rust code
-        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+        run: cargo check --locked --features asio --manifest-path src-tauri/Cargo.toml
       - name: Check Rust formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
       - name: Run Clippy (deny warnings)
-        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --features asio --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Run Rust tests
-        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked --features asio --manifest-path src-tauri/Cargo.toml
 
       - name: Build VTTRIG installer for Windows x64
         if: github.event_name == 'release'
-        run: npx tauri build --bundles nsis
+        run: npx tauri build --bundles nsis --features asio
       - name: Validate NSIS installer and desktop executable
         if: github.event_name == 'release'
         run: python scripts/check_windows_bundle.py --postbuild
+      - name: Validate Windows app has no unbundled MSVC runtime
+        if: github.event_name == 'release'
+        run: python scripts/check_native_runtime.py src-tauri/target/release/vttrig.exe
       - name: Publish Windows installer download
         if: github.event_name == 'release'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

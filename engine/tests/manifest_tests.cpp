@@ -42,6 +42,16 @@ int main() {
   assert(uppercase_nodes[0].kind == "amp");
   assert(uppercase_nodes[1].kind == "cabinet");
 
+  // JSON resources are UTF-8 even on Windows, whose native paths are UTF-16.
+  // Compare UTF-8 output directly; ACP conversion must not corrupt these names.
+  std::istringstream localized(R"({"schemaVersion":1,"nodes":[{"id":"unicode","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"C:/Usu\u00e1rio/\u65e5\u672c/Amplifica\u00e7\u00e3o.nam"}}]})");
+  const auto localized_nodes = vttrig::parse_chain_manifest(localized);
+  assert(localized_nodes[0].path.u8string() ==
+         u8"C:/Usu\u00e1rio/\u65e5\u672c/Amplifica\u00e7\u00e3o.nam");
+
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"amp","kind":"amp","enabled":true,"parameters":{"input":25},"resource":{"path":"amp.nam"}}]})"));
+  assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"drive","kind":"drive","enabled":true,"parameters":{"output":-25},"resource":{"path":"drive.nam"}}]})"));
+
   // A native Noise Gate has no file and carries validated real DSP controls.
   std::istringstream gate_stream(R"({"schemaVersion":1,"nodes":[
     {"id":"gate-before","kind":"gate","enabled":true,
@@ -159,7 +169,9 @@ int main() {
   // Unsupported DSP may not pretend to work. Fail even if bypassed.
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"flanger","kind":"flanger","enabled":false,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":2,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
-  assert(invalid(R"({"schemaVersion":1,"nodes":[]})"));
+  // An explicitly empty rig is a dry passthrough, e.g. after clearing the amp.
+  std::istringstream empty_rig(R"({"schemaVersion":1,"nodes":[]})");
+  assert(vttrig::parse_chain_manifest(empty_rig).empty());
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.wav"}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}},{"id":"x","kind":"amp","enabled":true,"parameters":{},"resource":{"path":"p.nam"}}]})"));
   assert(invalid(R"({"schemaVersion":1,"nodes":[{"id":"x","kind":"amp","enabled":true,"parameters":{"gain":"loud"},"resource":{"path":"p.nam"}}]})"));

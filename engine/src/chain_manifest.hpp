@@ -37,8 +37,10 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
     throw std::invalid_argument("Chain manifest nodes must be an array");
   }
   const auto& nodes = manifest["nodes"];
-  if (nodes.empty() || nodes.size() > 24) {
-    throw std::invalid_argument("Chain manifest must contain 1 to 24 nodes");
+  // An explicit empty graph is dry passthrough, including after clearing the
+  // last amp/IR during a live update. Never retain a hidden previous effect.
+  if (nodes.size() > 24) {
+    throw std::invalid_argument("Chain manifest must contain at most 24 nodes");
   }
 
   std::set<std::string> seen_ids;
@@ -78,7 +80,9 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
       if (path_string.empty() || path_string.size() > 4096) {
         throw std::invalid_argument(prefix + "model/IR resource.path is invalid");
       }
-      path = std::filesystem::path(path_string);
+      // JSON strings are UTF-8; a narrow Windows path would use the local ACP.
+      path = std::filesystem::path(
+          std::u8string(path_string.begin(), path_string.end()));
       const std::string extension = (kind == "cabinet") ? ".wav" : ".nam";
       auto actual_extension = path.extension().string();
       // Case-insensitive extension; never change the actual file path.
@@ -99,6 +103,11 @@ inline std::vector<ManifestEffect> parse_chain_manifest(std::istream& stream) {
         throw std::invalid_argument(prefix + "invalid parameter: " + name);
       }
       const double number = value.get<double>();
+      if ((kind == "amp" || kind == "drive") &&
+          (name == "input" || name == "output") &&
+          (number < -24.0 || number > 24.0)) {
+        throw std::invalid_argument(prefix + "NAM input/output gain must be between -24 and +24 dB");
+      }
       if (kind == "gate") {
         const bool valid =
             (name == "threshold" && number >= -100.0 && number <= 0.0) ||

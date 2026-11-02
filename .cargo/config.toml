@@ -1,0 +1,5 @@
+# The Windows app and asio-sys C++ objects must use the same static CRT.
+# Root placement covers both cargo --manifest-path src-tauri/Cargo.toml and
+# Tauri's Cargo invocation from src-tauri/. Other targets retain their defaults.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -109,7 +109,7 @@ export default function PedalFace({
           type="button"
           aria-pressed={pedal.enabled}
           aria-label={(pedal.enabled ? "Desligar " : "Ligar ") + label}
-          title={pedal.enabled ? "Bypass (visual)" : "Ligar pedal (visual)"}
+          title={pedal.enabled ? "Ativar bypass do pedal" : "Ligar pedal"}
           onClick={(event) => { event.stopPropagation(); onToggle(); }}
         ><span className="stomp-plate"><span className="stomp-press-label">{pedal.enabled ? "ON" : "OFF"}</span></span></button>
         <span className="stomp-io stomp-io-left">OUT <span>←</span></span>

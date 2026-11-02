@@ -12,6 +12,8 @@
 #include <NAM/dsp.h>
 #include <NAM/get_dsp.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -30,19 +32,41 @@ namespace vttrig {
 // Tauri or the graphical interface.
 class NamMonoProcessor final : public MonoProcessor {
  public:
-  explicit NamMonoProcessor(std::unique_ptr<nam::DSP> model)
-      : model_(std::move(model)) {}
+  explicit NamMonoProcessor(std::unique_ptr<nam::DSP> model,
+                            double input_db = 0.0, double output_db = 0.0)
+      : model_(std::move(model)),
+        input_gain_(gain_from_db(input_db)),
+        output_gain_(gain_from_db(output_db)) {}
 
   void process(Sample* input, Sample* output, int frames) noexcept override {
     static_assert(std::is_same_v<Sample, NAM_SAMPLE>,
                   "The VTTRIG graph sample type must match NAM_SAMPLE");
-    NAM_SAMPLE* inputs[] = {input};
+    if (frames <= 0) return;
+    if (frames > static_cast<int>(kMaxFrames)) {
+      std::fill_n(output, frames, 0.0);
+      return;
+    }
+    // Owned/preallocated at setup: do not modify the upstream stage's audio
+    // or allocate/compute dB conversions while processing a realtime block.
+    for (int i = 0; i < frames; ++i) input_scratch_[i] = input[i] * input_gain_;
+    NAM_SAMPLE* inputs[] = {input_scratch_.data()};
     NAM_SAMPLE* outputs[] = {output};
     model_->process(inputs, outputs, frames);
+    for (int i = 0; i < frames; ++i) output[i] *= output_gain_;
   }
 
  private:
+  static double gain_from_db(double db) {
+    if (!std::isfinite(db) || db < -24.0 || db > 24.0) {
+      throw std::invalid_argument("NAM input/output gain must be between -24 and +24 dB");
+    }
+    return std::pow(10.0, db / 20.0);
+  }
+
   std::unique_ptr<nam::DSP> model_;
+  double input_gain_;
+  double output_gain_;
+  std::array<Sample, kMaxFrames> input_scratch_{};
 };
 
 inline std::vector<ManifestEffect> load_chain_file(
@@ -59,8 +83,8 @@ inline std::vector<ManifestEffect> load_chain_file(
 
 // No host-specific types or thread operations here. The stages remain in the
 // exact source order, including duplicate kinds and bypassed instances.
-// Native effect parameters are applied during graph preparation. NAM/IR gain and EQ
-// controls remain visual-only; do not present them as mapped DSP controls.
+// Native effect parameters and NAM input/output gains apply during preparation.
+// Captures do not expose amplifier EQ controls; IR gain/mix remain unsupported.
 inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
                                double sample_rate = 48000.0) {
   if (!std::isfinite(sample_rate) || sample_rate != 48000.0) {
@@ -163,11 +187,19 @@ inline MonoChain prepare_chain(const std::vector<ManifestEffect>& specs,
     // Resampling IRs (when supported by NAM Core) is prepared here,
     // never inside the JACK realtime callback.
     model->Reset(sample_rate, static_cast<int>(kMaxFrames));
+    double input_db = 0.0;
+    double output_db = 0.0;
+    if (spec.kind == "amp" || spec.kind == "drive") {
+      if (const auto it = spec.parameters.find("input"); it != spec.parameters.end())
+        input_db = it->second;
+      if (const auto it = spec.parameters.find("output"); it != spec.parameters.end())
+        output_db = it->second;
+    }
     chain.append(Stage{
         spec.id,
         spec.kind,
         spec.enabled,
-        std::make_unique<NamMonoProcessor>(std::move(model)),
+        std::make_unique<NamMonoProcessor>(std::move(model), input_db, output_db),
     });
   }
   return chain;

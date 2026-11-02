@@ -1,5 +1,21 @@
 # VTTRIG native NAM / IR JACK engine
 
+## Desktop integration (#47)
+
+The Tauri desktop app loads the main NAM and optional cabinet IR separately
+from stompboxes. It prepares a replacement sidecar while the current engine
+continues processing and swaps it between audio blocks without reopening
+device streams. Invalid replacements preserve the current graph. This resets
+effect state/tails; it is not continuous parameter automation or crossfading.
+The startup-only CLI descriptions below apply to an individual engine process.
+
+NAM amp/drive input and output parameters now apply real gains in dB, bounded
+to -24..24, with unity defaults in the native adapter. The main amp UI defaults
+to 0/-3 dB. Input scratch is preallocated; bypass leaves the original input
+untouched. Amp capture EQ and IR mix controls are not emulated.
+Windows builds include ASIO with duplex driver selection and PCM conversion;
+see [WINDOWS_ASIO.md](../docs/WINDOWS_ASIO.md).
+
 ## VTTREVERB Room: quatro combs e dois allpasses mono
 
 `kind: "reverb"` é um nó nativo sem recurso externo, com parâmetros

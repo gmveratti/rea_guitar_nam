@@ -1,6 +1,6 @@
 import { validateChain, type PedalInstance } from "./pedals";
 import type { AmpFamily } from "./ampSkins";
-import { validMainAmpPath, validateRigResources, type RigResources } from "./liveRig";
+import { validAmpLevel, validCabinetPath, validMainAmpPath, validateRigResources, type RigResources } from "./liveRig";
 
 export type Preset = {
   id: string;
@@ -11,6 +11,9 @@ export type Preset = {
   ampPowered?: boolean;
   resources?: RigResources; // retained only to read old saved presets
   ampPath?: string;
+  cabPath?: string;
+  ampInputDb?: number;
+  ampOutputDb?: number;
 };
 
 const STORAGE_PREFIX = "rea-guitar-nam:v1:";
@@ -19,7 +22,15 @@ const PRESETS_KEY = STORAGE_PREFIX + "presets";
 const DRAFT_VISUAL_KEY = STORAGE_PREFIX + "draft-visual";
 const DRAFT_RESOURCES_KEY = STORAGE_PREFIX + "draft-resources";
 
-export type DraftVisual = { modelName: string; ampFamily: AmpFamily | "auto"; ampPowered?: boolean; ampPath?: string };
+export type DraftVisual = {
+  modelName: string;
+  ampFamily: AmpFamily | "auto";
+  ampPowered?: boolean;
+  ampPath?: string;
+  cabPath?: string;
+  ampInputDb?: number;
+  ampOutputDb?: number;
+};
 const DEFAULT_DRAFT_VISUAL: DraftVisual = { modelName: "", ampFamily: "british" };
 const AMP_FAMILY_OPTIONS = new Set([
   "auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic",
@@ -38,6 +49,9 @@ export function parseDraftVisual(value: unknown): DraftVisual {
       ? raw.ampFamily as AmpFamily | "auto" : DEFAULT_DRAFT_VISUAL.ampFamily,
     ...(typeof raw.ampPowered === "boolean" ? { ampPowered: raw.ampPowered } : {}),
     ...(typeof raw.ampPath === "string" ? { ampPath: validMainAmpPath(raw.ampPath) ? raw.ampPath : "" } : {}),
+    ...(typeof raw.cabPath === "string" ? { cabPath: validCabinetPath(raw.cabPath) ? raw.cabPath : "" } : {}),
+    ...(validAmpLevel(raw.ampInputDb) ? { ampInputDb: raw.ampInputDb } : {}),
+    ...(validAmpLevel(raw.ampOutputDb) ? { ampOutputDb: raw.ampOutputDb } : {}),
   };
 }
 
@@ -135,11 +149,16 @@ export function loadPresets(): Preset[] {
       ? (validMainAmpPath(data.ampPath) ? data.ampPath : "")
       : oldAmp ? oldResources[oldAmp.id] : "";
     const modelName = typeof data.modelName === "string" ? data.modelName.slice(0, 200) : undefined;
+    // Do not restore the retired IR pedal implicitly. Only an explicit new
+    // cabinet selection is used; old amp+cab captures keep their existing sound.
+    const cabPath = validCabinetPath(data.cabPath) ? data.cabPath : "";
     const allowed = new Set(["auto", "british", "american", "stadium", "chime", "modern", "boutique", "generic"]);
     const ampFamily = typeof data.ampFamily === "string" && allowed.has(data.ampFamily)
       ? data.ampFamily as AmpFamily | "auto" : undefined;
     const ampPowered = typeof data.ampPowered === "boolean" ? data.ampPowered : true;
-    return [{ id: data.id, name: data.name, chain, modelName, ampFamily, resources: {}, ampPowered, ampPath }];
+    const ampInputDb = validAmpLevel(data.ampInputDb) ? data.ampInputDb : 0;
+    const ampOutputDb = validAmpLevel(data.ampOutputDb) ? data.ampOutputDb : -3;
+    return [{ id: data.id, name: data.name, chain, modelName, ampFamily, resources: {}, ampPowered, ampPath, cabPath, ampInputDb, ampOutputDb }];
   });
 }
 
