@@ -57,27 +57,27 @@ Detalhes e referências: [decisão técnica de DSP](docs/DSP_RESEARCH_AND_ARCHIT
 - **DSP original em C++20**, com linha de atraso circular e memória alocada na preparação do grafo. Opera em **mono 48 kHz** e faz um eco cujo **Time é exato em amostras**: 40 a 1200 ms, incluindo o tempo de espera para a primeira repetição.
 - Controles já existentes passam a funcionar de verdade: **Time 40–1200 ms**, **Feedback 0–90%**, **Mix 0–100%**. Os presets antigos preservam os valores; Mix 0% transmite o áudio original sem alterações, e Feedback 0% gera uma única repetição.
 - As repetições seguintes são suavizadas por filtro de 4 kHz e saturação leve dentro da realimentação. **Não é uma implementação do Airwindows TapeDelay2**; para oferecer uma emulação Tape fiel, os controles de velocidade, filtros, ressonância e flutter exigirão um modo próprio.
-- Várias instâncias, bypass por pedal e ordem da cadeia preservados. Alterar a cadeia durante a execução exige **Parar/Iniciar** e reinicia a cauda do efeito. A medição em interface física e a avaliação sonora ainda estão pendentes.
+- Várias instâncias, bypass por pedal e ordem da cadeia preservados. Alterações são aplicadas automaticamente por substituição do grafo e reiniciam a cauda do efeito. A medição em interface física e a avaliação sonora ainda estão pendentes.
 
 ## VTTCHORUS Classic: DaisySP em áudio mono
 
 - **DSP nativo C++20**, adaptado do [DaisySP ChorusEngine](https://github.com/daisyaudio/DaisySP/blob/master/Source/Effects/chorus.cpp) (MIT). Usa duas vozes independentes de delay com leitura fracionária e LFO triangular, defasadas entre si. Possui realimentação interna fixa de 20% e atraso base de aproximadamente 6 ms.
 - **Knobs reais**: Rate (0,1 a 8 Hz), Depth (0 a 100%) e Mix (0 a 100%). **Mix=0 é sinal original exato**; o algoritmo executa com buffers previamente alocados e sem carregar modelos NAM.
 - **Por enquanto a saída é mono, não estéreo**. A versão estéreo dependerá da evolução da cadeia nativa e do roteamento de canais. O chassis/pedal segue sendo original VTTRIG, sem copiar aparência de terceiros.
-- Respeita reordenação, bypass, presets e instâncias repetidas. Alterações na sessão em execução ainda exigem **Parar/Iniciar**. Testes automatizados não substituem audição com guitarra, interface e medição de CPU/latência.
+- Respeita reordenação, bypass, presets e instâncias repetidas. Alterações na sessão são aplicadas automaticamente por substituição do grafo. Testes automatizados não substituem audição com guitarra, interface e medição de CPU/latência.
 
 ## VTTSUSTAIN: Pressure5 dynamics (Airwindows MIT)
 
 - **DSP C++20 mono** adaptado do núcleo dinâmico do [Airwindows Pressure5](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/Pressure5/Pressure5Proc.cpp). Preserva o detector e a compressão `mu` alternada A/B, com a Mewiness original fixa em 1, PawClaw em 0,5, sem dependência do plugin VST2.
 - **Controles reais:** Sustain (0–100%), Speed (0–100%, escala musical não linear do Pressure5), Level (-18 a +18 dB), Dry/Wet (0–100%). Speed **não corresponde a um Attack em milissegundos**; os presets legados migram esse controle para o padrão conservador (Speed 25%).
 - No VTTRIG, a saída usa teto de pico suave sem latência adicional, em vez do `ClipOnly2` com buffer/atraso do plugin original. A implementação é uma **adaptação**, não cópia bit a bit do Pressure5 completo. Controles e modelos são preparados antes do áudio.
-- Aceita várias instâncias, bypass e ordem livre com Gate, Compressor, NAM e IR, sem arquivo externo. As alterações só chegam ao áudio após **Parar/Iniciar**; ainda faltam medição de latência real, benchmark de CPU, comparação A/B e teste com guitarra/interface.
+- Aceita várias instâncias, bypass e ordem livre com Gate, Compressor, NAM e IR, sem arquivo externo. As alterações chegam ao áudio por substituição automática do grafo; ainda faltam medição de latência real, benchmark de CPU, comparação A/B e teste com guitarra/interface.
 
 ## VTT Compressor Smooth (Airwindows ButterComp2)
 
 - **DSP C++ nativo**, adaptado do [Airwindows ButterComp2](https://github.com/airwindows/airwindows/blob/master/plugins/LinuxVST/src/ButterComp2/ButterComp2Proc.cpp) (MIT), não apenas um pedal visual.
 - Controles sonoros reais: **Compress 0–100%**, **Output 0–200%**, **Dry/Wet 0–100%**. O algoritmo é um compressor suave/bipolar, não oferece Threshold/Ratio/Attack/Release independentes; esses knobs históricos eram somente visuais.
-- Mesmo contrato do VTTGATE: várias instâncias, bypass por pedal, ordem exata da cadeia, **sem arquivo `.nam`**. O motor aplica as configurações na inicialização, portanto é necessário **Parar/Iniciar** após editar.
+- Mesmo contrato do VTTGATE: várias instâncias, bypass por pedal, ordem exata da cadeia, **sem arquivo `.nam`**. O aplicativo prepara e aplica automaticamente um novo grafo após editar; o estado dos efeitos é reiniciado.
 - Presets antigos continuam legíveis, mas os quatro parâmetros visuais antigos do compressor não são equivalentes aos controles ButterComp2 e são substituídos pelos defaults do modo Smooth.
 - Testes offline automatizados incluídos; **timbre, estabilidade e latência com interface USB ainda não homologados**.
 

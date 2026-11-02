@@ -131,7 +131,7 @@ test("desktop amp and IR pickers send one rig and persist its files without addi
   })).toEqual(["amp"]);
 
   // Navigating to the library and back must keep the current audio session.
-  await page.getByRole("button", { name: "Biblioteca", exact: true }).click();
+  await page.getByRole("button", { name: /^Biblioteca\b/ }).click();
   await expect(page.getByRole("article", { name: "Áudio e dispositivos", includeHidden: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Selecionar IR do gabinete", exact: true }).click();
   await expect.poll(() => page.evaluate(() => {
